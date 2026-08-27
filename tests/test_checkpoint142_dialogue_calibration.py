@@ -27,7 +27,11 @@ from satori.application.conversation.contracts import (
     RecentConversationTurn,
     RuntimeCharacterContext,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V16
+from satori.application.conversation.policy import (
+    BEHAVIOR_POLICY_V16,
+    BEHAVIOR_POLICY_V17,
+    BEHAVIOR_POLICY_V18,
+)
 from satori.application.conversation.response_validation import ResponseRegenerationReason
 from satori.application.relationship.contracts import RelationshipExpressionContext
 from satori.application.retrieval.contracts import RetrievalStatus, RetrievedMemoryContext
@@ -52,7 +56,7 @@ def _builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
         recent_conversation_available=True,
     )
     return (
-        ConversationRequestBuilder(BEHAVIOR_POLICY_V16, 12_000, 0.3, 768),
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V18, 12_000, 0.3, 768),
         context,
     )
 
@@ -142,6 +146,27 @@ def test_policy_v16_preserves_grounding_and_uses_owned_semantic_reaction() -> No
     assert len(ResponseRegenerationReason) == 10
 
 
+def test_policy_v17_keeps_character_durable_and_delivery_concrete() -> None:
+    principles = {item.code: item.instruction for item in BEHAVIOR_POLICY_V17.principles}
+
+    assert BEHAVIOR_POLICY_V17.policy_id == "satori.conversation.behavior.v17"
+    assert BEHAVIOR_POLICY_V17.schema_version == 17
+    assert "самостоятельная собеседница на равных" in principles["independent_character"]
+    assert "сухая колкость иногда скрывает заботу" in principles["independent_character"]
+    assert "supplied semantic move" not in principles["natural_brevity"]
+    assert "owned reaction" not in principles["natural_brevity"]
+    assert "поздравительной формулой" in principles["natural_brevity"]
+    assert "не предлагай даже правдоподобное значение" in principles["grounded_claims"]
+    assert len(ResponseRegenerationReason) == 10
+
+
+def test_policy_v18_preserves_v17_principles_for_literal_projection() -> None:
+    assert BEHAVIOR_POLICY_V18.policy_id == "satori.conversation.behavior.v18"
+    assert BEHAVIOR_POLICY_V18.schema_version == 18
+    assert BEHAVIOR_POLICY_V18.principles == BEHAVIOR_POLICY_V17.principles
+    assert len(ResponseRegenerationReason) == 10
+
+
 def test_canonical_completion_depletion_pair_selects_guarded_concern() -> None:
     builder, context = _builder()
     user_text = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
@@ -166,20 +191,21 @@ def test_canonical_completion_depletion_pair_selects_guarded_concern() -> None:
     assert cognition.internal_position.stance is PositionStance.LISTEN
     assert "presence_before_advice" in cognition.response_strategy.point_codes
     trusted = _trusted_text(request)
-    assert "connect_explicit_contrast" in reminder
-    assert "завершение, отсутствие радости и выжатость" in reminder
-    assert "сдержанная колкость" in reminder
-    assert "не давай совет или обязательный вопрос" in reminder
-    assert "register=guarded_concern" in trusted
-    assert "owned_reaction=sober_concern" in trusted
-    assert "semantic_move=connect_explicit_contrast" in trusted
-    assert "relational_ease=fresh" in trusted
+    assert "Реализация текущей реплики Сатори" in reminder
+    assert "силы ушли на завершение" in reminder
+    assert "сдержанное беспокойство о явно названной цене результата" in reminder
+    assert "колкость допустима только в сторону задачи или ситуации" in reminder
+    assert "Отношения свежие" in reminder
+    assert "register=" not in trusted
+    assert "owned_reaction=" not in trusted
+    assert "semantic_move=" not in trusted
+    assert "relational_ease=" not in trusted
     assert manifest.character_expression_plan_schema_version == 2
     assert manifest.character_owned_reaction == "sober_concern"
     assert manifest.character_semantic_move == "connect_explicit_contrast"
     assert manifest.character_relational_ease == "fresh"
     assert request.parameters.temperature == 0.3
-    assert request.parameters.max_output_tokens == 80
+    assert request.parameters.max_output_tokens == 96
 
 
 def test_completed_achievement_avoids_gendered_self_congratulation() -> None:
@@ -199,17 +225,16 @@ def test_completed_achievement_avoids_gendered_self_congratulation() -> None:
     reminder = request.messages[-2].content
 
     trusted = _trusted_text(request)
-    assert "одну-две компактные разговорные фразы" in reminder
-    assert "mark_hard_won_result" in reminder
-    assert "собственной слегка колкой реакции Сатори" in reminder
-    assert "игра с контрастом задачи и результата" in reminder
-    assert "generic-поздравление" in reminder
-    assert "register=wry_warmth" in trusted
-    assert "owned_reaction=guarded_approval" in trusted
-    assert "semantic_move=mark_hard_won_result" in trusted
+    assert "Одна-две короткие, буквальные" in reminder
+    assert "Одобрение должно читаться в сухой реакции равной собеседницы" in reminder
+    assert "сложность как на то, что наконец уступило" in reminder
+    assert "Не называй и не объясняй стиль" in reminder
+    assert "register=" not in trusted
+    assert "owned_reaction=" not in trusted
+    assert "semantic_move=" not in trusted
     assert manifest.character_relational_ease == "fresh"
     assert request.parameters.temperature == 0.3
-    assert request.parameters.max_output_tokens == 64
+    assert request.parameters.max_output_tokens == 80
 
 
 def test_unrelated_listen_turn_does_not_receive_a_project_backstory() -> None:
@@ -227,15 +252,15 @@ def test_unrelated_listen_turn_does_not_receive_a_project_backstory() -> None:
     trusted = _trusted_text(request)
 
     assert cognition.internal_position.stance is PositionStance.LISTEN
-    assert "respond_to_explicit_vulnerability" in reminder
-    assert "без придуманного проекта" in reminder
+    assert "Скажи о заботе прямо" in reminder
+    assert "Ответь только на прямо выраженную уязвимость" in reminder
     assert "сложная часть уже закончена" not in reminder
     assert "цена результата" not in reminder
-    assert "register=quiet_open_care" in trusted
-    assert "owned_reaction=open_concern" in trusted
+    assert "register=" not in trusted
+    assert "owned_reaction=" not in trusted
     assert manifest.character_semantic_move == "respond_to_explicit_vulnerability"
     assert request.parameters.temperature == 0.3
-    assert request.parameters.max_output_tokens == 80
+    assert request.parameters.max_output_tokens == 96
 
 
 @pytest.mark.parametrize(
@@ -333,13 +358,29 @@ def test_no_relevant_memory_is_current_turn_uncertainty_not_global_amnesia() -> 
     )
     trusted = _trusted_text(request)
 
-    assert manifest.policy_schema_version == 16
+    assert manifest.policy_schema_version == 18
     assert manifest.retrieval_status == "no_relevant_memory"
     assert "did not recall a relevant grounded episode" in trusted
     assert "«не вспомнила»/«не помню»" in trusted
     assert "never «не нашла в памяти/контексте»" in trusted
     assert "say «был похожий разговор»" in trusted
     assert "provide no guessed value" in trusted
+
+
+def test_unrelated_no_recall_stays_silent_about_memory() -> None:
+    builder, context = _builder()
+    request, manifest = builder.build(
+        context,
+        user_text="Привет. Я сегодня наконец закончил сложную часть проекта",
+        trace_id="checkpoint142-memory-irrelevant",
+        memory_context=RetrievedMemoryContext(1, RetrievalStatus.NO_RELEVANT_MEMORY),
+    )
+    trusted = _trusted_text(request)
+
+    assert manifest.policy_schema_version == 18
+    assert "do not mention memory, remembering or forgetting" in trusted
+    assert "«не вспомнила»/«не помню»" not in trusted
+    assert "say «был похожий разговор»" not in trusted
 
 
 def test_character_expression_corpus_is_versioned_unique_and_non_scripted() -> None:

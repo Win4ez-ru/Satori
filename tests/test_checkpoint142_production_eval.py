@@ -160,7 +160,7 @@ def test_compact_turn_redacts_folder_scoped_model_and_keeps_real_timings() -> No
                 "canonical_commit_ms": 1.0,
             },
             "manifest": {
-                "policy_id": "satori.conversation.behavior.v16",
+                "policy_id": "satori.conversation.behavior.v18",
                 "character_expression_plan_schema_version": 2,
                 "character_expression_register": "wry_warmth",
                 "character_owned_reaction": "guarded_approval",

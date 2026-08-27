@@ -728,7 +728,7 @@ applicable Stage 7 affect, Stage 7.6.1 character, Stage 8.1 dialogue, grounding/
 recognizability regressions. A provider swap must not change any canonical state except ordinary
 interaction provider metadata and the generated reply.
 
-## Checkpoint 14.2 candidate v16 character-expression gate
+## Checkpoint 14.2 candidate v18 character-expression gate
 
 Daemon-free acceptance uses `checkpoint142_character_expression_v2.json` and compares every closed
 plan field rather than expected prose. It covers achievement, canonical completion/depletion,
@@ -738,8 +738,10 @@ established and damaged relationship projections. The fixture may contain public
 rubric dimensions and undesirable patterns, but never a required, desired or golden assistant
 reply.
 
-Request-composition tests prove that every selected owned reaction, semantic move, register, wit,
-care, openness, initiative and relationship-ease code receives positive provider guidance. They
+Request-composition tests prove that every selected owned reaction, semantic move, wit, initiative
+and relationship-ease choice receives compact positive provider guidance without exposing its enum
+label. Stable register/care/openness behavior remains in the canonical baseline voice and selected
+reaction wording. The tests
 also prove that unrelated `listen` turns receive no project story, `very_high`/`very_low` ordinals
 remain distinct, memory uses natural `помню`/`вспомнила` and `был похожий разговор` wording, and
 repetition acknowledgement has no stock response. The ten validator reasons, max-one retry,

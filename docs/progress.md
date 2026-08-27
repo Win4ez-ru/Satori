@@ -5,16 +5,19 @@ Last updated: 2026-08-27
 ## Current status
 
 **Checkpoint 14.2 — Grounded Natural Dialogue Calibration remains the active accepted boundary.
-Behavior policy v10 is the accepted baseline. Post-acceptance candidate policies v11 through v16
-were rejected by bounded production semantic gates. On 2026-08-25 the user separately authorized
-candidate v16 sampling after reviewing Satori's intended character, relationship-sensitive
-expression, memory wording, repetition awareness and response-local initiative. ADR-0030
-supersedes the positive relationship-modulation and provider-delivery clauses of ADR-0029. The
-three-session v16 production gate completed at 6/9 calls and ₽4.5624, but human review rejected all
-three pairs for generic praise/explanation, one `Рад(а)` placeholder and one unsupported
-disappointment inference. The bounded-runner gate is locally verified at `1105 passed, 4 skipped`.
-No new owner, state family, validator reason or Stage 15 work was added. Stage 15 remains locked
-pending a separate user command.**
+Behavior policy v10 is the last provider-accepted baseline. Post-acceptance candidates v11 through
+v16 were rejected by bounded production semantic gates. On 2026-08-27 the user explicitly
+authorized the next character-visibility implementation. ADR-0033 introduced candidate v17, whose
+three-session local production sample was rejected at 0/3 complete pairs for truncation, an
+invented recollection and unnatural metaphors. ADR-0034 then accepts candidate policy v18 with
+relevance-scoped no-recall wording and a shorter literal realization of the existing typed
+`CharacterExpressionPlan` v2; local production composition now uses v18 for the next cloud-provider
+review. The selector, manifest,
+canonical personality source, persistent owners, ten-reason validator and max-one retry are
+unchanged. No paid provider call was authorized or made by this follow-up, so v18 character quality
+is not yet provider-accepted. The rebuilt-wheel Foundation gate is clean at `1156 passed,
+4 skipped`; Ruff and mypy pass, migration head plus default and isolated clean bootstrap pass.
+Stage 15 remains locked pending a separate user command.**
 
 On 2026-08-25 the user authorized replacing only the rejected Yandex foreground delivery engine
 with OpenAI. ADR-0031 adds a credential-pinned, stateless Responses API foreground adapter while
@@ -49,7 +52,7 @@ neither partial text nor provider response bodies, and usage was therefore unava
 failed attempts; no exact cost claim is made. This evidence does not accept OpenAI character
 quality. A separately authorized bounded follow-up must distinguish output-budget exhaustion from
 other safe incomplete reasons before normal OpenAI production chat is claimed ready. Stage 15
-remains locked and candidate v17 has not begun.
+remains locked. Candidate v17 began only later under the separate authorization recorded above.
 
 The authorized 2026-08-27 follow-up now parses `incomplete_details` without weakening the
 fail-closed boundary: only `max_output_tokens` is surfaced and missing or unrecognized detail is
@@ -66,7 +69,8 @@ answer and reasoning tokens, this candidate configuration still had no human-rev
 reply and was not production-accepted. A later offline production-composition audit established
 that the turn-specific builder selected 48 visible tokens for this fresh achievement turn and the
 old adapter sent the same 48 as the combined wire cap; the provider did not receive 2048. No
-additional paid sampling, Stage 15 or candidate v17 work was started.
+additional paid sampling or Stage 15 work was started in that task; candidate v17 began only under
+the later separate authorization recorded above.
 
 ADR-0032 now separates that application-visible turn cap from OpenAI's combined wire cap. With
 reasoning enabled, the adapter adds a startup-validated provider-local allowance (default 1024,
@@ -1247,8 +1251,19 @@ Stage 15 remains locked and must not begin automatically after Stage 14.
   wheel Foundation verification.
 - [x] Run the separately authorized bounded v16 production gate: three clean sessions, six
   first-attempt calls and ₽4.5624; preserve every public reply and reject v16 at 0/3 complete pairs.
-- [ ] Review the v16 target-provider failure before authorizing any v17 implementation or further
-  paid sample; behavior policy v10 remains the accepted baseline and Stage 15 remains locked.
+- [x] Review the v16 target-provider and OpenAI v10 failures, accept ADR-0033 and implement
+  candidate v17 with a compact late-turn realization brief; activate it in local production
+  composition without changing the typed plan schema, persistent owners, validator or retry path.
+- [x] Reject the three-session local v17 sample at 0/3 complete pairs; preserve all six public
+  replies and identify irrelevant no-recall wording as the source of one invented recollection.
+- [x] Accept ADR-0034 and implement v18 relevance-scoped memory wording, shorter literal delivery
+  and narrow completion allowances without adding state, scripts, retry or validator reasons.
+- [x] Update current deterministic and manual-evaluation runners to v18 while preserving historical
+  v15-v17 artifacts; no paid provider call is implied.
+- [x] Complete the v18 rebuilt-wheel Foundation gate: Ruff format/check, mypy on 263 files,
+  `1156 passed, 4 skipped`, migration head, default bootstrap and isolated clean bootstrap pass.
+  Local v18 sampling remains human-rejected for generic/repeated wording, so the large local
+  regression stays conditional and a cloud-provider sample requires separate authorization.
 
 Stage 15 remains locked and must not begin automatically after checkpoint 14.2.
 

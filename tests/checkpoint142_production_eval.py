@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V16
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V18
 from satori.application.conversation.use_cases import ConversationProvider
 from satori.config import ConversationProviderKind, Settings
 from satori.core.conversation import ConversationProviderRequest, ConversationProviderResponse
@@ -305,8 +305,8 @@ def _validate_configuration(settings: Settings) -> None:
         raise RuntimeError("all non-foreground providers must remain local Ollama")
     if settings.embedding_provider.value != "ollama":
         raise RuntimeError("embedding provider must remain local Ollama")
-    if BEHAVIOR_POLICY_V16.policy_id != "satori.conversation.behavior.v16":
-        raise RuntimeError("candidate v16 behavior policy is not active")
+    if BEHAVIOR_POLICY_V18.policy_id != "satori.conversation.behavior.v18":
+        raise RuntimeError("candidate v18 behavior policy is not active")
 
 
 async def run(
@@ -325,9 +325,9 @@ async def run(
         "schema_version": REPORT_SCHEMA_VERSION,
         "recorded_at": datetime.now(UTC).isoformat(),
         "checkpoint": "14.2",
-        "purpose": "character_expression_v16_target_provider_semantic_gate",
+        "purpose": "character_expression_v18_target_provider_semantic_gate",
         "status": "running",
-        "policy_id": BEHAVIOR_POLICY_V16.policy_id,
+        "policy_id": BEHAVIOR_POLICY_V18.policy_id,
         "approved_public_turns_and_limited_service_context": True,
         "contains_raw_public_eval_dialogue": True,
         "contains_raw_public_sampled_replies": True,

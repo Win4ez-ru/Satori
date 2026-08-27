@@ -1,5 +1,7 @@
 """Typed character-expression selection without persistent style state."""
 
+# ruff: noqa: RUF001  # Russian character assertions intentionally use Cyrillic.
+
 import json
 from enum import StrEnum
 from pathlib import Path
@@ -26,7 +28,9 @@ from satori.application.conversation.character_expression import (
     CharacterSemanticMove,
     CharacterWitStyle,
     plan_character_expression,
+    render_character_delivery_brief,
     render_character_expression_plan,
+    render_literal_character_delivery_brief,
 )
 
 
@@ -96,6 +100,63 @@ def test_achievement_marks_the_result_with_guarded_approval() -> None:
     assert "упрямой задачи или ситуации" in rendered
     assert "не направляй её на уязвимость" in rendered
     assert "не копируй существующую вымышленную героиню" in rendered
+
+
+def test_compact_delivery_brief_realizes_achievement_without_exposing_plan_labels() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.ANSWER),
+        affect_profile="positive_light",
+        relationship_profile="fresh_undeveloped_neutral",
+        completed_achievement=True,
+    )
+
+    rendered = render_character_delivery_brief(plan)
+
+    assert "Признай результат сухо и на равных" in rendered
+    assert "сложная часть наконец сдалась" in rendered
+    assert "колкость только в сторону ситуации" in rendered
+    assert "Отношения свежие" in rendered
+    assert "не объясняй, что говоришь иронично" in rendered
+    assert "wry_warmth" not in rendered
+    assert "guarded_approval" not in rendered
+    assert "mark_hard_won_result" not in rendered
+    assert "situation_directed" not in rendered
+
+
+def test_compact_delivery_brief_keeps_vulnerability_free_of_wit_and_advice() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.LISTEN, humor=0.0),
+        affect_profile="soft_negative_non_hostile",
+    )
+
+    rendered = render_character_delivery_brief(plan)
+
+    assert "Вырази соразмерную заботу прямо" in rendered
+    assert "Ответь именно на выраженную уязвимость" in rendered
+    assert "не вставляй шутку или сарказм" in rendered
+    assert "без непрошенного совета" in rendered
+    assert "quiet_open_care" not in rendered
+    assert "open_concern" not in rendered
+
+
+def test_literal_delivery_brief_is_shorter_and_requires_complete_plain_phrasing() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.LISTEN, humor=0.0),
+        affect_profile="soft_negative_non_hostile",
+        relationship_profile="fresh_undeveloped_neutral",
+        completion_depletion_contrast=True,
+    )
+
+    old = render_character_delivery_brief(plan)
+    rendered = render_literal_character_delivery_brief(plan)
+
+    assert len(rendered) < len(old)
+    assert "буквальные и полностью законченные" in rendered
+    assert "силы ушли на завершение" in rendered
+    assert "Не приписывай другую эмоцию или причину" in rendered
+    assert "guarded_concern" not in rendered
+    assert "sober_concern" not in rendered
+    assert "connect_explicit_contrast" not in rendered
 
 
 def test_two_turn_completion_depletion_contrast_outranks_generic_listen() -> None:
@@ -346,3 +407,12 @@ def test_versioned_v2_corpus_maps_to_every_closed_plan_field() -> None:
 
         assert _closed_plan_fields(plan) == expected, scenario["id"]
         assert plan.source_personality_codes == BASELINE_CHARACTER_GUIDANCE_CODES
+        rendered = render_character_delivery_brief(plan)
+        assert len(rendered) < 900, scenario["id"]
+        assert "Текущая режиссура реплики Сатори" in rendered, scenario["id"]
+        for field in closed_enums:
+            assert expected[field] not in rendered, (scenario["id"], field)
+        literal = render_literal_character_delivery_brief(plan)
+        assert len(literal) < 800, scenario["id"]
+        for field in closed_enums:
+            assert expected[field] not in literal, (scenario["id"], field)

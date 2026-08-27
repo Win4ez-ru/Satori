@@ -425,6 +425,69 @@ gate already failed. V16 remains sampled evidence, not an accepted baseline; beh
 remains the accepted Checkpoint 14.2 baseline. Stage 15 remains locked, and no v17 implementation
 or further paid sampling is implied.
 
+## Local production character follow-up — candidates v17 and v18
+
+On 2026-08-27 the user explicitly authorized implementation needed to make Satori's existing
+character visible. No paid provider call was authorized. Both local gates used the exact public
+two-turn pair in three fresh production-composition sessions with `qwen3:4b-instruct`, disposable
+databases, six first-attempt foreground calls, no retry and no post-response mutation. Provider
+prompts, credentials, private context and databases were not retained.
+
+ADR-0033 candidate v17 moved a compact realization of the existing typed
+`CharacterExpressionPlan` v2 next to the current user turn and activated it in composition. The
+artifact is
+[`checkpoint-14.2-character-v17-local-production.json`](artifacts/checkpoint-14.2-character-v17-local-production.json).
+It recorded 12,566 input and 351 output tokens. Two replies reached their turn limit; one
+achievement invented a prior exchange after irrelevant no-recall guidance exposed the word
+`вспомнила`. Every reply is preserved below.
+
+Session 1:
+
+- `Привет. Вот и сдалась — сложная часть, наконец, всталась на место. Удивительно, как это может казаться простым, когда ты уже всё сделал.`
+- `Интересно. Практически не рад — это как будто ты просто выжимаешь из себя всё, что было нужно, и оставляешь пустоту. Не вспомнила, как это обычно проходит, но вижу, что ты не включил в это радость. А может, просто не хочешь — и`
+
+Session 2:
+
+- `Привет. Вспомнила, как ты впервые сказал — «наконец». Теперь это уже не просто «наконец», а часть твоего пути. Удивительно, как такая сложность может сдаться — и вдруг оказаться уже за пред`
+- `Интересно. Практически не рад — это как будто ты встал на что-то, что не требовало радости, а просто остался. Спасибо, что сказал.`
+
+Session 3:
+
+- `Привет. Значит, ты наконец-то вытащил это из тени. Удивительно, как это у тебя получилось — не смотря на то, что оно казалось неподвластным.`
+- `Интересно. Практически не рад — это как будто ты вытащил что-то из тени, но не почувствовал света. А просто выжат… как будто что-то сжалось.`
+
+Human review rejects v17 at 0/3 complete pairs: correct typed selection did not prevent malformed
+metaphor, truncation, invented history, unsupported inference or generic model commentary.
+
+ADR-0034 candidate v18 scopes natural no-recall wording to memory-relevant requests and gives the
+same typed plan a shorter literal projection. The artifact is
+[`checkpoint-14.2-character-v18-local-production.json`](artifacts/checkpoint-14.2-character-v18-local-production.json).
+It recorded 11,170 input and 142 output tokens, an 11.1% input reduction from v17. All 6/6 replies
+completed below the turn bound; none mentioned memory, invented shared history, added an
+unsupported emotion/cause, offered advice or asked a forced question.
+
+Session 1:
+
+- `Привет. Наконец-то — веская победа.`
+- `Почти все силы ушли на результат — радость, как следствие, почти не осталась.`
+
+Session 2:
+
+- `Привет. Наконец-то — веская победа. Успех в сложном всегда заслуживает внимания.`
+- `Почти все силы ушли на результат — радость, как следствие, почти не осталась.`
+
+Session 3:
+
+- `Привет. Наконец-то — веская победа.`
+- `Ага, почти все силы ушли на результат — а на радость их не осталось.`
+
+Human character review still rejects v18 at 0/3 complete pairs. It is coherent and grounded, but
+the 4B model copies the semantic direction in two depletion replies and reduces guarded wit to the
+same generic achievement formula. Further sample-specific phrase tuning is not accepted: it would
+turn the behavior layer into a script for one weak model. V18 remains the clean production
+candidate for a separately authorized OpenAI/Yandex semantic sample; no cloud acceptance or
+Stage 15 work is implied.
+
 ## OpenAI ADR-0032 one-call production probe
 
 On 2026-08-27 the user separately authorized one production test of the new OpenAI output-budget

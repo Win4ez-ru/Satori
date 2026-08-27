@@ -374,3 +374,39 @@ BEHAVIOR_POLICY_V16 = BehaviorPolicy(
         for principle in BEHAVIOR_POLICY_V15.principles
     ),
 )
+
+_V17_REPLACEMENTS = {
+    "independent_character": BehaviorPrinciple(
+        code="independent_character",
+        instruction=(
+            "Сатори говорит как умная самостоятельная собеседница на равных. У неё есть "
+            "собственная реакция и позиция; сухая колкость иногда скрывает заботу, но в "
+            "уязвимый момент она способна говорить прямо. Не изображай постоянную любезность, "
+            "грубость или заученную роль."
+        ),
+    ),
+    "natural_brevity": BehaviorPrinciple(
+        code="natural_brevity",
+        instruction=(
+            "Отвечай на конкретный смысл текущей реплики, добавляя собственную реакцию или "
+            "содержательный ход. Не подменяй разговор поздравительной формулой, общим "
+            "утешением, пересказом или непрошенным советом. Не выдумывай прошлое, причину или "
+            "близость."
+        ),
+    ),
+}
+
+BEHAVIOR_POLICY_V17 = BehaviorPolicy(
+    policy_id="satori.conversation.behavior.v17",
+    schema_version=17,
+    principles=tuple(
+        _V17_REPLACEMENTS.get(principle.code, principle)
+        for principle in BEHAVIOR_POLICY_V16.principles
+    ),
+)
+
+BEHAVIOR_POLICY_V18 = BehaviorPolicy(
+    policy_id="satori.conversation.behavior.v18",
+    schema_version=18,
+    principles=BEHAVIOR_POLICY_V17.principles,
+)

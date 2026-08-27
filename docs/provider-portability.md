@@ -100,8 +100,9 @@ interrupted answer cannot become a canonical Satori reply. Diagnostics expose on
 `max_output_tokens` reason or the safe value `unknown`; partial output, response bodies and
 unrecognized provider detail are not logged. The API key must be created and funded
 by the operator and must never be committed or pasted into logs/tasks. OpenAI remains a candidate
-until the frozen v16 dialogues pass separately authorized semantic and direct human character
-review; accepted policy v10 remains the normal production baseline meanwhile.
+until the frozen public dialogues pass separately authorized semantic and direct human character
+review. ADR-0034 activates policy v18 in local production composition for that future review; it
+does not itself accept OpenAI character quality or authorize a paid call.
 
 OpenAI sampling temperature is sent only with `SATORI_OPENAI_REASONING_EFFORT=none`. With `low` or
 higher reasoning the adapter omits temperature, because the Responses API rejects that

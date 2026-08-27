@@ -97,9 +97,14 @@ subject makes it relevant. None of these states creates a different global perso
 Provider не получает копию существующей героини или готовые реплики. ADR-0029 ввёл
 `CharacterExpressionPlan`, а superseding ADR-0030 уточняет его v2 semantic delivery и
 relationship-модуляцию: transient read projection выбирает один закрытый ситуационный регистр из authoritative personality
-guidance, cognition strategy, affect и qualitative relationship profile, а candidate v16 также
-выбирает закрытые request-local owned reaction и semantic move без готовой фразы. Fresh, developing и
-established state могут менять только подачу обычной реплики — степень лёгкости, care, openness и
+guidance, cognition strategy, affect и qualitative relationship profile, а schema v2 также
+выбирает закрытые request-local owned reaction и semantic move без готовой фразы. ADR-0033
+переносит компактную реализацию уже выбранного плана ближе к текущей user-реплике: provider
+получает конкретные writing choices без enum labels, метаописания стиля или scripted reply.
+ADR-0034 ограничивает no-recall wording только memory-relevant репликами и делает v18 delivery
+буквальнее и короче после того, как локальный v17 спровоцировал ложное «вспомнила» и декоративные
+метафоры. Fresh,
+developing и established state могут менять только подачу обычной реплики — степень лёгкости, care, openness и
 response-local initiative; damaged guardedness остаётся допустимой только когда предмет разговора
 делает отношения релевантными. План не является шестым trait, mood, памятью, backstory или вторым
 источником personality; он не сохраняется и не принимает provider output обратно. Процентная

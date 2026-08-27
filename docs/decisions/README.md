@@ -33,8 +33,10 @@ Accepted ADRs are immutable history. To change a decision, add a new ADR with `S
 | [0027](0027-bounded-personality-evolution-and-checkpoint-restore.md) | Accepted | Multi-month bounded trait evolution with cumulative drift budgets, checkpoints and append-only restore |
 | [0028](0028-yandex-ai-studio-foreground-provider.md) | Superseded in part | Optional credential-pinned Yandex AI Studio foreground provider with local owner boundaries |
 | [0029](0029-transient-character-expression-plan.md) | Superseded in part | Typed request-local selection of Satori's original character expression |
-| [0030](0030-relationship-modulated-character-expression.md) | Accepted | V2 semantic and positive relationship modulation inside transient character expression |
+| [0030](0030-relationship-modulated-character-expression.md) | Superseded in part | V2 semantic and positive relationship modulation inside transient character expression |
 | [0031](0031-openai-foreground-provider.md) | Accepted | Optional credential-pinned OpenAI Responses foreground provider with unchanged local owners |
 | [0032](0032-openai-visible-and-reasoning-output-budgets.md) | Accepted | Separate application-visible and OpenAI reasoning output budgets with fail-closed enforcement |
+| [0033](0033-late-compact-character-delivery.md) | Superseded in part | Late compact realization of the typed character-expression plan without enum labels or scripts |
+| [0034](0034-relevance-scoped-memory-and-literal-delivery.md) | Accepted | Relevance-scoped no-recall wording and shorter literal realization of the same typed character plan |
 
 Open implementation choices are tracked in `../open-questions.md`; do not create a fictional ADR where evidence is not yet available.

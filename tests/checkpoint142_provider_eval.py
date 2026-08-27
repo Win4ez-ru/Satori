@@ -24,7 +24,7 @@ from satori.application.conversation.context import (
     CharacterContextComposer,
     ConversationRequestBuilder,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V16
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V18
 from satori.application.retrieval.contracts import RetrievalStatus, RetrievedMemoryContext
 from satori.config import Settings
 from satori.core.conversation import ConversationProviderError
@@ -224,7 +224,7 @@ async def run(
         recent_conversation_available=True,
     )
     builder = ConversationRequestBuilder(
-        BEHAVIOR_POLICY_V16,
+        BEHAVIOR_POLICY_V18,
         settings.conversation_max_context_chars,
         settings.conversation_temperature,
         settings.conversation_max_output_tokens,
@@ -296,7 +296,7 @@ async def run(
     artifact: dict[str, Any] = {
         "schema_version": 2,
         "corpus_id": corpus.corpus_id,
-        "policy_id": BEHAVIOR_POLICY_V16.policy_id,
+        "policy_id": BEHAVIOR_POLICY_V18.policy_id,
         "provider": provider_name,
         "model": MODEL_ALIASES["yandexgpt"],
         "contains_raw_public_eval_replies": True,

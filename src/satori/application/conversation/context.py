@@ -21,7 +21,9 @@ from satori.application.cognition.templates import (
 from satori.application.conversation.character_expression import (
     CharacterExpressionPlan,
     plan_character_expression,
+    render_character_delivery_brief,
     render_character_expression_plan,
+    render_literal_character_delivery_brief,
 )
 from satori.application.conversation.coherence import (
     DialogueCoherenceContext,
@@ -897,7 +899,12 @@ class ConversationRequestBuilder:
             else None
         )
         memory_content = (
-            self._render_memory_context(memory_context) if memory_context is not None else None
+            self._render_memory_context(
+                memory_context,
+                memory_relevant=DisclosureFacet.MEMORY in disclosure_plan.required_facets,
+            )
+            if memory_context is not None
+            else None
         )
         semantic_content = (
             self._render_semantic_context(semantic_context)
@@ -983,6 +990,18 @@ class ConversationRequestBuilder:
             completed_achievement=completed_achievement,
             completion_depletion_contrast=completion_depletion_contrast,
         )
+        if self.policy.schema_version >= 18:
+            identity_reminder_content = (
+                render_literal_character_delivery_brief(character_expression_plan)
+                + "\n"
+                + identity_reminder_content
+            )
+        elif self.policy.schema_version >= 17:
+            identity_reminder_content = (
+                render_character_delivery_brief(character_expression_plan)
+                + "\n"
+                + identity_reminder_content
+            )
         trusted_chars = (
             len(system_content) + len(character_content) + len(identity_reminder_content)
         )
@@ -1470,8 +1489,12 @@ class ConversationRequestBuilder:
     ) -> int:
         limit = self._mode_output_token_limit(mode)
         if completed_achievement and mode is ConversationalDisclosureMode.SOCIAL:
+            if self.policy.schema_version >= 18:
+                return 80
             return 64 if self.policy.schema_version >= 16 else 48
         if listen_before_advice:
+            if self.policy.schema_version >= 18:
+                return min(limit, 96)
             return min(limit, 80 if self.policy.schema_version >= 16 else 48)
         if DisclosureFacet.ORIGIN in plan.required_facets:
             return 160 if coherence.current_creator_claim else min(limit, 40)
@@ -1924,7 +1947,19 @@ class ConversationRequestBuilder:
             and mode is ConversationalDisclosureMode.SOCIAL
             and completed_achievement
         ):
-            if self.policy.schema_version >= 16:
+            if self.policy.schema_version >= 18:
+                mode_guidance = (
+                    "После краткого приветствия начни сразу с сухой реакции на то, что сложная "
+                    "часть наконец уступила, затем коротко признай вес результата. Используй "
+                    "буквальный разговорный язык и полностью закончи каждое предложение."
+                )
+            elif self.policy.schema_version >= 17:
+                mode_guidance = (
+                    "После краткого приветствия дай одну-две разговорные фразы только о явно "
+                    "завершённой сложной части. Не добавляй придуманную историю проекта, "
+                    "оценку человека сверху, совет или обязательный вопрос."
+                )
+            elif self.policy.schema_version >= 16:
                 mode_guidance = (
                     "После краткого приветствия дай одну-две компактные разговорные фразы. "
                     "Выполни supplied mark_hard_won_result: начни с собственной слегка колкой "
@@ -2019,7 +2054,35 @@ class ConversationRequestBuilder:
             )
         if self.policy.schema_version >= 10 and mode is ConversationalDisclosureMode.GENERAL:
             if self.policy.schema_version >= 11 and listen_before_advice:
-                if self.policy.schema_version >= 16:
+                if self.policy.schema_version >= 18:
+                    if completion_depletion_contrast:
+                        mode_guidance = (
+                            "Начни сразу со связи между завершением и выжатостью: почти все силы "
+                            "ушли на результат, а на радость их не осталось. Ответь буквальным "
+                            "разговорным языком и полностью закончи каждое предложение. Не "
+                            "добавляй другую эмоцию, скрытую причину, совет или вопрос."
+                        )
+                    else:
+                        mode_guidance = (
+                            "Начни сразу с собственной реакции на прямо выраженную уязвимость. "
+                            "Используй буквальный разговорный язык и полностью закончи каждое "
+                            "предложение; без диагноза, скрытой причины, совета или вопроса."
+                        )
+                elif self.policy.schema_version >= 17:
+                    if completion_depletion_contrast:
+                        mode_guidance = (
+                            "Дай одну-две разговорные фразы только о явно сказанном контрасте "
+                            "между завершением и состоянием собеседника. Не добавляй скрытую "
+                            "причину, историю проекта, общий вывод о людях, совет или "
+                            "обязательный вопрос."
+                        )
+                    else:
+                        mode_guidance = (
+                            "Дай одну-две разговорные фразы только на прямо выраженную "
+                            "уязвимость. Не добавляй скрытую причину, диагноз, общую "
+                            "нормализацию, непрошенное решение или обязательный вопрос."
+                        )
+                elif self.policy.schema_version >= 16:
                     if completion_depletion_contrast:
                         mode_guidance = (
                             "Дай одну-две компактные разговорные фразы и выполни supplied "
@@ -3023,7 +3086,7 @@ class ConversationRequestBuilder:
     ) -> str:
         expression_content = (
             "\n" + render_character_expression_plan(expression_plan)
-            if self.policy.schema_version >= 15
+            if 15 <= self.policy.schema_version < 17
             else ""
         )
         if mode is ConversationalDisclosureMode.TECHNICAL_IDENTITY:
@@ -3086,11 +3149,22 @@ class ConversationRequestBuilder:
             f"{serialized}" + expression_content
         )
 
-    def _render_memory_context(self, context: RetrievedMemoryContext) -> str:
+    def _render_memory_context(
+        self,
+        context: RetrievedMemoryContext,
+        *,
+        memory_relevant: bool,
+    ) -> str:
         status_guidance = ""
         if self.policy.schema_version >= 10:
             if context.status is RetrievalStatus.NO_RELEVANT_MEMORY:
-                if self.policy.schema_version >= 16:
+                if self.policy.schema_version >= 18 and not memory_relevant:
+                    status_guidance = (
+                        " No relevant grounded recall is supplied. Do not invent shared past and "
+                        "do not mention memory, remembering or forgetting unless the user asks "
+                        "about a past detail."
+                    )
+                elif self.policy.schema_version >= 16:
                     status_guidance = (
                         " For this turn Satori did not recall a relevant grounded episode. Speak "
                         "naturally as her fallible memory: use Russian «не вспомнила»/«не помню», "
@@ -3110,7 +3184,12 @@ class ConversationRequestBuilder:
                         "that the event never happened or that all memory is absent."
                     )
             elif context.status is RetrievalStatus.UNAVAILABLE:
-                if self.policy.schema_version >= 16:
+                if self.policy.schema_version >= 18 and not memory_relevant:
+                    status_guidance = (
+                        " Memory access is unavailable, but memory is not the subject of this "
+                        "turn. Invent no shared past and do not mention the outage or forgetting."
+                    )
+                elif self.policy.schema_version >= 16:
                     status_guidance = (
                         " Memory access is unavailable for this turn. Do not describe an internal "
                         "search or outage and do not present this as proven forgetting. Say "
@@ -3129,6 +3208,7 @@ class ConversationRequestBuilder:
             "Never expose retrieval/search/context mechanics; a past similar exchange «был», not "
             "«есть в контексте»."
             if self.policy.schema_version >= 16
+            and (self.policy.schema_version < 18 or memory_relevant)
             else ""
         )
         return (

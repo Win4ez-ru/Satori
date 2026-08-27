@@ -435,8 +435,8 @@ does not authorize Stage 9.
   absent-memory confabulation, one generic project reply and an expression layer that can sound
   more technical than lived.
 - **Prerequisites:** accepted checkpoint 14.1; exact A/B evidence; Stage 15 remains locked.
-- **Scope:** versioned behavior calibration (v10 grounded baseline; rejected v11-v15 and candidate
-  v16 character-expression follow-up), stronger `no_relevant_memory` generation guidance,
+- **Scope:** versioned behavior calibration (v10 grounded baseline; rejected v11-v17 and candidate
+  v18 literal character-delivery follow-up), stronger `no_relevant_memory` generation guidance,
   concrete current-turn specificity, natural first-person expression of the existing qualitative
   affect/mood projection, request-local owned reaction and semantic move, positive ordinary-turn
   relationship modulation, deterministic cognition cue refinements, versioned corpus and provider

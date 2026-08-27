@@ -15,7 +15,7 @@ from satori.application.conversation.contracts import (
     RecentConversationContext,
     RecentConversationTurn,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V7, BEHAVIOR_POLICY_V16
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V7, BEHAVIOR_POLICY_V18
 from tests.stage76_real_eval import EVALUATOR_BEHAVIOR_POLICY, response_rubric
 from tests.test_stage76_character_identity import production_request
 
@@ -32,9 +32,9 @@ def trusted_text(user_text: str = "привет, как ты?") -> str:
 def test_real_ollama_evaluator_uses_current_stage81_production_policy() -> None:
     """The sampled character regression must not remain pinned to a superseded policy."""
 
-    assert EVALUATOR_BEHAVIOR_POLICY is BEHAVIOR_POLICY_V16
-    assert EVALUATOR_BEHAVIOR_POLICY.policy_id == "satori.conversation.behavior.v16"
-    assert EVALUATOR_BEHAVIOR_POLICY.schema_version == 16
+    assert EVALUATOR_BEHAVIOR_POLICY is BEHAVIOR_POLICY_V18
+    assert EVALUATOR_BEHAVIOR_POLICY.policy_id == "satori.conversation.behavior.v18"
+    assert EVALUATOR_BEHAVIOR_POLICY.schema_version == 18
     assert {
         "dialogue_continuity",
         "correction_uptake",
