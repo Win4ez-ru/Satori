@@ -18,12 +18,17 @@ from satori.application.cognition.templates import (
     COGNITION_TEMPLATE_REGISTRY_V1,
     CognitionTemplateRegistry,
 )
+from satori.application.conversation.character_evidence import (
+    analyze_character_request_evidence,
+)
 from satori.application.conversation.character_expression import (
+    CHARACTER_EXPRESSION_PLAN_V3_SCHEMA_VERSION,
     CharacterExpressionPlan,
     plan_character_expression,
     render_character_delivery_brief,
     render_character_expression_plan,
     render_literal_character_delivery_brief,
+    render_owned_contribution_character_realization,
     render_single_late_character_realization,
 )
 from satori.application.conversation.coherence import (
@@ -427,102 +432,6 @@ def _asks_generic_language_model_role(normalized: str) -> bool:
     )
 
 
-def _shares_completed_achievement(normalized: str) -> bool:
-    if not any(subject in normalized for subject in ("проект", "работ", "задач", "этап", "часть")):
-        return False
-    completion_pattern = re.compile(r"(?:закончил(?:а)?|завершил(?:а)?|довел(?:а)?\s+до\s+конца)")
-    for match in completion_pattern.finditer(normalized):
-        prefix = normalized[max(0, match.start() - 48) : match.start()]
-        clause_prefix = re.split(r"[.!?;:]|\bно\b", prefix)[-1]
-        if re.search(
-            r"(?:^|\s)(?:не|ещ[её]\s+не|так\s+и\s+не)\s*$",
-            clause_prefix,
-        ):
-            continue
-        if re.search(
-            r"(?:^|\s)(?:если(?:\s+бы)?|не\s+уверен(?:а)?|не\s+думаю|сомневаюсь)\b",
-            clause_prefix,
-        ):
-            continue
-        return True
-    return False
-
-
-def _states_completed_work(normalized: str) -> bool:
-    """Accept only explicit completed-work claims, not goals, negations or hypotheticals."""
-
-    if _shares_completed_achievement(normalized):
-        return True
-    subject = r"(?:проект|работа|задача|этап|часть)"
-    completed = r"(?:заверш[её]н(?:а)?|закончен(?:а)?|окончен(?:а)?)"
-    if re.search(rf"\b{subject}\s+(?:уже\s+)?{completed}\b", normalized):
-        return not re.search(rf"\b{subject}\s+(?:ещ[её]\s+)?не\s+{completed}\b", normalized)
-    return bool(
-        re.search(r"\bпосле\s+(?:завершения|окончания)\b", normalized)
-        and re.search(rf"\b{subject}", normalized)
-    )
-
-
-def _states_pending_project_hygiene(normalized: str) -> bool:
-    """License one practical note only for an explicit, still-pending safe project step."""
-
-    pending_action = re.compile(
-        r"\b(?:осталось|надо|нужно|следует|не\s+забудь)\s+"
-        r"(?:(?:только|еще|потом)\s+)?"
-        r"(?:закоммитить(?:\s+изменения)?|сделать\s+коммит|"
-        r"прогнать\s+тесты|запустить\s+тесты|проверить\s+тесты|"
-        r"сохранить\s+изменения|зафиксировать\s+изменения)\b"
-    )
-    explicitly_incomplete_action = re.compile(
-        r"\b(?:еще|пока)\s+не\s+"
-        r"(?:закоммитил(?:а)?(?:\s+изменения)?|сделал(?:а)?\s+коммит|"
-        r"прогнал(?:а)?\s+тесты|запустил(?:а)?\s+тесты|проверил(?:а)?\s+тесты|"
-        r"сохранил(?:а)?\s+изменения|зафиксировал(?:а)?\s+изменения)\b"
-    )
-    rejected_or_uncertain = re.compile(
-        r"\b(?:не\s+(?:надо|нужно|следует|стоит|буду|собираюсь|планирую|хочу)|"
-        r"решил(?:а)?\s+не|не\s+(?:думаю|уверен|уверена)\b|сомневаюсь\b|"
-        r"если(?:\s+бы)?\b|возможно\b)"
-    )
-    for clause in re.split(r"[.!?;]", normalized):
-        if rejected_or_uncertain.search(clause):
-            continue
-        if pending_action.search(clause) or explicitly_incomplete_action.search(clause):
-            return True
-    return False
-
-
-def _completion_depletion_contrast(
-    normalized: str,
-    recent: RecentConversationContext | None,
-) -> bool:
-    """Recognize only an explicit no-joy/exhaustion contrast with canonical completion context."""
-
-    absent_joy = any(
-        cue in normalized
-        for cue in (
-            "не рад",
-            "не рада",
-            "почти не рад",
-            "радости нет",
-            "радости почти нет",
-            "не чувствую радости",
-        )
-    )
-    depleted = any(
-        cue in normalized
-        for cue in ("выжат", "вымот", "опустош", "нет сил", "совсем устал", "совсем устала")
-    )
-    if not absent_joy or not depleted:
-        return False
-    current_completion = _states_completed_work(normalized)
-    if current_completion:
-        return True
-    if recent is None or not recent.turns:
-        return False
-    return _states_completed_work(_normalize_user_text(recent.turns[-1].user_content))
-
-
 def _classify_primary_mode(
     user_text: str,
     coherence: DialogueCoherenceContext | None,
@@ -873,12 +782,10 @@ class ConversationRequestBuilder:
             cognition_trace is not None
             and cognition_trace.internal_position.stance is PositionStance.LISTEN
         )
-        completed_achievement = _states_completed_work(normalized_user_text)
-        completion_depletion_contrast = _completion_depletion_contrast(
+        character_evidence = analyze_character_request_evidence(
             normalized_user_text,
             recent_context,
         )
-        grounded_practical_follow_through = _states_pending_project_hygiene(normalized_user_text)
         explicit_request = bool(
             cognition_trace is not None
             and PerceptionSignal.REQUEST in cognition_trace.perception.signals
@@ -913,12 +820,25 @@ class ConversationRequestBuilder:
             personality_codes=tuple(item.code for item in context.personality_expression.guidance),
             relationship_profile=relationship_profile,
             relationship_relevant=relationship_relevant,
-            completed_achievement=completed_achievement,
-            completion_depletion_contrast=completion_depletion_contrast,
+            completed_achievement=character_evidence.completed_achievement,
+            completion_depletion_contrast=(character_evidence.completion_depletion_contrast),
             explicit_request=explicit_request,
-            grounded_practical_follow_through=grounded_practical_follow_through,
+            grounded_practical_follow_through=(
+                character_evidence.grounded_practical_follow_through
+            ),
             repeated_turn=coherence.current_user_message_repeated,
             technical_identity=(disclosure_mode is ConversationalDisclosureMode.TECHNICAL_IDENTITY),
+            explicit_depletion=character_evidence.explicit_depletion,
+            high_distress=character_evidence.high_distress,
+            explicit_listen_request=character_evidence.explicit_listen_request,
+            explicit_motivation_request=character_evidence.explicit_motivation_request,
+            explicit_task_abandonment=character_evidence.explicit_task_abandonment,
+            harmful_overextension=character_evidence.harmful_overextension,
+            plan_schema_version=(
+                CHARACTER_EXPRESSION_PLAN_V3_SCHEMA_VERSION
+                if self.policy.schema_version >= 20
+                else 2
+            ),
         )
         character_content = self._render_character_context(
             context,
@@ -1019,10 +939,16 @@ class ConversationRequestBuilder:
                 inclination_context is not None and inclination_context.status == "available"
             ),
             listen_before_advice=listen_before_advice,
-            completed_achievement=completed_achievement,
-            completion_depletion_contrast=completion_depletion_contrast,
+            completed_achievement=character_evidence.completed_achievement,
+            completion_depletion_contrast=(character_evidence.completion_depletion_contrast),
         )
-        if self.policy.schema_version >= 19:
+        if self.policy.schema_version >= 20:
+            identity_reminder_content = (
+                identity_reminder_content
+                + "\n"
+                + render_owned_contribution_character_realization(character_expression_plan)
+            )
+        elif self.policy.schema_version >= 19:
             identity_reminder_content = (
                 identity_reminder_content
                 + "\n"
@@ -1215,11 +1141,11 @@ class ConversationRequestBuilder:
                     (
                         0.3
                         if self.policy.schema_version >= 16
-                        and (listen_before_advice or completed_achievement)
+                        and (listen_before_advice or character_evidence.completed_achievement)
                         else (
                             0.1
                             if self.policy.schema_version >= 15
-                            and (listen_before_advice or completed_achievement)
+                            and (listen_before_advice or character_evidence.completed_achievement)
                             else self._turn_temperature_limit(
                                 disclosure_mode,
                                 coherence,
@@ -1228,7 +1154,7 @@ class ConversationRequestBuilder:
                                     if listen_before_advice and self.policy.schema_version >= 14
                                     else (0.0 if listen_before_advice else None)
                                 ),
-                                completed_achievement=completed_achievement,
+                                completed_achievement=(character_evidence.completed_achievement),
                             )
                         )
                     ),
@@ -1246,7 +1172,8 @@ class ConversationRequestBuilder:
                             listen_before_advice and self.policy.schema_version >= 15
                         ),
                         completed_achievement=(
-                            completed_achievement and self.policy.schema_version >= 15
+                            character_evidence.completed_achievement
+                            and self.policy.schema_version >= 15
                         ),
                     ),
                 ),
@@ -1506,6 +1433,21 @@ class ConversationRequestBuilder:
                 if self.policy.schema_version >= 15
                 else None
             ),
+            character_contribution_mode=(
+                character_expression_plan.contribution_mode.value
+                if character_expression_plan.contribution_mode is not None
+                else None
+            ),
+            character_motivational_posture=(
+                character_expression_plan.motivational_posture.value
+                if character_expression_plan.motivational_posture is not None
+                else None
+            ),
+            character_pressure_level=(
+                character_expression_plan.pressure_level.value
+                if character_expression_plan.pressure_level is not None
+                else None
+            ),
         )
         return request, manifest
 
@@ -1543,10 +1485,14 @@ class ConversationRequestBuilder:
     ) -> int:
         limit = self._mode_output_token_limit(mode)
         if completed_achievement and mode is ConversationalDisclosureMode.SOCIAL:
+            if self.policy.schema_version >= 20:
+                return 128
             if self.policy.schema_version >= 18:
                 return 80
             return 64 if self.policy.schema_version >= 16 else 48
         if listen_before_advice:
+            if self.policy.schema_version >= 20:
+                return min(limit, 128)
             if self.policy.schema_version >= 18:
                 return min(limit, 96)
             return min(limit, 80 if self.policy.schema_version >= 16 else 48)

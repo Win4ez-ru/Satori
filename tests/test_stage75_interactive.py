@@ -1076,6 +1076,10 @@ def test_creator_claim_retry_can_answer_only_an_actual_proposal(
 
     assert reply.context_manifest.regeneration_reason == "creator_claim_promoted_to_fact"
     assert reply.context_manifest.response_regenerated is True
+    assert reply.context_manifest.character_expression_plan_schema_version == 3
+    assert reply.context_manifest.character_contribution_mode is not None
+    assert reply.context_manifest.character_motivational_posture is not None
+    assert reply.context_manifest.character_pressure_level is not None
     assert len(provider.requests) == 2
     assert "If and only if the current user message actually contains a proposal" in (
         provider.requests[1].messages[-2].content
@@ -1300,6 +1304,14 @@ def test_retry_reuses_one_tentative_affect_and_exact_original_evidence_context(
     assert provider.requests[1].messages[-2].content.index(
         "Bounded response-contract retry"
     ) < provider.requests[1].messages[-2].content.index("Финальная реализация характера Сатори")
+    realization_marker = "Финальная реализация характера Сатори"
+    original_realization = (
+        provider.requests[0].messages[-2].content.partition(realization_marker)[2]
+    )
+    retry_realization = provider.requests[1].messages[-2].content.partition(realization_marker)[2]
+    assert original_realization
+    assert retry_realization == original_realization
+    assert "motivational posture and pressure ceiling" in provider.requests[1].messages[-2].content
     assert provider.requests[1].trace_id == provider.requests[0].trace_id
     assert len(appraisal.requests) == 1
     assert len(services.emotion_history.execute()) == 1

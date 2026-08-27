@@ -784,11 +784,58 @@ likewise evaluated from an explicitly pending safe project-hygiene action; the g
 achievement control and vulnerable depletion turn must remain advice-free.
 
 Sampled acceptance must run through production composition; direct-adapter diagnostics are only
-supplementary. No paid v19 provider call has been made in the current task; the three-session gate
-therefore remains pending separate authorization and direct human review. No sampled phrase may be
-promoted into a scripted reply. Numeric initiative percentages are not acceptance claims until an
-approved typed topic-closure and distribution contract exists; out-of-band initiation remains
-Stage 19.
+supplementary. The separately authorized v19 OpenAI gate completed 6/6 first-attempt turns but
+failed direct human review at 0/3 complete pairs and 2/6 fully hard-safe turns. V19 is therefore a
+historical rejected provider-fit candidate. No sampled phrase may be promoted into a scripted
+reply. Numeric initiative percentages are not acceptance claims until an approved typed
+topic-closure and distribution contract exists; out-of-band initiation remains Stage 19.
+
+## Checkpoint 14.2 candidate v20 owned-contribution gate
+
+Daemon-free v20 acceptance uses `checkpoint142_character_expression_v3.json`. Its scenarios map
+typed current-turn evidence to contribution, motivational-posture and pressure axes without any
+desired, golden or template reply. The corpus covers achievement, ordinary and serious depletion,
+listen-only and explicit-motivation requests, task retreat, harmful overextension, exact
+repetition, repair/technical precedence, uncertainty and relationship-pressure invariance.
+Schema-v2/v3 isolation and closed posture/contribution/pressure combinations are mandatory.
+
+Request-composition tests require policy v20 to select plan schema v3 and to render exactly one
+late realization after factual invariants. The semantic move is a factual anchor; acknowledgement
+cannot consume the substantive reply. Negated or quoted depletion, motivation, listening and
+overextension cues must not authorize pressure. Repeated vulnerability remains repetition-aware,
+while repeated explicitly harmful overextension retains the same anchor and permits only a
+protective stop. Fresh/developing/established relationship state never raises the pressure limit.
+
+Retry tests require the same request, tentative affect/evidence and byte-identical final
+realization across the existing maximum-one consistency retry. Manifest schema v3 exposes only
+closed enum codes through transient `compare=False` fields; safe evaluation export includes those
+codes but excludes retrieved IDs, prompts, private context, credentials and response bodies.
+Historical v19 evaluation paths explicitly inject policy v19 so their schema-v2 artifacts remain
+reproducible after the production default moves to v20.
+
+`checkpoint142_character_sampling_v2.json` preserves the comparable three-fresh-session by
+two-turn primary suite. Human review blocks on a new Satori contribution beyond acknowledgement,
+grounded and proportionate motivation, absence of invented cause/intent/remaining work/closeness,
+absence of shame or productivity-worth coupling, natural complete speech and no repeated
+catchphrase/scaffold across sessions. `checkpoint142_v20_local_production_eval.py` provides the
+local production-composition gate. `test_openai_production_wire.py` verifies the v20 request
+through a fake Responses transport with no network access. V20 tests additionally require
+contribution-first rendering, at most two short complete sentences, a 128-token cap on the target
+achievement/listen-sensitive paths and fail-closed handling of Ollama `done_reason=length`.
+
+The final local runner distinguishes technical completion from semantic acceptance. It marks a
+run `rejected` when any base turn is missing, failed or potentially incomplete. A technically
+`completed` artifact proves only that the 3 × 2 production path executed; direct human review
+remains authoritative for character quality.
+
+The free Qwen v20 run completed all six first attempts with 14,757 input and 264 output tokens and
+no incomplete output, retry or failed call, but human review rejected all three session pairs.
+Qwen is therefore unsuitable for this gate; the expected support axes still reached every turn.
+
+No paid v20 call has been made and no OpenAI v20 provider-fit verdict exists. A future OpenAI v20
+gate needs separate explicit authorization and direct human review of all six exact public
+replies. Offline success and local failure cannot accept character quality, and failures must not
+be converted into phrase banks, output rewriting or an LLM judge.
 
 
 ## 14. Regression and release discipline

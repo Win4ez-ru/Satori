@@ -472,22 +472,32 @@ origin.
 
 ### Checkpoint 14.2 character expression
 
-ADR-0029 added one post-strategy, pre-generation typed read projection; ADR-0030 supersedes its
-relationship-modulation and provider-delivery clauses. The response strategy still owns stance, uncertainty, evidence
-boundary, verbosity, humor and softness. A pure `CharacterExpressionPlan` composes those
-constraints with the five authoritative personality-guidance codes, qualitative affect and the
-existing qualitative relationship profile. Fresh, developing and established profiles may
-modulate ordinary-turn ease, care, openness and response-local initiative. Damaged guardedness is
-still read only when the current relational subject makes it relevant. The plan selects a closed
-expression register and candidate v16 owned reaction/semantic move plus bounded wit, care,
-openness and initiative codes; it does not inspect raw dialogue or generate prose. The new closed
-codes use only narrow typed signals such as explicit request, canonical completion/depletion
-contrast and exact repeated-turn detection.
+ADR-0029 added one post-strategy, pre-generation typed read projection; ADR-0030 superseded its
+relationship-modulation clauses and ADR-0036 now supersedes current-turn contribution/motivation
+selection. The response strategy still owns stance, uncertainty, evidence boundary, verbosity,
+humor and softness. A pure `CharacterExpressionPlan` composes those constraints with the five
+authoritative personality-guidance codes, qualitative affect and the existing qualitative
+relationship profile. Fresh, developing and established profiles may modulate ordinary-turn ease,
+care, openness and response-local initiative. Damaged guardedness is still read only when the
+current relational subject makes it relevant.
+
+Policy v19/schema v2 remains historical. Candidate v20 requires schema v3: the existing semantic
+move is the factual/continuity anchor, while closed contribution, motivational-posture and
+pressure axes select what Satori adds and the maximum interpersonal force allowed by current
+evidence. Narrow deterministic checks recognize explicit depletion, serious distress, a request
+to be heard, a direct request for motivation, task retreat and harmful overextension. They reject
+local negation and quoted examples, create no cognition artifact and are never persisted.
 
 The plan is rendered as positive guidance so `listen` can choose open care, `challenge` a playful
 edge, creative collaboration active energy, negative affect reflective candor and technical mode
-thoughtful precision. These choices never reverse the internal position, add evidence, persist a
-style mode or authorize an external action. Provider text remains canonical and unrewritten.
+thoughtful precision. A completion/depletion contrast may choose gentle recovery direction, but
+cannot infer cause or further work. Explicit listening or serious distress disables ordinary
+motivation; only directly stated harmful continuation permits a firm protective stop. These
+choices never reverse the internal position, add evidence, persist a style mode or authorize an
+external action. V20 rendering is contribution-first, then factual-anchor constrained, and
+bounded to at most two short complete sentences. The target achievement/listen-sensitive turns
+receive a 128-token cap; reaching Ollama's length limit fails closed rather than committing a
+fragment. Provider text otherwise remains canonical and unrewritten.
 
 Response-local initiative means only a contribution inside the current reply that the typed
 strategy already licenses. No probability target or persistent counter is implied. Observer-driven

@@ -744,6 +744,11 @@ class TalkToSatori:
             "character_openness": reply.context_manifest.character_openness,
             "character_initiative": reply.context_manifest.character_initiative,
             "character_relational_ease": reply.context_manifest.character_relational_ease,
+            "character_contribution_mode": (reply.context_manifest.character_contribution_mode),
+            "character_motivational_posture": (
+                reply.context_manifest.character_motivational_posture
+            ),
+            "character_pressure_level": reply.context_manifest.character_pressure_level,
             "cognition_fallback_reasons": list(reply.context_manifest.cognition_fallback_reasons),
             "emotion_state_version": reply.context_manifest.emotion_state_version,
             "mood_state_version": reply.context_manifest.mood_state_version,
@@ -976,9 +981,10 @@ class TalkToSatori:
                 "Bounded response-contract retry. "
                 f"{reason_guidance} Preserve the same user request, trusted facts, current affect, "
                 "relationship bounds and evidence. Preserve the already selected final character "
-                "realization, including its reaction, semantic move, wit, care, openness and "
-                "initiative bounds; do not collapse into generic service language. Do not mention "
-                f"validation or the discarded draft.{active_correction_guidance}"
+                "realization, including its reaction, factual anchor, contribution, wit, care, "
+                "openness, initiative, motivational posture and pressure ceiling; do not collapse "
+                "into generic service language. Do not mention validation or the discarded draft."
+                f"{active_correction_guidance}"
                 f"{activity_correction_guidance}"
                 f"{prompt_correction_guidance}{concise_relevance_guidance}{facet_guidance} This is "
                 "the only retry."

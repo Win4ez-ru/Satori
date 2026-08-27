@@ -142,7 +142,8 @@ def test_relationship_is_background_and_affects_only_future_turns(
     before = services.relationship_status.execute(identity_id, "local-default").state
 
     assert first.context_manifest.relationship_state_version == 1
-    assert first.context_manifest.policy_id == "satori.conversation.behavior.v19"
+    assert first.context_manifest.policy_id == "satori.conversation.behavior.v20"
+    assert first.context_manifest.character_expression_plan_schema_version == 3
     assert before.state_version == 1
     assert relationship.requests == []
     assert _count(migrated_database, "relationship_decisions") == 0

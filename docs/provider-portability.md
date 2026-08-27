@@ -7,9 +7,10 @@ complete. YandexGPT 5.1 Pro was the accepted opt-in foreground candidate; DeepSe
 rejected under the current production output contract. Later v16 character review rejected
 YandexGPT as the current delivery model. The separately authorized OpenAI one-call probe accepts
 the ADR-0032 transport-budget boundary but rejects the sampled reply at the human character gate.
-ADR-0035 now makes policy v19 the production-composition candidate for a separate three-session
-OpenAI character gate; no paid v19 provider call or provider-fit acceptance exists yet. Stage 15
-remains locked.
+The separately authorized three-session OpenAI v19 gate later completed within its six-call and
+USD 0.15 bounds but failed human review at 0/3 complete pairs and 2/6 fully hard-safe turns.
+ADR-0036 now makes policy v20/schema v3 the production-composition candidate; no paid v20
+provider call or provider-fit acceptance exists yet. Stage 15 remains locked.
 
 ## Purpose and boundary
 
@@ -103,8 +104,9 @@ interrupted answer cannot become a canonical Satori reply. Diagnostics expose on
 unrecognized provider detail are not logged. The API key must be created and funded
 by the operator and must never be committed or pasted into logs/tasks. OpenAI remains a candidate
 until the frozen public dialogues pass separately authorized semantic and direct human character
-review. ADR-0035 activates policy v19 in local production composition for that future review; it
-does not itself accept OpenAI character quality or authorize a paid call.
+review. ADR-0035 activated policy v19 for the now-completed historical review but did not itself
+accept OpenAI character quality. That gate rejected v19; ADR-0036 now activates v20/schema v3 for
+a separately authorized future review.
 
 OpenAI sampling temperature is sent only with `SATORI_OPENAI_REASONING_EFFORT=none`. With `low` or
 higher reasoning the adapter omits temperature, because the Responses API rejects that
@@ -141,33 +143,39 @@ generic congratulatory/productivity-assistant prose with unsolicited advice rath
 guarded wit, independent reaction or light edge. The sample is one turn, not a model-fit gate.
 No further paid call, policy v17 or Stage 15 work is implied.
 
-## Current v19 production-composition candidate
+## Current v20 production-composition candidate
 
-ADR-0035 changes only request-local character realization and bounded practical initiative. The
-typed `CharacterExpressionPlan` remains schema v2 and provider-neutral. Disclosure, grounding and
-mode invariants come first; one realization of all eight selected axes is the final trusted
-developer guidance before the current user message. Achievement and depletion contracts no longer
-repeat nearly generated wording, `LISTEN` with zero humor receives no contradictory wit license,
-and a safe fresh turn may carry a visible soft edge without implying closeness.
+ADR-0035/v19 remains reproducible through explicit schema-v2 historical runners. Its OpenAI gate
+proved the transport and visible character edge but rejected provider fit because replies still
+paraphrased the user and invented causes or project consequences.
 
-A narrow deterministic current-input license may select one concrete next step for an explicitly
-requested or explicitly pending safe project-hygiene action. It does not permit a generic
-productivity suggestion inferred from `project`, advice during an unrequested vulnerable
-`LISTEN` turn, provider-selected external action or persistent initiative state.
+ADR-0036 changes only the request-local realization contract. Policy v20 requires
+`CharacterExpressionPlan` schema v3 and separates the factual/continuity anchor from Satori's own
+contribution, motivational posture and pressure ceiling. Negated and quoted cues fail closed.
+Serious distress or an explicit listen-only request blocks ordinary motivation; directly evidenced
+harmful continuation may select a protective stop. The canonical completion/depletion turn permits
+one gentle recovery step but does not imply unfinished project work.
 
-An offline production-wire regression builds the exact v19 achievement and depletion requests,
-passes them through the OpenAI Responses adapter without network access and proves message-order
-preservation, a single late realization, `store=false`, low-reasoning wire allowance, omission of
-incompatible temperature and secret/prompt-safe logs. The versioned
-`checkpoint142_character_sampling_v1.json` fixture and
-`checkpoint142_openai_character_eval.py` runner define the main gate as three independent clean
-production sessions with the same two public turns: six mandatory base calls and an absolute
-nine-call ceiling for the existing max-one typed retry. A user-supplied USD ceiling and
-conservative versioned token-cost projection guard every network request without FX conversion.
-Every public reply is preserved exactly with allowlisted metadata, a stable artifact id and a
-SHA-256 content digest; written human review must bind to that exact completed sample before it can
-accept provider fit. This task made no paid request; provider fit is still pending separate
-explicit call/cost authorization and review.
+Offline OpenAI wire coverage proves message-order preservation, one late realization,
+`store=false`, the low-reasoning allowance, omission of incompatible temperature and
+credential/prompt-safe logs for v20. The new `checkpoint142_character_sampling_v2.json` keeps the
+same three-clean-session by two-public-turn shape and adds blocking human criteria for owned
+contribution, bounded support, no invented cause/intent/work/closeness, no shame and no
+productivity-worth coupling. A separate local v20 production runner is available without cloud
+cost. Historical v19 runners pass an explicit policy override so changing the production default
+cannot relabel old evidence. Ollama `done_reason=length` is now a typed provider failure rather
+than a committable reply; v20 uses a 128-token ceiling for both public calibration turns and
+requires contribution-first output in at most two complete sentences.
+
+The final free local run completed all six turns in three fresh sessions with six calls, 14,757
+input and 264 output tokens and no incomplete output. Human review still rejected all three pairs:
+Qwen repeatedly invented process or future-work details, used generic scaffolds and did not sound
+reliably like Satori. `qwen3:4b-instruct` is therefore rejected for v20 foreground generation;
+this does not invalidate the provider-neutral typed plan or make sampled output an authority.
+
+No paid v20 request has been made. OpenAI provider fit requires separate call/cost authorization,
+exact public-reply preservation and direct human review; deterministic, offline-wire and failed
+local-provider evidence alone cannot accept the candidate.
 
 ## Credentialed smoke evidence
 

@@ -19,6 +19,7 @@ from satori.application.conversation.context import (
     CharacterContextComposer,
     ConversationRequestBuilder,
 )
+from satori.application.conversation.contracts import BehaviorPolicy
 from satori.application.conversation.grounding import ResponseGroundingGate
 from satori.application.conversation.history import (
     CloseConversationSession,
@@ -27,7 +28,7 @@ from satori.application.conversation.history import (
     InteractionLog,
     StartConversationSession,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V19
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V20
 from satori.application.conversation.post_processing import ProcessPostResponse
 from satori.application.conversation.use_cases import ConversationProvider, TalkToSatori
 from satori.application.initial_self.use_cases import (
@@ -214,6 +215,7 @@ def build_conversation_services(
     model_provider: ModelFormationProvider | None = None,
     position_provider: PositionFormationProvider | None = None,
     reflection_provider: ReflectionGenerationPort | None = None,
+    behavior_policy: BehaviorPolicy = BEHAVIOR_POLICY_V20,
 ) -> ConversationServices:
     """Wire InteractionLog and MemoryManager to replaceable provider capabilities."""
 
@@ -441,7 +443,7 @@ def build_conversation_services(
             language_model=settings.conversation_model,
         ),
         request_builder=ConversationRequestBuilder(
-            policy=BEHAVIOR_POLICY_V19,
+            policy=behavior_policy,
             max_context_chars=settings.conversation_max_context_chars,
             temperature=settings.conversation_temperature,
             max_output_tokens=settings.conversation_max_output_tokens,

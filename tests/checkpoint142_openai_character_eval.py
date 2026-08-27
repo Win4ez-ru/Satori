@@ -1371,6 +1371,7 @@ async def run(
                     settings,
                     database_path,
                     alembic_config=alembic_config,
+                    behavior_policy=BEHAVIOR_POLICY_V19,
                 )
                 original = runtime.conversation_provider.delegate
                 runtime.conversation_provider.delegate = BudgetedOpenAIConversationProvider(

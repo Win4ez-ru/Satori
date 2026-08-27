@@ -18,6 +18,7 @@ from satori.core.conversation import (
 )
 from satori.core.provider_metrics import ProviderExecutionMetrics
 from tests.checkpoint142_openai_production_probe import (
+    EVALUATION_BEHAVIOR_POLICY,
     OneCallConversationProvider,
     OneCallLedger,
     ProviderCallLimitExceeded,
@@ -37,6 +38,11 @@ def _request(trace_id: str = "trace-openai-probe") -> ConversationProviderReques
         ),
         trace_id=trace_id,
     )
+
+
+def test_one_call_probe_is_pinned_to_accepted_policy_v10() -> None:
+    assert EVALUATION_BEHAVIOR_POLICY.policy_id == "satori.conversation.behavior.v10"
+    assert EVALUATION_BEHAVIOR_POLICY.schema_version == 10
 
 
 @dataclass(slots=True)

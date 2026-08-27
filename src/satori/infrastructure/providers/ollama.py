@@ -167,11 +167,28 @@ class OllamaConversationAdapter:
                 self.model,
                 "Ollama returned malformed chat JSON",
             ) from error
+        metrics = ProviderExecutionMetrics(
+            total_duration_ns=parsed.total_duration,
+            load_duration_ns=parsed.load_duration,
+            prompt_eval_duration_ns=parsed.prompt_eval_duration,
+            eval_duration_ns=parsed.eval_duration,
+            prompt_eval_count=parsed.prompt_eval_count,
+            eval_count=parsed.eval_count,
+        )
         if not parsed.done:
             raise InvalidProviderResponse(
                 OLLAMA_PROVIDER_NAME,
                 self.model,
                 "Ollama returned an incomplete non-streaming response",
+                metrics=metrics,
+            )
+        finish_status = parsed.done_reason or "completed"
+        if finish_status.casefold() == "length":
+            raise GenerationFailed(
+                OLLAMA_PROVIDER_NAME,
+                self.model,
+                "Ollama response ended at the output-token limit",
+                metrics=metrics,
             )
 
         try:
@@ -185,16 +202,9 @@ class OllamaConversationAdapter:
                 text=parsed.message.content,
                 provider=OLLAMA_PROVIDER_NAME,
                 model=parsed.model,
-                finish_status=parsed.done_reason or "completed",
+                finish_status=finish_status,
                 usage=usage,
-                metrics=ProviderExecutionMetrics(
-                    total_duration_ns=parsed.total_duration,
-                    load_duration_ns=parsed.load_duration,
-                    prompt_eval_duration_ns=parsed.prompt_eval_duration,
-                    eval_duration_ns=parsed.eval_duration,
-                    prompt_eval_count=parsed.prompt_eval_count,
-                    eval_count=parsed.eval_count,
-                ),
+                metrics=metrics,
             )
         except ValueError as error:
             raise InvalidProviderResponse(

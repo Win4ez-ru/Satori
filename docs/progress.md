@@ -1,43 +1,40 @@
 # Project progress
 
-Last updated: 2026-08-27
+Last updated: 2026-08-28
 
 ## Current status
 
-**Checkpoint 14.2 — Grounded Natural Dialogue Calibration remains the active accepted boundary.
-Behavior policy v10 is the last provider-accepted baseline. Post-acceptance candidates v11 through
-v16 were rejected by bounded production semantic gates. On 2026-08-27 the user explicitly
-authorized the next character-visibility implementation. ADR-0033 introduced candidate v17, whose
-three-session local production sample was rejected at 0/3 complete pairs for truncation, an
-invented recollection and unnatural metaphors. ADR-0034 candidate v18 preserved grounding and
-completed all six local replies but was rejected at 0/3 complete pairs for copied semantic wording
-and generic repetition. ADR-0035 now accepts candidate policy v19 for production composition while
-keeping `CharacterExpressionPlan` immutable, request-local and schema v2. One final realization
-after the invariant/mode contract renders all eight axes; duplicate ready-made
-achievement/depletion wording and the zero-humor depletion wit conflict are removed. Fresh safe
-turns can show a visible soft edge, and only an explicit request or explicitly pending safe
-project-hygiene step can license one concrete next move. Generic and vulnerability advice remain
-blocked. The complete plan is exposed only through transient manifest fields, a retry preserves
-the same realization, and the canonical personality source, persistent owners, ten-reason
-validator and max-one retry remain unchanged. Offline OpenAI wire coverage and a versioned 3 × 2
-human-review fixture/runner are implemented. The separately authorized paid v19 OpenAI gate then
-completed all six mandatory turns on first calls in three fresh sessions: 11,115 input + 247 output
-tokens, USD 0.025194, 6/9 calls and no retry. Human review rejects it at 0/3 complete pairs and 2/6
-fully hard-safe turns: recognizable wit and owned concern are now visible, but unsupported causal
-claims, project consequences, a superlative and generic/normative advice still block acceptance.
-A free three-session local v19 production
-smoke completed 6/6 turns on first attempts and exposed every intended typed axis. A final audit
-then removed unsupported difficulty from generic completion, made the practical-step license
-fail-closed for completed/negated/hypothetical/unrelated actions and placed retry correction before
-the unchanged final realization. The required post-audit 3 × 2 local rerun also completed 6/6
-first-attempt turns (13,084 input + 337 output) and again rejected the 4B provider at 0/3 pairs:
-achievement remained generic/metaphorical or invented detail, while depletion introduced general
-rules and speculative causes. Both immutable results are recorded without prompt/private context
-and are not being tuned into scripted phrases. Stage 15 remains locked pending a separate user
-command. The rebuilt-wheel Foundation
-gate is clean at `1198 passed, 4 skipped`;
-Ruff format/check, mypy on 266 files, migration head, default bootstrap, isolated clean bootstrap,
-`git diff --check` and repository marker checks all pass.**
+**Checkpoint 14.2 — Grounded Natural Dialogue Calibration remains the active boundary. Behavior
+policy v10 is the last provider-accepted baseline; candidates v11 through v19 are retained as
+rejected historical evidence. The separately authorized v19 OpenAI gate completed all six turns
+without retry but failed human review at 0/3 complete pairs and 2/6 fully hard-safe turns because
+character visibility still coexisted with paraphrase and unsupported cause/project inference.
+
+ADR-0036 now activates candidate policy v20 in production composition. `CharacterExpressionPlan`
+schema v3 keeps the v19 factual/continuity move as an anchor and adds closed request-local
+`contribution_mode`, `motivational_posture` and `pressure_level` axes. Ordinary
+completion/depletion can select one gentle recovery step without inventing further work; explicit
+listening and serious distress disable normal motivation; only directly stated harmful
+overextension permits a firm protective stop. Negated and quoted cues fail closed, relationship
+familiarity cannot raise pressure, and an unsafe repeated turn retains both repetition awareness
+and its protective boundary. The plan remains immutable and transient; manifest fields are
+`compare=False`, and the same byte-identical realization survives the existing max-one retry.
+
+The versioned deterministic v3 corpus, separate 3 × 2 human-review sampling v2 corpus, v20 local
+production runner and offline OpenAI Responses wire regression are implemented. Historical v19
+runners explicitly inject policy v19 and remain reproducible after the default changes. Ollama
+now fails closed on `done_reason=length`; v20 gives the two calibration turns a 128-token ceiling
+and puts the selected contribution before any acknowledgement in at most two complete sentences.
+
+The rebuilt local v20 gate completed three fresh sessions and all six turns on exactly six calls:
+14,757 input and 264 output tokens, no retry, failed call or incomplete output. Direct human review
+still rejected all three pairs. Qwen invented a dead end, a next stage or further work, repeated a
+generic scaffold and never made Satori reliably recognizable. `qwen3:4b-instruct` is therefore
+rejected as the v20 foreground model; the typed plan and pressure boundaries remain valid. No paid
+v20 provider call has been made, the OpenAI v20 gate still needs separate authorization and Stage
+15 remains locked. The rebuilt-wheel Foundation gate is clean: Ruff format/check, mypy on 271
+files, `1397 passed, 4 skipped`, migration head, default and isolated bootstrap, repository marker
+and diff checks all pass.**
 
 On 2026-08-25 the user authorized replacing only the rejected Yandex foreground delivery engine
 with OpenAI. ADR-0031 adds a credential-pinned, stateless Responses API foreground adapter while
@@ -1310,6 +1307,25 @@ Stage 15 remains locked and must not begin automatically after Stage 14.
   11,115 input + 247 output tokens, USD 0.025194 within 6/9 calls and the USD 0.15 ceiling.
 - [x] Bind direct boolean human review to the immutable OpenAI sample UUID/digest; verdict 0/3
   complete pairs and 2/6 fully hard-safe turns, so v19 provider fit remains rejected.
+- [x] Accept ADR-0036 and activate candidate policy v20 with request-local
+  `CharacterExpressionPlan` schema v3 while preserving historical v19/schema-v2 runners.
+- [x] Separate factual anchor from owned contribution, motivational posture and pressure ceiling;
+  enforce closed valid combinations without adding state, owners, migrations or validator reasons.
+- [x] Make explicit depletion/listening/motivation/retreat/overextension cues negation- and
+  quotation-aware; preserve repetition awareness while allowing only directly grounded protective
+  stopping on repeated harmful overextension.
+- [x] Add the versioned v3 deterministic corpus, the separate v20 three-by-two human-review corpus,
+  a v20 local production runner and a stateless offline OpenAI Responses wire regression.
+- [x] Prove the existing max-one retry keeps the byte-identical v20 realization and expose the
+  three new axes only as safe transient `compare=False` manifest/evaluation metadata.
+- [x] Record the free rebuilt v20 local gate: 3/3 fresh sessions, 6/6 complete first-attempt turns,
+  14,757 input + 264 output local tokens and 0/3 human-accepted pairs. Reject Qwen as a v20
+  foreground model without changing the clean typed plan to fit one small model.
+- [x] Complete the rebuilt-wheel v20 Foundation gate: Ruff format/check clean, mypy on 271 files,
+  `1397 passed, 4 skipped`, migration head, default and isolated bootstrap, repository marker and
+  diff checks clean.
+- [ ] Run a separately authorized v20 OpenAI three-session gate and direct human review. No paid
+  v20 call is authorized or implied by the implementation.
 
 Stage 15 remains locked and must not begin automatically after checkpoint 14.2.
 

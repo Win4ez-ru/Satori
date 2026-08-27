@@ -36,7 +36,8 @@ from satori.__main__ import (
     _configured_semantic_provider,
     _open_services,
 )
-from satori.application.conversation.contracts import SatoriReply, TalkInput
+from satori.application.conversation.contracts import BehaviorPolicy, SatoriReply, TalkInput
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V20
 from satori.application.conversation.post_processing import PostResponseReport
 from satori.application.conversation.response_validation import ResponseRegenerationReason
 from satori.application.conversation.use_cases import ConversationProvider
@@ -76,7 +77,7 @@ from satori.observability.logging import configure_logging
 from satori.performance import distribution
 
 CORPUS_PATH = Path(__file__).parent / "fixtures" / "stage81_dialogue_coherence_v2.json"
-REPORT_SCHEMA_VERSION = 4
+REPORT_SCHEMA_VERSION = 5
 SUITES = (
     "exact",
     "coherence",
@@ -388,6 +389,7 @@ async def _condition_relationship(
     initial_self: InitialSelfServices,
     settings: Settings,
     conditioning: dict[str, int],
+    behavior_policy: BehaviorPolicy,
 ) -> dict[str, Any]:
     provider = FixedRelationshipProvider(POSITIVE_RELATIONSHIP_CATEGORIES)
     services = build_conversation_services(
@@ -397,6 +399,7 @@ async def _condition_relationship(
         SkipEpisodeProvider(),
         settings,
         relationship_provider=provider,
+        behavior_policy=behavior_policy,
     )
     id_generator = Uuid4Generator()
     processed = 0
@@ -456,6 +459,7 @@ async def _build_runtime(
     *,
     alembic_config: Path,
     conditioning: dict[str, int] | None = None,
+    behavior_policy: BehaviorPolicy = BEHAVIOR_POLICY_V20,
 ) -> tuple[EvaluationRuntime, dict[str, Any] | None]:
     settings = base_settings.model_copy(
         update={
@@ -473,6 +477,7 @@ async def _build_runtime(
             initial_self,
             settings,
             conditioning,
+            behavior_policy,
         )
         if conditioning is not None
         else None
@@ -537,6 +542,7 @@ async def _build_runtime(
             http_client=client(settings.relationship_appraisal_provider_base_url),
             scheduler=scheduler(settings.relationship_appraisal_provider_base_url),
         ),
+        behavior_policy=behavior_policy,
     )
     return (
         EvaluationRuntime(
@@ -612,6 +618,9 @@ def _sanitized_manifest(reply: SatoriReply) -> dict[str, Any]:
         "character_openness": manifest.character_openness,
         "character_initiative": manifest.character_initiative,
         "character_relational_ease": manifest.character_relational_ease,
+        "character_contribution_mode": manifest.character_contribution_mode,
+        "character_motivational_posture": manifest.character_motivational_posture,
+        "character_pressure_level": manifest.character_pressure_level,
         "included_sections": list(manifest.included_sections),
         "user_content_chars": manifest.user_content_chars,
         "retrieval_status": manifest.retrieval_status,

@@ -400,6 +400,9 @@ class ConversationContextManifest:
     character_openness: str | None = field(default=None, compare=False)
     character_initiative: str | None = field(default=None, compare=False)
     character_relational_ease: str | None = field(default=None, compare=False)
+    character_contribution_mode: str | None = field(default=None, compare=False)
+    character_motivational_posture: str | None = field(default=None, compare=False)
+    character_pressure_level: str | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         _positive_version(self.schema_version, "context manifest schema_version")
@@ -455,8 +458,8 @@ class ConversationContextManifest:
                 self.character_expression_plan_schema_version,
                 "character expression plan schema_version",
             )
-            if self.character_expression_plan_schema_version != 2:
-                raise ValueError("context manifest requires character expression plan v2")
+            if self.character_expression_plan_schema_version not in {2, 3}:
+                raise ValueError("context manifest character expression plan is not supported")
             if self.character_expression_register not in {
                 "warm_independence",
                 "wry_warmth",
@@ -534,6 +537,75 @@ class ConversationContextManifest:
                 "guarded",
             }:
                 raise ValueError("character relational ease is not supported")
+            support_axes = (
+                self.character_contribution_mode,
+                self.character_motivational_posture,
+                self.character_pressure_level,
+            )
+            if self.character_expression_plan_schema_version == 2:
+                if self.policy_schema_version >= 20:
+                    raise ValueError("behavior policy v20 requires character expression plan v3")
+                if any(item is not None for item in support_axes):
+                    raise ValueError("character expression plan v2 cannot contain support axes")
+            else:
+                if self.policy_schema_version < 20:
+                    raise ValueError("character expression plan v3 requires behavior policy v20")
+                if any(item is None for item in support_axes):
+                    raise ValueError("character expression plan v3 requires complete support axes")
+                if self.character_contribution_mode not in {
+                    "owned_evaluation",
+                    "emotional_reaction",
+                    "playful_reframe",
+                    "specific_question",
+                    "grounded_direction",
+                    "quiet_presence",
+                    "protective_boundary",
+                    "substantive_advance",
+                }:
+                    raise ValueError("character contribution mode is not supported")
+                if self.character_motivational_posture not in {
+                    "none",
+                    "supportive_push",
+                    "playful_challenge",
+                    "firm_mobilization",
+                    "protective_stop",
+                }:
+                    raise ValueError("character motivational posture is not supported")
+                if self.character_pressure_level not in {
+                    "none",
+                    "gentle",
+                    "moderate",
+                    "firm",
+                }:
+                    raise ValueError("character pressure level is not supported")
+                contribution = self.character_contribution_mode
+                posture = self.character_motivational_posture
+                pressure = self.character_pressure_level
+                assert contribution is not None
+                assert posture is not None
+                assert pressure is not None
+                allowed_pressure = {
+                    "none": {"none"},
+                    "supportive_push": {"gentle"},
+                    "playful_challenge": {"gentle", "moderate"},
+                    "firm_mobilization": {"moderate"},
+                    "protective_stop": {"firm"},
+                }
+                if pressure not in allowed_pressure[posture]:
+                    raise ValueError("character motivational posture and pressure are inconsistent")
+                required_contribution = {
+                    "supportive_push": "grounded_direction",
+                    "playful_challenge": "playful_reframe",
+                    "firm_mobilization": "grounded_direction",
+                    "protective_stop": "protective_boundary",
+                }
+                expected_contribution = required_contribution.get(posture)
+                if expected_contribution is not None and contribution != expected_contribution:
+                    raise ValueError(
+                        "character motivational posture and contribution are inconsistent"
+                    )
+                if contribution == "protective_boundary" and posture != "protective_stop":
+                    raise ValueError("protective boundary requires protective stop posture")
         elif any(
             item is not None
             for item in (
@@ -545,6 +617,9 @@ class ConversationContextManifest:
                 self.character_openness,
                 self.character_initiative,
                 self.character_relational_ease,
+                self.character_contribution_mode,
+                self.character_motivational_posture,
+                self.character_pressure_level,
             )
         ):
             raise ValueError("character expression register requires a plan schema version")

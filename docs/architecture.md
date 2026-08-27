@@ -539,7 +539,9 @@ Provider-neutral layers: `system` trusted behavior, `developer` trusted applicat
 Configured local baseline — `qwen3:4b-instruct`; tools и streaming отсутствуют. Ollama
 transport/HTTP/schema failures преобразуются в typed provider-neutral errors; raw HTTP/Pydantic
 exception не является application control flow. Plain final text проходит non-empty/max-character
-validation и declared-claim gate.
+validation и declared-claim gate. A completed envelope with `done_reason=length` is still a typed
+`GenerationFailed`: safe metrics remain observable, but the partial text never reaches grounding
+or canonical commit.
 
 Checkpoint 14.1 and ADR-0028 add an explicit second foreground adapter only. When
 `conversation_provider=yandex_ai_studio`, composition sends the unchanged bounded
@@ -720,33 +722,40 @@ composite threshold. The manifest records personality aggregate version and cue 
 No numeric trait value, checkpoint, evidence, revision or budget enters generation, and the
 projection has no writer or persistence of its own.
 
-Checkpoint 14.2 candidate behavior policy v19 builds on ADR-0029's request-local
-`CharacterExpressionPlan` v2 at the application boundary. ADR-0030 permits the plan to consume the
-existing qualitative fresh/developing/established profile on ordinary turns, while damaged
-guardedness remains limited to a relationally relevant subject. One closed register, owned
-reaction and semantic move plus bounded wit/care/openness/initiative codes are selected
-deterministically. ADR-0034 continues to scope natural no-recall wording to requests whose
-deterministic disclosure plan requires memory; unrelated turns receive only the
-no-invented-shared-past boundary. Its memory payload and provenance decision is unchanged.
+Checkpoint 14.2 keeps policy v19 and `CharacterExpressionPlan` schema v2 as immutable historical
+evidence. ADR-0036 activates candidate policy v20 and plan schema v3 in production composition.
+The plan still consumes only authoritative personality guidance and bounded qualitative
+cognition, affect and relationship projections. Stable identity, disclosure, grounding and mode
+invariants remain earlier in the request, and exactly one character-realization block remains the
+last trusted guidance before the current user turn.
 
-ADR-0035 supersedes the provider-rendering part of ADR-0034. Stable identity, disclosure,
-grounding and mode invariants appear first; exactly one compact character-realization block is the
-last trusted guidance before the current user turn. It renders all eight observable axes together:
-register, owned reaction, semantic move, wit, care, openness, initiative and relational ease.
-Mode guidance no longer duplicates nearly ready achievement/depletion wording, and the selector
-does not combine a zero-humor `LISTEN` strategy with a wit license. A fresh relationship can show
-a visible soft situation-directed edge without inventing familiarity.
+V20 treats the existing semantic move as a factual/continuity anchor rather than the reply's own
+content. Three orthogonal request-local axes then select Satori's substantive contribution,
+motivational posture and maximum pressure. The closed combination contract prevents, for example,
+quiet presence with a protective-stop posture or firm pressure without directly evidenced harmful
+overextension. Negated or quoted cues fail closed. Explicit listen-only language and serious
+distress disable ordinary motivation; completion plus ordinary depletion permits only one gentle
+recovery step and does not establish a hidden cause, unfinished project or remaining workload.
 
-Initiative here remains a contribution within the current reply, not observer-driven or
-out-of-band contact; percentage targets and Stage 19 behavior are not introduced. A pure
-deterministic current-input check may license at most one concrete next step only when an explicit
-request or an explicitly pending safe project-hygiene action grounds it. Generic advice inferred
-from the word `project`, and advice that displaces presence on a vulnerable turn, remain blocked.
-The plan stays immutable, request-local and schema v2 with no persistence adapter or domain owner.
-Manifest v16 exposes its previously absent wit, care, openness and initiative choices only as
-transient `compare=False` observation fields alongside the existing plan axes; replay does not
-treat them as state. A max-one typed retry reuses the same realization and license. Grounding,
-the ten-reason validator and canonical delivery remain unchanged.
+Relationship familiarity may change only relational ease and the realization of already selected
+care or wit; it cannot raise pressure. Immediate repetition keeps the repetition anchor, including
+when a directly evidenced safety boundary also requires a protective stop. Initiative remains a
+contribution inside the current reply, not observer-driven or out-of-band contact; percentage
+targets and Stage 19 behavior are not introduced.
+
+The single late v20 realization orders Satori's contribution before its factual anchor and asks
+for at most two short complete sentences. The target achievement and listen-sensitive v20 paths
+use a 128-token application cap; historical policy caps remain reproducible. This is response
+topology, not a template: there is no golden wording or output rewrite. A completed Ollama
+envelope with `done_reason=length` raises a typed `GenerationFailed`, preserves safe metrics and
+never exposes or commits partial text.
+
+The plan remains immutable and has no persistence adapter or domain owner. Manifest v16 exposes
+schema-v3 contribution, posture and pressure only as transient `compare=False` observation fields.
+Historical v19 evaluators explicitly request schema v2, while the current Stage 7.6/8.1 evaluator
+tracks production v20. A max-one typed retry reuses the byte-identical final realization and does
+not reselect any axis. Grounding, canonical delivery and the exact ten-reason validator remain
+unchanged; no migration or write-back path is added.
 
 ## 8. Deterministic vs LLM responsibilities
 

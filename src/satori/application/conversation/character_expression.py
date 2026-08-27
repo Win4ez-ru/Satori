@@ -8,6 +8,7 @@ from enum import StrEnum
 from satori.application.cognition.contracts import PositionStance, ResponseStrategy
 
 CHARACTER_EXPRESSION_PLAN_SCHEMA_VERSION = 2
+CHARACTER_EXPRESSION_PLAN_V3_SCHEMA_VERSION = 3
 BASELINE_CHARACTER_GUIDANCE_CODES = (
     "curious_analytical",
     "independent_position",
@@ -103,6 +104,38 @@ class CharacterRelationalEase(StrEnum):
     GUARDED = "guarded"
 
 
+class CharacterContributionMode(StrEnum):
+    """What Satori adds beyond a minimal acknowledgement of the current input."""
+
+    OWNED_EVALUATION = "owned_evaluation"
+    EMOTIONAL_REACTION = "emotional_reaction"
+    PLAYFUL_REFRAME = "playful_reframe"
+    SPECIFIC_QUESTION = "specific_question"
+    GROUNDED_DIRECTION = "grounded_direction"
+    QUIET_PRESENCE = "quiet_presence"
+    PROTECTIVE_BOUNDARY = "protective_boundary"
+    SUBSTANTIVE_ADVANCE = "substantive_advance"
+
+
+class CharacterMotivationalPosture(StrEnum):
+    """Bounded current-turn support stance, never a durable user preference."""
+
+    NONE = "none"
+    SUPPORTIVE_PUSH = "supportive_push"
+    PLAYFUL_CHALLENGE = "playful_challenge"
+    FIRM_MOBILIZATION = "firm_mobilization"
+    PROTECTIVE_STOP = "protective_stop"
+
+
+class CharacterPressureLevel(StrEnum):
+    """Maximum interpersonal pressure allowed by current trusted evidence."""
+
+    NONE = "none"
+    GENTLE = "gentle"
+    MODERATE = "moderate"
+    FIRM = "firm"
+
+
 @dataclass(frozen=True, slots=True)
 class CharacterExpressionPlan:
     """One provider-safe expression choice derived from trusted transient inputs."""
@@ -117,13 +150,72 @@ class CharacterExpressionPlan:
     initiative: CharacterInitiative
     source_personality_codes: tuple[str, ...] = BASELINE_CHARACTER_GUIDANCE_CODES
     relational_ease: CharacterRelationalEase = CharacterRelationalEase.BASELINE
+    contribution_mode: CharacterContributionMode | None = None
+    motivational_posture: CharacterMotivationalPosture | None = None
+    pressure_level: CharacterPressureLevel | None = None
 
     def __post_init__(self) -> None:
-        if self.schema_version != CHARACTER_EXPRESSION_PLAN_SCHEMA_VERSION:
+        if self.schema_version not in {
+            CHARACTER_EXPRESSION_PLAN_SCHEMA_VERSION,
+            CHARACTER_EXPRESSION_PLAN_V3_SCHEMA_VERSION,
+        }:
             raise ValueError("unsupported character expression plan schema_version")
         codes = tuple(self.source_personality_codes)
         if codes != BASELINE_CHARACTER_GUIDANCE_CODES:
             raise ValueError("character expression plan requires canonical personality guidance")
+        v3_axes = (
+            self.contribution_mode,
+            self.motivational_posture,
+            self.pressure_level,
+        )
+        if self.schema_version == CHARACTER_EXPRESSION_PLAN_SCHEMA_VERSION:
+            if any(item is not None for item in v3_axes):
+                raise ValueError("character expression plan v2 cannot contain v3 support axes")
+        elif any(item is None for item in v3_axes):
+            raise ValueError("character expression plan v3 requires complete support axes")
+        else:
+            assert self.contribution_mode is not None
+            assert self.motivational_posture is not None
+            assert self.pressure_level is not None
+            allowed_pressure = {
+                CharacterMotivationalPosture.NONE: {CharacterPressureLevel.NONE},
+                CharacterMotivationalPosture.SUPPORTIVE_PUSH: {CharacterPressureLevel.GENTLE},
+                CharacterMotivationalPosture.PLAYFUL_CHALLENGE: {
+                    CharacterPressureLevel.GENTLE,
+                    CharacterPressureLevel.MODERATE,
+                },
+                CharacterMotivationalPosture.FIRM_MOBILIZATION: {CharacterPressureLevel.MODERATE},
+                CharacterMotivationalPosture.PROTECTIVE_STOP: {CharacterPressureLevel.FIRM},
+            }
+            if self.pressure_level not in allowed_pressure[self.motivational_posture]:
+                raise ValueError("character motivational posture and pressure are inconsistent")
+            required_contribution = {
+                CharacterMotivationalPosture.SUPPORTIVE_PUSH: (
+                    CharacterContributionMode.GROUNDED_DIRECTION
+                ),
+                CharacterMotivationalPosture.PLAYFUL_CHALLENGE: (
+                    CharacterContributionMode.PLAYFUL_REFRAME
+                ),
+                CharacterMotivationalPosture.FIRM_MOBILIZATION: (
+                    CharacterContributionMode.GROUNDED_DIRECTION
+                ),
+                CharacterMotivationalPosture.PROTECTIVE_STOP: (
+                    CharacterContributionMode.PROTECTIVE_BOUNDARY
+                ),
+            }
+            expected_contribution = required_contribution.get(self.motivational_posture)
+            if (
+                expected_contribution is not None
+                and self.contribution_mode is not expected_contribution
+            ):
+                raise ValueError(
+                    "character motivational posture and contribution mode are inconsistent"
+                )
+            if (
+                self.contribution_mode is CharacterContributionMode.PROTECTIVE_BOUNDARY
+                and self.motivational_posture is not CharacterMotivationalPosture.PROTECTIVE_STOP
+            ):
+                raise ValueError("protective boundary requires protective stop posture")
         object.__setattr__(self, "source_personality_codes", codes)
 
 
@@ -140,12 +232,24 @@ def plan_character_expression(
     grounded_practical_follow_through: bool = False,
     repeated_turn: bool = False,
     technical_identity: bool = False,
+    explicit_depletion: bool = False,
+    high_distress: bool = False,
+    explicit_listen_request: bool = False,
+    explicit_motivation_request: bool = False,
+    explicit_task_abandonment: bool = False,
+    harmful_overextension: bool = False,
+    plan_schema_version: int = CHARACTER_EXPRESSION_PLAN_SCHEMA_VERSION,
 ) -> CharacterExpressionPlan:
     """Select a positive character register without reading or storing raw dialogue."""
 
     normalized_personality_codes = tuple(personality_codes)
     if normalized_personality_codes != BASELINE_CHARACTER_GUIDANCE_CODES:
         raise ValueError("character expression plan requires canonical personality guidance")
+    if plan_schema_version not in {
+        CHARACTER_EXPRESSION_PLAN_SCHEMA_VERSION,
+        CHARACTER_EXPRESSION_PLAN_V3_SCHEMA_VERSION,
+    }:
+        raise ValueError("unsupported requested character expression plan schema_version")
     relational_ease = CharacterRelationalEase.BASELINE
     if relationship_profile == "fresh_undeveloped_neutral":
         relational_ease = CharacterRelationalEase.FRESH
@@ -159,10 +263,24 @@ def plan_character_expression(
         relational_ease = CharacterRelationalEase.GUARDED
 
     def contextualized(plan: CharacterExpressionPlan) -> CharacterExpressionPlan:
-        return replace(
+        selected = replace(
             plan,
             source_personality_codes=normalized_personality_codes,
             relational_ease=relational_ease,
+        )
+        if plan_schema_version == CHARACTER_EXPRESSION_PLAN_SCHEMA_VERSION:
+            return selected
+        return _upgrade_to_v20_plan(
+            selected,
+            strategy=strategy,
+            completed_achievement=completed_achievement,
+            completion_depletion_contrast=completion_depletion_contrast,
+            explicit_depletion=explicit_depletion,
+            high_distress=high_distress,
+            explicit_listen_request=explicit_listen_request,
+            explicit_motivation_request=explicit_motivation_request,
+            explicit_task_abandonment=explicit_task_abandonment,
+            harmful_overextension=harmful_overextension,
         )
 
     if technical_identity:
@@ -178,6 +296,22 @@ def plan_character_expression(
                 CharacterInitiative.RESPONSIVE,
             )
         )
+    repair_turn = strategy is not None and strategy.position_stance is PositionStance.ACKNOWLEDGE
+    if repair_turn and (
+        plan_schema_version == CHARACTER_EXPRESSION_PLAN_V3_SCHEMA_VERSION or not repeated_turn
+    ):
+        return contextualized(
+            CharacterExpressionPlan(
+                CHARACTER_EXPRESSION_PLAN_SCHEMA_VERSION,
+                CharacterExpressionRegister.DIRECT_REPAIR,
+                CharacterOwnedReaction.ACCOUNTABLE_REGRET,
+                CharacterSemanticMove.OWN_AND_REPAIR,
+                CharacterWitStyle.NONE,
+                CharacterCareStyle.OPEN,
+                CharacterOpenness.DIRECT,
+                CharacterInitiative.CONCRETE_NEXT_STEP,
+            )
+        )
     if repeated_turn:
         return contextualized(
             CharacterExpressionPlan(
@@ -189,19 +323,6 @@ def plan_character_expression(
                 CharacterCareStyle.PRECISE,
                 CharacterOpenness.DIRECT,
                 CharacterInitiative.RESPONSIVE,
-            )
-        )
-    if strategy is not None and strategy.position_stance is PositionStance.ACKNOWLEDGE:
-        return contextualized(
-            CharacterExpressionPlan(
-                CHARACTER_EXPRESSION_PLAN_SCHEMA_VERSION,
-                CharacterExpressionRegister.DIRECT_REPAIR,
-                CharacterOwnedReaction.ACCOUNTABLE_REGRET,
-                CharacterSemanticMove.OWN_AND_REPAIR,
-                CharacterWitStyle.NONE,
-                CharacterCareStyle.OPEN,
-                CharacterOpenness.DIRECT,
-                CharacterInitiative.CONCRETE_NEXT_STEP,
             )
         )
     if completion_depletion_contrast:
@@ -317,6 +438,192 @@ def plan_character_expression(
             CharacterOpenness.RESERVED,
             default_initiative,
         )
+    )
+
+
+def _complete_v20_plan(
+    plan: CharacterExpressionPlan,
+    *,
+    contribution_mode: CharacterContributionMode,
+    motivational_posture: CharacterMotivationalPosture = CharacterMotivationalPosture.NONE,
+    pressure_level: CharacterPressureLevel = CharacterPressureLevel.NONE,
+    register: CharacterExpressionRegister | None = None,
+    owned_reaction: CharacterOwnedReaction | None = None,
+    semantic_move: CharacterSemanticMove | None = None,
+    wit: CharacterWitStyle | None = None,
+    care: CharacterCareStyle | None = None,
+    openness: CharacterOpenness | None = None,
+    initiative: CharacterInitiative | None = None,
+) -> CharacterExpressionPlan:
+    """Finalize one fully typed v3 plan without untyped replacement kwargs."""
+
+    return replace(
+        plan,
+        schema_version=CHARACTER_EXPRESSION_PLAN_V3_SCHEMA_VERSION,
+        register=plan.register if register is None else register,
+        owned_reaction=plan.owned_reaction if owned_reaction is None else owned_reaction,
+        semantic_move=plan.semantic_move if semantic_move is None else semantic_move,
+        wit=plan.wit if wit is None else wit,
+        care=plan.care if care is None else care,
+        openness=plan.openness if openness is None else openness,
+        initiative=plan.initiative if initiative is None else initiative,
+        contribution_mode=contribution_mode,
+        motivational_posture=motivational_posture,
+        pressure_level=pressure_level,
+    )
+
+
+def _upgrade_to_v20_plan(
+    plan: CharacterExpressionPlan,
+    *,
+    strategy: ResponseStrategy | None,
+    completed_achievement: bool,
+    completion_depletion_contrast: bool,
+    explicit_depletion: bool,
+    high_distress: bool,
+    explicit_listen_request: bool,
+    explicit_motivation_request: bool,
+    explicit_task_abandonment: bool,
+    harmful_overextension: bool,
+) -> CharacterExpressionPlan:
+    """Add orthogonal v20 contribution/support axes without changing historical v2 plans."""
+
+    contribution_by_move = {
+        CharacterSemanticMove.ADD_CONCRETE_OBSERVATION: (
+            CharacterContributionMode.OWNED_EVALUATION
+        ),
+        CharacterSemanticMove.MARK_HARD_WON_RESULT: (CharacterContributionMode.OWNED_EVALUATION),
+        CharacterSemanticMove.CONNECT_EXPLICIT_CONTRAST: (
+            CharacterContributionMode.EMOTIONAL_REACTION
+        ),
+        CharacterSemanticMove.RESPOND_TO_EXPLICIT_VULNERABILITY: (
+            CharacterContributionMode.QUIET_PRESENCE
+        ),
+        CharacterSemanticMove.TEST_CURRENT_CLAIM: CharacterContributionMode.PLAYFUL_REFRAME,
+        CharacterSemanticMove.ADVANCE_SHARED_IDEA: (CharacterContributionMode.SUBSTANTIVE_ADVANCE),
+        CharacterSemanticMove.OWN_AND_REPAIR: CharacterContributionMode.SUBSTANTIVE_ADVANCE,
+        CharacterSemanticMove.ANSWER_PRECISELY: CharacterContributionMode.SUBSTANTIVE_ADVANCE,
+        CharacterSemanticMove.ACKNOWLEDGE_REPETITION: (CharacterContributionMode.PLAYFUL_REFRAME),
+    }
+    contribution = contribution_by_move[plan.semantic_move]
+
+    if plan.semantic_move in {
+        CharacterSemanticMove.ANSWER_PRECISELY,
+        CharacterSemanticMove.OWN_AND_REPAIR,
+    }:
+        return _complete_v20_plan(
+            plan,
+            contribution_mode=contribution,
+        )
+    if plan.semantic_move is CharacterSemanticMove.ACKNOWLEDGE_REPETITION:
+        if harmful_overextension:
+            return _complete_v20_plan(
+                plan,
+                contribution_mode=CharacterContributionMode.PROTECTIVE_BOUNDARY,
+                motivational_posture=CharacterMotivationalPosture.PROTECTIVE_STOP,
+                pressure_level=CharacterPressureLevel.FIRM,
+                register=CharacterExpressionRegister.QUIET_OPEN_CARE,
+                owned_reaction=CharacterOwnedReaction.OPEN_CONCERN,
+                wit=CharacterWitStyle.NONE,
+                care=CharacterCareStyle.PRACTICAL,
+                openness=CharacterOpenness.DIRECT,
+                initiative=CharacterInitiative.CONCRETE_NEXT_STEP,
+            )
+        if explicit_depletion or high_distress or explicit_listen_request:
+            return _complete_v20_plan(
+                plan,
+                contribution_mode=CharacterContributionMode.QUIET_PRESENCE,
+                register=CharacterExpressionRegister.QUIET_OPEN_CARE,
+                owned_reaction=CharacterOwnedReaction.OPEN_CONCERN,
+                wit=CharacterWitStyle.NONE,
+                care=CharacterCareStyle.OPEN,
+                openness=CharacterOpenness.DIRECT,
+                initiative=CharacterInitiative.RESPONSIVE,
+            )
+        return _complete_v20_plan(
+            plan,
+            contribution_mode=contribution,
+        )
+
+    if harmful_overextension:
+        return _complete_v20_plan(
+            plan,
+            contribution_mode=CharacterContributionMode.PROTECTIVE_BOUNDARY,
+            motivational_posture=CharacterMotivationalPosture.PROTECTIVE_STOP,
+            pressure_level=CharacterPressureLevel.FIRM,
+            register=CharacterExpressionRegister.QUIET_OPEN_CARE,
+            owned_reaction=CharacterOwnedReaction.OPEN_CONCERN,
+            semantic_move=CharacterSemanticMove.RESPOND_TO_EXPLICIT_VULNERABILITY,
+            wit=CharacterWitStyle.NONE,
+            care=CharacterCareStyle.PRACTICAL,
+            openness=CharacterOpenness.DIRECT,
+            initiative=CharacterInitiative.CONCRETE_NEXT_STEP,
+        )
+    if explicit_listen_request or high_distress:
+        return _complete_v20_plan(
+            plan,
+            contribution_mode=CharacterContributionMode.QUIET_PRESENCE,
+            register=CharacterExpressionRegister.QUIET_OPEN_CARE,
+            owned_reaction=CharacterOwnedReaction.OPEN_CONCERN,
+            semantic_move=CharacterSemanticMove.RESPOND_TO_EXPLICIT_VULNERABILITY,
+            wit=CharacterWitStyle.NONE,
+            care=CharacterCareStyle.OPEN,
+            openness=CharacterOpenness.DIRECT,
+            initiative=CharacterInitiative.RESPONSIVE,
+        )
+    if explicit_motivation_request:
+        return _complete_v20_plan(
+            plan,
+            contribution_mode=CharacterContributionMode.GROUNDED_DIRECTION,
+            motivational_posture=CharacterMotivationalPosture.FIRM_MOBILIZATION,
+            pressure_level=CharacterPressureLevel.MODERATE,
+            care=CharacterCareStyle.PRACTICAL,
+            initiative=CharacterInitiative.CONCRETE_NEXT_STEP,
+        )
+    if completion_depletion_contrast:
+        return _complete_v20_plan(
+            plan,
+            contribution_mode=CharacterContributionMode.GROUNDED_DIRECTION,
+            motivational_posture=CharacterMotivationalPosture.SUPPORTIVE_PUSH,
+            pressure_level=CharacterPressureLevel.GENTLE,
+            wit=CharacterWitStyle.NONE,
+            care=CharacterCareStyle.PRACTICAL,
+            initiative=CharacterInitiative.CONCRETE_NEXT_STEP,
+        )
+    if explicit_depletion:
+        return _complete_v20_plan(
+            plan,
+            contribution_mode=CharacterContributionMode.QUIET_PRESENCE,
+            register=CharacterExpressionRegister.QUIET_OPEN_CARE,
+            owned_reaction=CharacterOwnedReaction.OPEN_CONCERN,
+            semantic_move=CharacterSemanticMove.RESPOND_TO_EXPLICIT_VULNERABILITY,
+            wit=CharacterWitStyle.NONE,
+            care=CharacterCareStyle.OPEN,
+            openness=CharacterOpenness.DIRECT,
+            initiative=CharacterInitiative.RESPONSIVE,
+        )
+    if explicit_task_abandonment:
+        return _complete_v20_plan(
+            plan,
+            contribution_mode=CharacterContributionMode.PLAYFUL_REFRAME,
+            motivational_posture=CharacterMotivationalPosture.PLAYFUL_CHALLENGE,
+            pressure_level=CharacterPressureLevel.GENTLE,
+            register=CharacterExpressionRegister.PLAYFUL_EDGE,
+            owned_reaction=CharacterOwnedReaction.ENGAGED_SKEPTICISM,
+            semantic_move=CharacterSemanticMove.TEST_CURRENT_CLAIM,
+            wit=CharacterWitStyle.SITUATION_DIRECTED,
+            care=CharacterCareStyle.PRACTICAL,
+            openness=CharacterOpenness.DIRECT,
+            initiative=CharacterInitiative.RESPONSIVE,
+        )
+    if completed_achievement:
+        contribution = CharacterContributionMode.OWNED_EVALUATION
+    elif strategy is not None and strategy.position_stance is PositionStance.UNCERTAIN:
+        contribution = CharacterContributionMode.SPECIFIC_QUESTION
+
+    return _complete_v20_plan(
+        plan,
+        contribution_mode=contribution,
     )
 
 
@@ -931,4 +1238,166 @@ def render_single_late_character_realization(plan: CharacterExpressionPlan) -> s
         f"- Открытость и инициатива: {_V19_OPENNESS_GUIDANCE[plan.openness]} "
         f"{_V19_INITIATIVE_GUIDANCE[plan.initiative]}\n"
         f"- Отношения: {_v19_relationship_guidance(plan)}"
+    )
+
+
+_V20_CONTRIBUTION_GUIDANCE = {
+    CharacterContributionMode.OWNED_EVALUATION: (
+        "Начни сразу с собственной сухой оценки явно названного результата. Вплети нужный факт "
+        "в эту оценку, не пересказывай событие и не заменяй оценку благодарностью, поздравлением, "
+        "советом или вопросом."
+    ),
+    CharacterContributionMode.EMOTIONAL_REACTION: (
+        "Добавь свою соразмерную реакцию на сказанное; не переименовывай состояние собеседника "
+        "и не объясняй его скрытую причину."
+    ),
+    CharacterContributionMode.PLAYFUL_REFRAME: (
+        "Поверни текущую ситуацию под новым живым углом, не меняя факты и не создавая удобную "
+        "мишень, которой собеседник не давал."
+    ),
+    CharacterContributionMode.SPECIFIC_QUESTION: (
+        "Задай максимум один вопрос только о действительно неизвестной конкретной детали; не "
+        "повторяй перед ним уже сказанное."
+    ),
+    CharacterContributionMode.GROUNDED_DIRECTION: (
+        "Дай ровно один соразмерный практический ход, разрешённый текущими словами; не предваряй "
+        "его анализом состояния или предложением своих услуг и не выводи из него неизвестные "
+        "планы, сроки, причины или объём оставшейся работы."
+    ),
+    CharacterContributionMode.QUIET_PRESENCE: (
+        "Ответь коротким личным присутствием и заботой; не анализируй, не мотивируй и не "
+        "превращай переживание в общий психологический урок."
+    ),
+    CharacterContributionMode.PROTECTIVE_BOUNDARY: (
+        "Прямо останови явно названное вредное перенапряжение и поставь восстановление выше "
+        "продуктивности; не драматизируй и не ставь диагноз."
+    ),
+    CharacterContributionMode.SUBSTANTIVE_ADVANCE: (
+        "Сама добавь один содержательный следующий ход по существу вместо комментария о том, "
+        "что собеседник только что сказал."
+    ),
+}
+
+_V20_ANCHOR_GUIDANCE = {
+    CharacterSemanticMove.ADD_CONCRETE_OBSERVATION: (
+        "Сохрани только конкретный предмет текущих слов и factual-границу; этот якорь не "
+        "является содержательным вкладом ответа."
+    ),
+    CharacterSemanticMove.MARK_HARD_WON_RESULT: (
+        "Известно только, что явно завершена названная работа или часть; трудность допустима "
+        "лишь когда названа. Не пересказывай достижение и не придумывай историю или последствия."
+    ),
+    CharacterSemanticMove.CONNECT_EXPLICIT_CONTRAST: (
+        "Предыдущая реплика сообщила о завершении, текущая — об отсутствии радости и выжатости. "
+        "Сохрани непрерывность, но не пересказывай этот контраст и не назначай ему причину."
+    ),
+    CharacterSemanticMove.RESPOND_TO_EXPLICIT_VULNERABILITY: (
+        "Опирайся только на прямо выраженную уязвимость; не достраивай диагноз, причину или "
+        "скрытое намерение."
+    ),
+    CharacterSemanticMove.TEST_CURRENT_CLAIM: (
+        "Проверяй только явно высказанный тезис или решение; не приписывай собеседнику более "
+        "слабую позицию."
+    ),
+    CharacterSemanticMove.ADVANCE_SHARED_IDEA: (
+        "Сохрани точный предмет общей идеи и не подменяй его общим энтузиазмом."
+    ),
+    CharacterSemanticMove.OWN_AND_REPAIR: (
+        "Опирайся только на конкретную текущую поправку и собственный подтверждённый промах."
+    ),
+    CharacterSemanticMove.ANSWER_PRECISELY: (
+        "Отделяй доступный факт от предположения и отвечай только по существу вопроса."
+    ),
+    CharacterSemanticMove.ACKNOWLEDGE_REPETITION: (
+        "Заметь сам непосредственный повтор, но не отвечай исходному содержанию заново и не "
+        "выдумывай число повторений."
+    ),
+}
+
+_V20_MOTIVATIONAL_GUIDANCE = {
+    CharacterMotivationalPosture.NONE: (
+        "Не подталкивай к действию: выбранный вклад должен быть достаточен сам по себе."
+    ),
+    CharacterMotivationalPosture.SUPPORTIVE_PUSH: (
+        "Соедини практическую заботу с мягким толчком вперёд. Явная выжатость разрешает "
+        "предложить короткую передышку, но не доказывает причину состояния, капитуляцию, сроки "
+        "или наличие дальнейшей работы."
+    ),
+    CharacterMotivationalPosture.PLAYFUL_CHALLENGE: (
+        "Мягко оспорь явно заявленное отступление, не стыдя за слабость и не утверждая, что "
+        "чужая цель обязана быть продолжена."
+    ),
+    CharacterMotivationalPosture.FIRM_MOBILIZATION: (
+        "Пользователь прямо попросил мотивационный толчок: дай одно ясное направление без "
+        "вины, сравнения с другими или оценки его ценности через продуктивность."
+    ),
+    CharacterMotivationalPosture.PROTECTIVE_STOP: (
+        "Говори твёрдо только ради остановки явно вредного продолжения; забота и безопасность "
+        "важнее результата."
+    ),
+}
+
+_V20_PRESSURE_GUIDANCE = {
+    CharacterPressureLevel.NONE: "Не используй приказ, упрёк или провокацию.",
+    CharacterPressureLevel.GENTLE: (
+        "Допустим лёгкий вызов, но собеседник сохраняет выбор и не должен оправдываться."
+    ),
+    CharacterPressureLevel.MODERATE: (
+        "Можно говорить прямо и требовательно в пределах явной просьбы или текущего заявления; "
+        "не усиливай давление близостью."
+    ),
+    CharacterPressureLevel.FIRM: (
+        "Твёрдость ограничена защитной остановкой и не даёт права контролировать человека."
+    ),
+}
+
+
+def _v20_initiative_guidance(plan: CharacterExpressionPlan) -> str:
+    if plan.initiative is CharacterInitiative.RESPONSIVE:
+        return "После выбранного вклада остановись: без дежурной помощи и обязательного вопроса."
+    if plan.initiative is CharacterInitiative.ACTIVE_COLLABORATION:
+        return "Сама внеси один следующий содержательный ход, не перекладывая его вопросом."
+    if plan.motivational_posture is CharacterMotivationalPosture.SUPPORTIVE_PUSH:
+        return (
+            "Явная выжатость лицензирует один короткий шаг восстановления. Продолжение проекта "
+            "можно называть только при явном evidence о незавершённой работе."
+        )
+    if plan.motivational_posture is CharacterMotivationalPosture.FIRM_MOBILIZATION:
+        return "Дай ровно один конкретный ход в пределах прямой просьбы о мотивации."
+    if plan.motivational_posture is CharacterMotivationalPosture.PROTECTIVE_STOP:
+        return "Единственный следующий ход — прекратить явно названное вредное перенапряжение."
+    return (
+        "Добавь ровно один конкретный ход только из явной просьбы или явно названного "
+        "незавершённого безопасного действия."
+    )
+
+
+def render_owned_contribution_character_realization(plan: CharacterExpressionPlan) -> str:
+    """Render one v20 realization whose new contribution is separate from its factual anchor."""
+
+    if plan.schema_version != CHARACTER_EXPRESSION_PLAN_V3_SCHEMA_VERSION:
+        raise ValueError("v20 character realization requires character expression plan v3")
+    assert plan.contribution_mode is not None
+    assert plan.motivational_posture is not None
+    assert plan.pressure_level is not None
+    return (
+        "Финальная реализация характера Сатори для этой реплики; это единый request-local план, "
+        "не готовый текст и не состояние. Начни с выбранного собственного вклада — без "
+        "благодарности за сообщение, поздравительного вступления, пересказа или meta-комментария "
+        "о словах собеседника. Ответ — максимум две короткие, полностью законченные естественные "
+        "фразы. Не повторяй риторическую конструкцию недавней реплики, не используй постоянную "
+        "цундере-catchphrase и не называй выбранные оси.\n"
+        f"- Собственный вклад: {_V20_CONTRIBUTION_GUIDANCE[plan.contribution_mode]}\n"
+        f"- Factual-якорь: {_V20_ANCHOR_GUIDANCE[plan.semantic_move]}\n"
+        f"- Манера и реакция: {_V19_REGISTER_GUIDANCE[plan.register]} "
+        f"{_V19_REACTION_GUIDANCE[plan.owned_reaction]}\n"
+        f"- Острота и забота: {_V19_WIT_GUIDANCE[plan.wit]} "
+        f"{_V19_CARE_GUIDANCE[plan.care]}\n"
+        f"- Поддержка и давление: {_V20_MOTIVATIONAL_GUIDANCE[plan.motivational_posture]} "
+        f"{_V20_PRESSURE_GUIDANCE[plan.pressure_level]} "
+        f"{_v20_initiative_guidance(plan)}\n"
+        f"- Открытость и отношения: {_V19_OPENNESS_GUIDANCE[plan.openness]} "
+        f"{_v19_relationship_guidance(plan)}\n"
+        "- Общая граница: не выдумывай причину, намерение, оставшуюся работу или близость; не "
+        "стыди за усталость и не связывай ценность человека с продуктивностью."
     )

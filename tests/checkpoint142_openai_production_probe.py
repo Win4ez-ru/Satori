@@ -35,6 +35,7 @@ from tests.stage81_real_eval import (
 )
 
 REPORT_SCHEMA_VERSION = 1
+EVALUATION_BEHAVIOR_POLICY = BEHAVIOR_POLICY_V10
 EXPECTED_PROVIDER = ConversationProviderKind.OPENAI
 EXPECTED_MODEL = "gpt-5.6-terra"
 EXPECTED_REASONING_EFFORT = OpenAIReasoningEffort.LOW
@@ -156,7 +157,7 @@ def _validate_configuration(settings: Settings) -> None:
         raise RuntimeError(
             f"paid probe requires reasoning allowance {EXPECTED_REASONING_ALLOWANCE}"
         )
-    if BEHAVIOR_POLICY_V10.policy_id != "satori.conversation.behavior.v10":
+    if EVALUATION_BEHAVIOR_POLICY.policy_id != "satori.conversation.behavior.v10":
         raise RuntimeError("accepted behavior policy v10 is not active")
     background = (
         settings.affective_appraisal_provider,
@@ -191,7 +192,7 @@ async def run(
         "checkpoint": "14.2",
         "purpose": "openai_adr0032_one_call_production_probe",
         "status": "running",
-        "policy_id": BEHAVIOR_POLICY_V10.policy_id,
+        "policy_id": EVALUATION_BEHAVIOR_POLICY.policy_id,
         "approved_public_turn_and_limited_service_context": True,
         "contains_raw_public_eval_dialogue": True,
         "contains_raw_public_sampled_reply": True,
@@ -226,6 +227,7 @@ async def run(
                 settings,
                 database_path,
                 alembic_config=alembic_config,
+                behavior_policy=EVALUATION_BEHAVIOR_POLICY,
             )
             original = runtime.conversation_provider.delegate
             runtime.conversation_provider.delegate = OneCallConversationProvider(original, ledger)

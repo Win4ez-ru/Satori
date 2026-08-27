@@ -435,22 +435,24 @@ does not authorize Stage 9.
   absent-memory confabulation, one generic project reply and an expression layer that can sound
   more technical than lived.
 - **Prerequisites:** accepted checkpoint 14.1; exact A/B evidence; Stage 15 remains locked.
-- **Scope:** versioned behavior calibration (v10 grounded baseline; rejected v11-v18 and candidate
-  v19 single-late-character-realization follow-up under ADR-0035), stronger `no_relevant_memory`
+- **Scope:** versioned behavior calibration (v10 grounded accepted baseline; rejected v11-v19;
+  candidate v20 owned-contribution and motivational-posture follow-up under ADR-0036), stronger
+  `no_relevant_memory`
   generation guidance,
   concrete current-turn specificity, natural first-person expression of the existing qualitative
-  affect/mood projection, request-local owned reaction and semantic move, positive ordinary-turn
-  relationship modulation, all-eight-axis transient expression observability, deterministic
-  cognition cue refinements, narrow grounded current-reply practical initiative, versioned corpus
-  and provider sampling.
+  affect/mood projection, separate request-local factual anchor, owned contribution, motivational
+  posture and pressure ceiling, positive ordinary-turn relationship modulation, transient
+  expression observability, deterministic negation-safe cue refinements, narrow grounded
+  current-reply practical initiative, versioned corpus and provider sampling.
 - **Out of scope:** Stage 15, new memory/emotion state or owner, human physiology/subjective-
   consciousness claims, an eleventh Stage 8.1 validator reason, output rewriting, judge LLM,
   unbounded retry, numeric initiative distribution or out-of-band contact, structured cloud
   routing, voice or avatar.
-- **Deliverables:** policy/projection changes, typed transient character-expression plan, one final
-  provider realization after invariant/mode contracts, deterministic
-  no-memory/specificity/affect/character fixtures, offline OpenAI wire coverage, versioned 3 × 2
-  human-review runner, metadata-only provider evidence and refreshed Stage 8.1 real-Ollama evidence.
+- **Deliverables:** policy/projection changes, typed transient character-expression plan v3 with
+  separate anchor/contribution/posture/pressure, one final provider realization after
+  invariant/mode contracts, deterministic no-memory/specificity/affect/character fixtures,
+  offline OpenAI wire coverage, versioned 3 × 2 human-review contract and local runner,
+  metadata-only provider evidence and refreshed Stage 8.1 real-Ollama evidence.
 - **Acceptance criteria:** no-memory scenarios explicitly preserve uncertainty and propose no
   value; specific prompts receive a concrete response rather than a generic offer; qualitative
   affect profiles produce natural bounded first-person expression without internal labels or
@@ -458,7 +460,8 @@ does not authorize Stage 9.
   initiative and reflective registers; canonical state and the closed ten-reason validator remain
   unchanged.
 - **Automated tests:** prompt composition/status boundaries, policy version, no-memory injection,
-  affect-profile expression contract, generic-assistant diagnostics and existing identity,
+  affect-profile expression contract, contribution-first/two-sentence v20 topology, Ollama
+  length-limit fail-closed behavior, generic-assistant diagnostics and existing identity,
   relationship, grounding, replay and provider-portability regressions.
 - **Manual verification:** separately authorized credentialed OpenAI main gate with the same public
   achievement/depletion pair in three independent clean production sessions, followed by direct
@@ -467,11 +470,15 @@ does not authorize Stage 9.
   and record tokens/timings without durable private prompt or retrieved-context logging. The paid
   v19 OpenAI primary gate completed 6/6 first-attempt turns within 6/9 calls and USD 0.025194 of the
   USD 0.15 ceiling, but direct review rejected it at 0/3 complete pairs and 2/6 fully hard-safe
-  turns; the conditional wider Stage 8.1 sample therefore remains unstarted.
+  turns. The v20 provider gate requires separate authorization; deterministic/offline success is
+  not provider acceptance. The free local v20 3 × 2 gate completed technically in six first calls
+  but failed direct human review at 0/3 pairs, rejecting Qwen provider fit without changing the
+  typed v20 architecture.
 - **Risks:** prompt overconstraint, scripted emotion, false certainty from a polished tone,
-  regressions in brevity, paid retry cost and treating a small sample as a hallucination proof.
+  motivational overreach, shame or productivity-worth coupling, regressions in brevity, paid retry
+  cost and treating a small sample as a hallucination proof.
 - **Exit condition:** deterministic and sampled gates improve the reproduced failures together,
-  all three complete v19 OpenAI session pairs pass the versioned human rubric, persistent
+  all three complete v20 OpenAI session pairs pass the versioned human rubric, persistent
   state/owners remain unchanged and the residual impossibility of guaranteeing zero open-domain
   hallucinations is documented before Stage 15 is reconsidered. Until then Stage 15 remains
   locked.

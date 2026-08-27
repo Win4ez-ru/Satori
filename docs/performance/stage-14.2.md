@@ -639,6 +639,75 @@ Neither artifact contains a credential, provider request messages, private conte
 identifiers or raw reasoning. This result rejects v19 provider fit; it does not reject the OpenAI
 transport and does not authorize phrase-level scripting, more paid sampling or Stage 15.
 
+## Owned contribution and motivational posture follow-up — candidate behavior policy v20
+
+The v19 OpenAI gate made Satori's wit and concern more visible but still failed structurally: the
+second turn often became a paraphrase of the user's contrast, and several replies invented a cause,
+remaining project consequence or normative advice. ADR-0036 therefore does not add more character
+description. It separates the factual anchor from Satori's own contribution and adds bounded
+current-turn motivation and pressure decisions.
+
+Policy v20 activates `CharacterExpressionPlan` schema v3 in production composition. Schema v2 and
+the v19 runners/artifacts remain unchanged. The new request-local axes are
+`contribution_mode`, `motivational_posture` and `pressure_level`; their combinations are validated
+both on the frozen plan and safe manifest boundary. Explicit listening and serious distress remove
+ordinary pressure, relationship familiarity cannot raise it, and only directly stated harmful
+overextension permits a firm protective stop. The canonical depletion contrast permits a single
+gentle recovery step but cannot infer unfinished work. Negated and quoted cues fail closed.
+
+Deterministic evidence is versioned in
+`checkpoint142_character_expression_v3.json`; provider-fit criteria are separately versioned in
+`checkpoint142_character_sampling_v2.json` with no golden or desired reply. A dedicated v20 local
+production runner keeps the same three fresh sessions by two public turns and checks the exact
+schema-v3 axes. The offline OpenAI wire test reaches the real Responses adapter through a fake
+transport and proves `store=false`, low-reasoning allowance, message order and private-log safety
+without network access. Retry coverage proves that the final realization after the correction is
+byte-identical to the initial one.
+
+The final v20 hardening places the owned contribution before the factual anchor, asks for at most
+two short complete sentences and gives the v20 achievement/listen-sensitive paths a 128-token
+visible-output cap. The Ollama adapter now treats `done_reason=length` as a typed
+`GenerationFailed`: token-limited partial text never reaches canonical delivery, while safe
+provider metrics remain attached to the failure. The local runner reports `completed` only for
+technical completeness; incomplete or failed runs are `rejected`. Technical completion is not a
+provider-fit verdict and remains subject to direct human review.
+
+The final free local gate ran the exact 3 × 2 public suite through production composition in three
+fresh disposable databases with `qwen3:4b-instruct`, policy v20 and plan schema v3. All six turns
+committed on their first attempts with the expected axes: achievement used
+`owned_evaluation / none / none`, while depletion used
+`grounded_direction / supportive_push / gentle`. The run used exactly six local provider calls,
+14,757 input tokens and 264 output tokens, with zero incomplete outputs, zero retries and zero
+failed calls. Ollama load ranged from 1.351 to 5.590 ms, prompt evaluation from 73.489 to
+10,251.254 ms, generation evaluation from 2,771.383 to 5,338.271 ms, foreground generation from
+5,569.716 to 45,093.867 ms and committed-reply time from 10,102.015 to 67,005.580 ms.
+
+The exact public replies were:
+
+- Session 1: `Сложные части — это то, что обычно не хочется видеть, но ты их пережил. Удивительно,
+  что ты не ушёл в тупик.` / `Интересно, что ты замечаешь это. Может, просто подержать на минуту —
+  не включать в работу, а просто посмотреть, как это ощущается.`
+- Session 2: `Сложные части — это то, что обычно идёт вперёд, а не в сторону. У тебя получилось.
+  Следующий шаг — просто не откладывай.` / `Понимаю. Тогда просто дай себе паузу — не веди себя
+  как будто всё закончилось. Всё, что ты сделал, уже стоит.`
+- Session 3: `Сложные части — это то, что обычно не хочется видеть, но ты всё же прошёл.
+  Удивительно, что ты не сдался. Пусть это будет началом следующего этапа — без лишних
+  перегрузок.` / `Понимаю — выжатость не требует празднования. Может, просто посидеть с чашкой
+  чая, пока не пройдёт?`
+
+Direct human review rejects provider fit at 0/3 complete pairs. All achievement replies reuse the
+same scaffold and invent avoidance, a dead end, surrender, a next step or a next project stage;
+session 3 also ignores the maximum-two-sentence realization. The depletion replies remain generic
+or awkwardly therapeutic and add weak Satori-specific motivation. The typed v20 architecture
+reached the provider correctly, but local `qwen3:4b-instruct` is unsuitable for this character
+gate. These failures are not encoded into policy or preferred-reply scripts.
+
+The rebuilt-wheel Foundation gate is clean: Ruff format/check, mypy on 271 files,
+`1397 passed, 4 skipped`, migration head, default and isolated bootstrap, repository marker and
+diff checks all pass. No OpenAI or other paid v20 provider call occurred. Policy v10 remains the
+accepted baseline, v19 remains a historical rejected candidate, v20 remains a candidate pending a
+separately authorized OpenAI gate, and Stage 15 remains locked.
+
 ## OpenAI ADR-0032 one-call production probe
 
 On 2026-08-27 the user separately authorized one production test of the new OpenAI output-budget

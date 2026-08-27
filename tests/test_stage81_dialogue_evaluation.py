@@ -259,7 +259,7 @@ def test_manual_real_eval_report_schema_and_failed_retry_aggregate_are_explicit(
 
     aggregate = _aggregate_generation_attempts(turns)
 
-    assert REPORT_SCHEMA_VERSION == 4
+    assert REPORT_SCHEMA_VERSION == 5
     assert aggregate["regeneration_attempt_count"] == 1
     assert aggregate["successful_regeneration_count"] == 0
     assert aggregate["failed_or_invalid_regeneration_count"] == 1
@@ -304,6 +304,53 @@ def test_manual_real_eval_exports_v16_character_metadata_without_private_context
     assert sanitized["character_semantic_move"] == "connect_explicit_contrast"
     assert sanitized["character_relational_ease"] == "fresh"
     assert sanitized["retrieved_memory_count"] == 1
+    assert "retrieved_memory_ids" not in sanitized
+    assert "available_past_evidence_ids" not in sanitized
+
+
+def test_manual_real_eval_exports_v20_support_axes_without_private_context() -> None:
+    manifest = ConversationContextManifest(
+        schema_version=16,
+        policy_id="satori.conversation.behavior.v20",
+        policy_schema_version=20,
+        character_context_schema_version=16,
+        included_sections=("character",),
+        user_content_chars=68,
+        personality_aggregate_version=1,
+        personality_expression_schema_version=2,
+        available_past_evidence_ids=("private-evidence-id",),
+        retrieved_memory_ids=("private-memory-id",),
+        character_expression_plan_schema_version=3,
+        character_expression_register="guarded_concern",
+        character_owned_reaction="sober_concern",
+        character_semantic_move="connect_explicit_contrast",
+        character_wit="none",
+        character_care="practical",
+        character_openness="balanced",
+        character_initiative="concrete_next_step",
+        character_relational_ease="fresh",
+        character_contribution_mode="grounded_direction",
+        character_motivational_posture="supportive_push",
+        character_pressure_level="gentle",
+    )
+    reply = SatoriReply(
+        text="Публичный тестовый ответ.",
+        provider="daemon_free_fixture",
+        model="fixture-model",
+        finish_status="stop",
+        usage=None,
+        context_manifest=manifest,
+        session_id="fixture-session",
+        interaction_id="fixture-interaction",
+        client_request_id="fixture-request",
+    )
+
+    sanitized = _sanitized_manifest(reply)
+
+    assert sanitized["character_expression_plan_schema_version"] == 3
+    assert sanitized["character_contribution_mode"] == "grounded_direction"
+    assert sanitized["character_motivational_posture"] == "supportive_push"
+    assert sanitized["character_pressure_level"] == "gentle"
     assert "retrieved_memory_ids" not in sanitized
     assert "available_past_evidence_ids" not in sanitized
 

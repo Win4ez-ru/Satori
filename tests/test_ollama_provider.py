@@ -173,3 +173,33 @@ def test_ollama_rejects_malformed_or_incomplete_results(
 
     with pytest.raises(InvalidProviderResponse):
         asyncio.run(adapter().generate(provider_request()))
+
+
+def test_ollama_rejects_length_limited_partial_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A token-limited fragment never crosses the provider boundary as a canonical reply."""
+
+    response_body = json.dumps(
+        {
+            "model": "qwen3:4b-instruct",
+            "message": {"role": "assistant", "content": "partial private reply"},
+            "done": True,
+            "done_reason": "length",
+            "prompt_eval_count": 111,
+            "eval_count": 321,
+        }
+    ).encode()
+
+    def fake_urlopen(_request: Request, *, timeout: float) -> FakeHttpResponse:
+        assert timeout == 30.0
+        return FakeHttpResponse(response_body)
+
+    monkeypatch.setattr("satori.infrastructure.providers.ollama.urlopen", fake_urlopen)
+
+    with pytest.raises(GenerationFailed) as raised:
+        asyncio.run(adapter().generate(provider_request()))
+
+    assert "partial private reply" not in str(raised.value)
+    assert raised.value.metrics is not None
+    assert raised.value.metrics.eval_count == 321

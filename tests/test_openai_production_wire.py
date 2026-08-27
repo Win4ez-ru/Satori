@@ -20,7 +20,7 @@ from satori.application.conversation.contracts import (
     RecentConversationTurn,
     RuntimeCharacterContext,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V19
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V19, BEHAVIOR_POLICY_V20
 from satori.application.relationship.contracts import RelationshipExpressionContext
 from satori.core.conversation import (
     ConversationMessageRole,
@@ -94,6 +94,14 @@ def _builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
     )
 
 
+def _v20_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
+    _, context = _builder()
+    return (
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V20, 12_000, 0.3, 768),
+        context,
+    )
+
+
 def _cognition(user_text: str, *, suffix: str) -> CognitionPipelineTrace:
     planner = DeterministicCognitionPlanner()
     interaction_id = f"openai-v19-{suffix}"
@@ -155,6 +163,23 @@ def _production_request(*, depleted: bool) -> ConversationProviderRequest:
             suffix="depletion" if depleted else "achievement",
         ),
     )
+    return request
+
+
+def _v20_depletion_request() -> ConversationProviderRequest:
+    builder, context = _v20_builder()
+    request, manifest = builder.build(
+        context,
+        user_text=_DEPLETION,
+        trace_id="openai-v20-depletion",
+        relationship_context=_fresh_relationship(),
+        recent_context=_recent_completion(),
+        cognition_trace=_cognition(_DEPLETION, suffix="v20-depletion"),
+    )
+    assert manifest.character_expression_plan_schema_version == 3
+    assert manifest.character_contribution_mode == "grounded_direction"
+    assert manifest.character_motivational_posture == "supportive_push"
+    assert manifest.character_pressure_level == "gentle"
     return request
 
 
@@ -241,3 +266,45 @@ def test_v19_production_composition_reaches_openai_wire_without_reordering(
     assert _DEPLETION not in caplog.text
     assert _REALIZATION_BLOCK not in caplog.text
     assert "offline-test-key" not in caplog.text
+
+
+def test_v20_supportive_push_reaches_stateless_openai_wire_without_private_logging(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    request = _v20_depletion_request()
+    final_developer = request.messages[-2]
+
+    assert final_developer.content.count(_REALIZATION_BLOCK) == 1
+    assert "выбранного собственного вклада" in final_developer.content
+    assert "короткий шаг восстановления" in final_developer.content
+    assert "grounded_direction" not in final_developer.content
+    assert "supportive_push" not in final_developer.content
+    assert "pressure_level" not in final_developer.content
+
+    transport = _CapturingTransport()
+    provider = OpenAIConversationAdapter(
+        base_url="https://api.openai.com/v1",
+        api_key="offline-v20-test-key",
+        model="gpt-5.6-terra",
+        timeout_seconds=30.0,
+        reasoning_effort="low",
+        reasoning_token_allowance=1024,
+        http_client=transport,
+    )
+
+    asyncio.run(provider.generate(request))
+
+    assert len(transport.calls) == 1
+    path, payload, _, _ = transport.calls[0]
+    assert path == "/responses"
+    assert payload["input"] == [
+        {"role": message.role.value, "content": message.content} for message in request.messages
+    ]
+    assert payload["max_output_tokens"] == request.parameters.max_output_tokens + 1024
+    assert payload["reasoning"] == {"effort": "low"}
+    assert payload["store"] is False
+    assert "temperature" not in payload
+    assert _ACHIEVEMENT not in caplog.text
+    assert _DEPLETION not in caplog.text
+    assert _REALIZATION_BLOCK not in caplog.text
+    assert "offline-v20-test-key" not in caplog.text

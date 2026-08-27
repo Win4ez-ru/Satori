@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V19
 from satori.config import ConversationProviderKind, Environment, Settings
 from tests.stage81_real_eval import _build_runtime, _new_record, _run_dialogue, _write_report
 
@@ -102,6 +103,7 @@ async def run(*, output_path: Path, alembic_config: Path) -> dict[str, Any]:
                 settings,
                 database_path,
                 alembic_config=alembic_config,
+                behavior_policy=BEHAVIOR_POLICY_V19,
             )
             try:
                 await _run_dialogue(
