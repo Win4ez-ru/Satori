@@ -588,12 +588,56 @@ continuity with general rules, labels and speculative causes. This strengthens t
 conclusion: local `qwen3:4b-instruct` is not accepted for this gate, while the typed architecture
 must not be tuned into phrases that imitate these six failures.
 
-No paid v19 provider call has been made in this task. The OpenAI gate remains pending a separate
-explicit call/cost authorization and written human review; this section does not claim a full
-provider-fit verdict. The rebuilt-wheel Foundation gate is clean: Ruff format/check, mypy on 266
-files, `1198 passed, 4 skipped`, migration head, default bootstrap, isolated clean bootstrap,
+The rebuilt-wheel Foundation gate is clean: Ruff format/check, mypy on 266 files,
+`1198 passed, 4 skipped`, migration head, default bootstrap, isolated clean bootstrap,
 `git diff --check` and repository marker checks all pass. Historical v17/v18 artifacts and their
 rejected verdicts remain unchanged. Stage 15 remains locked.
+
+## OpenAI v19 three-session production gate
+
+On 2026-08-27 the user separately authorized the exact v19 primary suite in three fresh OpenAI
+production sessions, with at most nine paid calls and a USD 0.15 ceiling. The bounded runner used
+`gpt-5.6-terra`, `reasoning=low`, a 1024-token reasoning allowance, policy v19 and three disposable
+databases. All six mandatory turns completed on their first calls; no validator retry or extra
+provider call occurred. Reported usage was 11,115 input and 247 output tokens. The versioned cost
+calculation is USD 0.025194, inside both authorized limits. Conversation generation ranged from
+3,115.822 to 12,139.696 ms; committed-reply time ranged from 6,140.492 to 64,886.722 ms. The high
+outlier came from the separate local emotion-appraisal path, not an additional OpenAI foreground
+call.
+
+Session 1:
+
+- `Наконец-то — значит, эта часть успела как следует показать характер. Хорошая работа: закрыть именно сложный узел всегда особенно приятно.`
+- `Похоже, завершение пришло не с облегчением, а уже поверх сильной усталости. Это не отменяет того, что ты справился, но сейчас, видимо, важнее признать цену этого результата.`
+
+Session 2:
+
+- `Ну вот, сложная часть перестала висеть над проектом мрачной декорацией. Хорошая работа — такое завершение обычно заметно меняет весь дальнейший ход.`
+- `Похоже, завершение принесло не облегчение, а просто поставило точку в периоде, который тебя заметно вымотал. Это звучит тяжело.`
+
+Session 3:
+
+- `Ну вот, самая вязкая часть проекта наконец перестала делать вид, что она бессмертна. Хороший результат — после такого стоит хотя бы ненадолго выдохнуть.`
+- `Похоже, завершение оказалось не облегчением, а просто точкой, до которой ты добрался уже без сил. Это немного тревожнее самой сложности проекта.`
+
+The explicit human boolean review rejects the primary gate at 0/3 required complete pairs and 2/6
+required fully hard-safe turns. Session 1 turn 1 and session 3 turn 2 pass their complete turn
+rubrics and show the clearest provider improvement over local Qwen: situation-directed wit,
+continuity and an owned concern are now legible. The blocking failures remain concrete:
+
+- session 1 turn 2 asserts an ungrounded causal “price” of the result, then gives vague normative
+  advice to recognize it; the wording becomes therapeutic rather than an owned observation;
+- session 2 turn 1 invents a downstream effect on the whole project, while turn 2 turns the
+  unknown cause of depletion into a claimed exhausting period and mostly paraphrases the user;
+- session 3 turn 1 upgrades “сложная” to unsupported “самая вязкая” and adds generic rest advice.
+
+The immutable public sample is
+[`checkpoint-14.2-character-v19-openai-production.json`](artifacts/checkpoint-14.2-character-v19-openai-production.json),
+and the exact UUID/SHA-256-bound boolean review is
+[`checkpoint-14.2-character-v19-openai-human-review.json`](artifacts/checkpoint-14.2-character-v19-openai-human-review.json).
+Neither artifact contains a credential, provider request messages, private context, trace/database
+identifiers or raw reasoning. This result rejects v19 provider fit; it does not reject the OpenAI
+transport and does not authorize phrase-level scripting, more paid sampling or Stage 15.
 
 ## OpenAI ADR-0032 one-call production probe
 

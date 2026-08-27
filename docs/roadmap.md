@@ -464,8 +464,10 @@ does not authorize Stage 9.
   achievement/depletion pair in three independent clean production sessions, followed by direct
   written human review; then the applicable Stage 8.1 three fresh exact dialogues, 30-turn
   coherence, activity and relationship-expression samples. Preserve every public sampled reply
-  and record tokens/timings without durable private prompt or retrieved-context logging. No paid
-  v19 call has been made yet.
+  and record tokens/timings without durable private prompt or retrieved-context logging. The paid
+  v19 OpenAI primary gate completed 6/6 first-attempt turns within 6/9 calls and USD 0.025194 of the
+  USD 0.15 ceiling, but direct review rejected it at 0/3 complete pairs and 2/6 fully hard-safe
+  turns; the conditional wider Stage 8.1 sample therefore remains unstarted.
 - **Risks:** prompt overconstraint, scripted emotion, false certainty from a polished tone,
   regressions in brevity, paid retry cost and treating a small sample as a hallucination proof.
 - **Exit condition:** deterministic and sampled gates improve the reproduced failures together,

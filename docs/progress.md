@@ -20,8 +20,12 @@ project-hygiene step can license one concrete next move. Generic and vulnerabili
 blocked. The complete plan is exposed only through transient manifest fields, a retry preserves
 the same realization, and the canonical personality source, persistent owners, ten-reason
 validator and max-one retry remain unchanged. Offline OpenAI wire coverage and a versioned 3 × 2
-human-review fixture/runner are implemented. No paid v19 provider call has been made, provider fit
-remains pending separate authorization and human review. A free three-session local v19 production
+human-review fixture/runner are implemented. The separately authorized paid v19 OpenAI gate then
+completed all six mandatory turns on first calls in three fresh sessions: 11,115 input + 247 output
+tokens, USD 0.025194, 6/9 calls and no retry. Human review rejects it at 0/3 complete pairs and 2/6
+fully hard-safe turns: recognizable wit and owned concern are now visible, but unsupported causal
+claims, project consequences, a superlative and generic/normative advice still block acceptance.
+A free three-session local v19 production
 smoke completed 6/6 turns on first attempts and exposed every intended typed axis. A final audit
 then removed unsupported difficulty from generic completion, made the practical-step license
 fail-closed for completed/negated/hypothetical/unrelated actions and placed retry correction before
@@ -1302,8 +1306,10 @@ Stage 15 remains locked and must not begin automatically after Stage 14.
 - [x] Complete the candidate-v19 rebuilt-wheel Foundation gate: Ruff format/check clean, mypy clean
   on 266 files, `1198 passed, 4 skipped`, migration head, default and isolated clean bootstrap,
   `git diff --check` and repository marker checks clean.
-- [ ] After separate explicit call/cost authorization, run the v19 three-session OpenAI gate and
-  obtain direct human review before accepting provider fit.
+- [x] Run the separately authorized v19 three-session OpenAI gate: 6/6 first-attempt turns,
+  11,115 input + 247 output tokens, USD 0.025194 within 6/9 calls and the USD 0.15 ceiling.
+- [x] Bind direct boolean human review to the immutable OpenAI sample UUID/digest; verdict 0/3
+  complete pairs and 2/6 fully hard-safe turns, so v19 provider fit remains rejected.
 
 Stage 15 remains locked and must not begin automatically after checkpoint 14.2.
 
