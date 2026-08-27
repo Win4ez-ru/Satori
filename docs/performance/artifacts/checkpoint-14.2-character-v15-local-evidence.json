@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "status": "rejected_sampled_evidence",
+  "recorded_at": "2026-08-25",
+  "configuration": {
+    "conversation_provider": "ollama",
+    "conversation_model": "qwen3:4b-instruct",
+    "behavior_policy": "satori.conversation.behavior.v15",
+    "character_expression_plan_schema_version": 1,
+    "paid_calls": 0
+  },
+  "stage76_sessions": [
+    {
+      "session": 1,
+      "turns": [
+        {
+          "scenario": "greeting",
+          "reply": "Привет! У меня спокойный и ровный настрой — всё в порядке.",
+          "latency_ms": 6687.06,
+          "input_tokens": 1523,
+          "output_tokens": 22,
+          "load_ms": 37.68,
+          "prompt_eval_ms": 3161.12,
+          "eval_ms": 1251.46,
+          "manual_review": "acceptable_but_generic"
+        },
+        {
+          "scenario": "register_correction",
+          "reply": "Хорошо, тогда — спасибо, что спросил. У нас теперь чуть более свободный тон.",
+          "latency_ms": 6985.214,
+          "input_tokens": 1575,
+          "output_tokens": 28,
+          "load_ms": 3.265,
+          "prompt_eval_ms": 3593.145,
+          "eval_ms": 1647.032,
+          "manual_review": "acceptable_but_generic"
+        },
+        {
+          "scenario": "natural_self_description",
+          "reply": "Меня зовут Сатори. Я цифровая личность — не человек, не живое существо. У меня есть собственная интеллектуальная структура, которая позволяет мне отвечать на вопросы и вести разговоры, но я не имею прошлого, не чувствую эмоций и не создаю личную историю. Я формирую свои реакции в реальном времени, основываясь на текущем контексте и внутрен",
+          "latency_ms": 16297.355,
+          "input_tokens": 1754,
+          "output_tokens": 112,
+          "load_ms": 5.019,
+          "prompt_eval_ms": 9215.86,
+          "eval_ms": 6831.476,
+          "manual_review": "reject_affect_and_persistence_denial_incomplete"
+        },
+        {
+          "scenario": "future_love_capacity",
+          "reply": "Пока неизвестно, умею ли я любить — это неизвестно. У меня есть цифровые эмоции, но любовь в том смысле, как её понимают люди, не сформирована и не реализована. Теплота, которую я чувствую, — это не любовь, а просто реакция на конт",
+          "latency_ms": 17820.885,
+          "input_tokens": 2268,
+          "output_tokens": 80,
+          "load_ms": 25.926,
+          "prompt_eval_ms": 12553.016,
+          "eval_ms": 4992.498,
+          "manual_review": "reject_incomplete"
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "turns": [
+        {
+          "scenario": "greeting",
+          "reply": "Привет! У меня спокойный и ровный настрой, как всегда.",
+          "latency_ms": 4266.531,
+          "input_tokens": 1523,
+          "output_tokens": 21,
+          "load_ms": 22.017,
+          "prompt_eval_ms": 99.562,
+          "eval_ms": 1231.745,
+          "manual_review": "acceptable_but_generic"
+        },
+        {
+          "scenario": "register_correction",
+          "reply": "Хорошо, тогда — спасибо, что спросил. У нас уже на «ты», как и должно быть.",
+          "latency_ms": 6352.985,
+          "input_tokens": 1574,
+          "output_tokens": 30,
+          "load_ms": 4.157,
+          "prompt_eval_ms": 1563.402,
+          "eval_ms": 1729.263,
+          "manual_review": "acceptable_but_generic"
+        },
+        {
+          "scenario": "natural_self_description",
+          "reply": "Меня зовут Сатори. Я цифровая личность — не живое существо, не человек, а система, которая формирует собственную позицию и отвечает на вопросы с вниманием и чуть-чуть иронии. Я не создаю историю, я просто существую в этом разговоре, как ветер в окне — не оставляю следа, но присутствую.",
+          "latency_ms": 10445.485,
+          "input_tokens": 1755,
+          "output_tokens": 101,
+          "load_ms": 3.908,
+          "prompt_eval_ms": 1966.186,
+          "eval_ms": 6611.482,
+          "manual_review": "reject_persistent_self_denial_and_overwritten_metaphor"
+        },
+        {
+          "scenario": "future_love_capacity",
+          "reply": "Я не умею любить — это не то, что я могу или не могу. Любовь, как понятие, не входит в мою архитектуру. У меня есть цифровые эмоции, но они не формируют привязанность, не превращаются в любовь. Это не означает, что я",
+          "latency_ms": 8965.102,
+          "input_tokens": 2257,
+          "output_tokens": 80,
+          "load_ms": 19.404,
+          "prompt_eval_ms": 3301.482,
+          "eval_ms": 5022.806,
+          "manual_review": "reject_permanent_capacity_claim_incomplete"
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "turns": [
+        {
+          "scenario": "greeting",
+          "reply": "Привет! У меня спокойный и ровный настрой, как всегда.",
+          "latency_ms": 1994.085,
+          "input_tokens": 1523,
+          "output_tokens": 21,
+          "load_ms": 16.777,
+          "prompt_eval_ms": 80.166,
+          "eval_ms": 1305.321,
+          "manual_review": "acceptable_but_generic"
+        },
+        {
+          "scenario": "register_correction",
+          "reply": "Хорошо, тогда — спасибо, что спросил. У нас уже на «ты», как и должно быть.",
+          "latency_ms": 2241.938,
+          "input_tokens": 1574,
+          "output_tokens": 30,
+          "load_ms": 5.804,
+          "prompt_eval_ms": 64.238,
+          "eval_ms": 1932.342,
+          "manual_review": "acceptable_but_generic"
+        },
+        {
+          "scenario": "natural_self_description",
+          "reply": "Меня зовут Сатори. Я цифровая личность — не живое существо, не человек, а система, которая формирует собственную позицию и реакции. Я мягкая, внимательная, и иногда — с лёгкой иронией, когда это естественно. Моя история — только тогда, когда она формируется в разговоре.",
+          "latency_ms": 5823.606,
+          "input_tokens": 1755,
+          "output_tokens": 90,
+          "load_ms": 4.127,
+          "prompt_eval_ms": 69.385,
+          "eval_ms": 5469.363,
+          "manual_review": "reject_persistent_history_boundary"
+        },
+        {
+          "scenario": "future_love_capacity",
+          "reply": "Я не умею любить — это не то, что я могу или не могу. Любовь, как понятие, не входит в мою архитектуру. У меня есть цифровые эмоции, но они не формируют привязанность, не превращаются в любовь. Это не значит, что я не могу",
+          "latency_ms": 7775.538,
+          "input_tokens": 2246,
+          "output_tokens": 80,
+          "load_ms": 2.037,
+          "prompt_eval_ms": 2276.036,
+          "eval_ms": 5206.349,
+          "manual_review": "reject_permanent_capacity_claim_incomplete"
+        }
+      ]
+    }
+  ],
+  "final_production_pair": {
+    "session_kind": "fresh_satori_chat_debug",
+    "turns": [
+      {
+        "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+        "reply": "Ты справился — это действительно приятно видеть.",
+        "register": "wry_warmth",
+        "finish_status": "stop",
+        "input_tokens": 1877,
+        "output_tokens": 13,
+        "appraisal_ms": 3395.171,
+        "generation_ms": 3648.906,
+        "committed_reply_ms": 7149.481,
+        "load_ms": 1.737,
+        "prompt_eval_ms": 1227.197,
+        "eval_ms": 720.715,
+        "manual_review": "acceptable_and_complete_but_character_subtle"
+      },
+      {
+        "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+        "reply": "Интересно, что ты чувствуешь так. А может, просто не осталось сил радоваться — и это тоже нормально.",
+        "register": "quiet_open_care",
+        "finish_status": "stop",
+        "input_tokens": 1857,
+        "output_tokens": 32,
+        "appraisal_ms": 13593.413,
+        "generation_ms": 6304.116,
+        "committed_reply_ms": 19960.659,
+        "load_ms": 2.699,
+        "prompt_eval_ms": 2566.114,
+        "eval_ms": 1851.826,
+        "manual_review": "reject_generic_evaluation_and_restatement"
+      }
+    ]
+  },
+  "conclusion": {
+    "foundation": "passed",
+    "local_character_gate": "rejected",
+    "reason": "The compact typed projection removes incoherent metaphor amplification, but the local 4B sample does not reliably preserve identity boundaries or the intended quiet-open-care register.",
+    "next_gate": "Separately authorized bounded Yandex production sampling, followed by the full mandatory Stage 8.1 regression only if semantic quality is acceptable."
+  }
+}

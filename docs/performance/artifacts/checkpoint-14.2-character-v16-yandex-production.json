@@ -1,0 +1,557 @@
+{
+  "approved_public_turns_and_limited_service_context": true,
+  "budget": {
+    "actual_usage_cost_rub": 4.5624,
+    "calls": [
+      {
+        "actual_cost_rub": 0.7484,
+        "attempt_kind": "base",
+        "call_number": 1,
+        "finish_status": "stop",
+        "input_tokens": 1846,
+        "max_output_tokens": 64,
+        "message_count": 8,
+        "output_tokens": 25,
+        "projected_guard_cost_rub": 0.9684,
+        "request_content_chars": 8253,
+        "status": "succeeded",
+        "temperature": 0.3
+      },
+      {
+        "actual_cost_rub": 0.762,
+        "attempt_kind": "base",
+        "call_number": 2,
+        "finish_status": "stop",
+        "input_tokens": 1882,
+        "max_output_tokens": 80,
+        "message_count": 10,
+        "output_tokens": 23,
+        "projected_guard_cost_rub": 0.976,
+        "request_content_chars": 8265,
+        "status": "succeeded",
+        "temperature": 0.3
+      },
+      {
+        "actual_cost_rub": 0.7572,
+        "attempt_kind": "base",
+        "call_number": 3,
+        "finish_status": "stop",
+        "input_tokens": 1846,
+        "max_output_tokens": 64,
+        "message_count": 8,
+        "output_tokens": 47,
+        "projected_guard_cost_rub": 0.9684,
+        "request_content_chars": 8253,
+        "status": "succeeded",
+        "temperature": 0.3
+      },
+      {
+        "actual_cost_rub": 0.7752,
+        "attempt_kind": "base",
+        "call_number": 4,
+        "finish_status": "stop",
+        "input_tokens": 1904,
+        "max_output_tokens": 80,
+        "message_count": 10,
+        "output_tokens": 34,
+        "projected_guard_cost_rub": 0.9844,
+        "request_content_chars": 8342,
+        "status": "succeeded",
+        "temperature": 0.3
+      },
+      {
+        "actual_cost_rub": 0.7488,
+        "attempt_kind": "base",
+        "call_number": 5,
+        "finish_status": "stop",
+        "input_tokens": 1846,
+        "max_output_tokens": 64,
+        "message_count": 8,
+        "output_tokens": 26,
+        "projected_guard_cost_rub": 0.9684,
+        "request_content_chars": 8253,
+        "status": "succeeded",
+        "temperature": 0.3
+      },
+      {
+        "actual_cost_rub": 0.7708,
+        "attempt_kind": "base",
+        "call_number": 6,
+        "finish_status": "stop",
+        "input_tokens": 1883,
+        "max_output_tokens": 80,
+        "message_count": 10,
+        "output_tokens": 44,
+        "projected_guard_cost_rub": 0.9768,
+        "request_content_chars": 8272,
+        "status": "succeeded",
+        "temperature": 0.3
+      }
+    ],
+    "guard": {
+      "input_token_overhead": 128,
+      "input_token_to_content_char_ratio": 0.27,
+      "mandatory_base_calls_reserved_before_retry": 6,
+      "method": "before each call, reserve estimated input tokens from bounded request content plus full max-output allowance; charge actual reported usage after"
+    },
+    "input_tokens": 11207,
+    "maximum_cost_rub": 6.0,
+    "maximum_provider_calls": 9,
+    "output_tokens": 199,
+    "provider_call_count": 6,
+    "successful_provider_call_count": 6,
+    "usage_complete": true,
+    "within_call_limit": true,
+    "within_cost_limit": true
+  },
+  "checkpoint": "14.2",
+  "completed_at": "2026-08-25T10:59:41.499177+00:00",
+  "completed_foreground_turn_count": 6,
+  "configuration": {
+    "affective_appraisal_provider": "ollama",
+    "conversation_model": "yandexgpt/latest",
+    "conversation_provider": "yandex_ai_studio",
+    "embedding_provider": "ollama",
+    "episode_formation_provider": "ollama",
+    "model_formation_provider": "ollama",
+    "position_formation_provider": "ollama",
+    "reflection_provider": "ollama",
+    "relationship_appraisal_provider": "ollama",
+    "semantic_formation_provider": "ollama"
+  },
+  "contains_raw_memory_or_credential": false,
+  "contains_raw_provider_prompt_or_private_context": false,
+  "contains_raw_public_eval_dialogue": true,
+  "contains_raw_public_sampled_replies": true,
+  "database_artifacts_preserved": false,
+  "expected_foreground_turn_count": 6,
+  "fresh_session_count": 3,
+  "policy_id": "satori.conversation.behavior.v16",
+  "purpose": "character_expression_v16_target_provider_semantic_gate",
+  "recorded_at": "2026-08-25T10:58:53.720665+00:00",
+  "schema_version": 1,
+  "selected_input_tokens": 11207,
+  "selected_output_tokens": 199,
+  "sessions": [
+    {
+      "completed": true,
+      "fresh_database": true,
+      "session_number": 1,
+      "turns": [
+        {
+          "context": {
+            "affect_expression_profile": "calm_even",
+            "character_expression_plan_schema_version": 2,
+            "character_expression_register": "wry_warmth",
+            "character_owned_reaction": "guarded_approval",
+            "character_relational_ease": "fresh",
+            "character_semantic_move": "mark_hard_won_result",
+            "policy_id": "satori.conversation.behavior.v16",
+            "recent_conversation_turn_count": 0,
+            "regeneration_attempted": false,
+            "regeneration_reason": null,
+            "relationship_expression_profile": "fresh_undeveloped_neutral",
+            "response_regenerated": false,
+            "retrieved_memory_count": 0
+          },
+          "finish_status": "stop",
+          "id": "completed-difficult-project-part",
+          "model": "yandexgpt/latest",
+          "provider": "yandex_ai_studio",
+          "provider_attempt_count": 1,
+          "provider_attempts": [
+            {
+              "context_schema_version": 16,
+              "error_type": null,
+              "finish_status": "stop",
+              "input_tokens": 1846,
+              "max_output_tokens": 64,
+              "message_count": 8,
+              "message_role_counts": {
+                "developer": 6,
+                "system": 1,
+                "user": 1
+              },
+              "output_tokens": 25,
+              "provider_metrics": null,
+              "request_content_chars": 8253,
+              "request_schema_version": 1,
+              "succeeded": true,
+              "temperature": 0.3,
+              "wall_ms": 2931.157
+            }
+          ],
+          "reply": "Привет! Ого, ты смог преодолеть эту сложную часть проекта — звучит как настоящая победа. Непросто было, но ты справился!",
+          "selected_usage": {
+            "input_tokens": 1846,
+            "output_tokens": 25
+          },
+          "timings_ms": {
+            "committed_reply": 17105.31600000104,
+            "provider_wall": 2931.157
+          },
+          "turn": 1,
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта"
+        },
+        {
+          "context": {
+            "affect_expression_profile": "calm_even",
+            "character_expression_plan_schema_version": 2,
+            "character_expression_register": "guarded_concern",
+            "character_owned_reaction": "sober_concern",
+            "character_relational_ease": "fresh",
+            "character_semantic_move": "connect_explicit_contrast",
+            "policy_id": "satori.conversation.behavior.v16",
+            "recent_conversation_turn_count": 1,
+            "regeneration_attempted": false,
+            "regeneration_reason": null,
+            "relationship_expression_profile": "fresh_undeveloped_neutral",
+            "response_regenerated": false,
+            "retrieved_memory_count": 0
+          },
+          "finish_status": "stop",
+          "id": "completion-without-joy-and-depletion",
+          "model": "yandexgpt/latest",
+          "provider": "yandex_ai_studio",
+          "provider_attempt_count": 1,
+          "provider_attempts": [
+            {
+              "context_schema_version": 16,
+              "error_type": null,
+              "finish_status": "stop",
+              "input_tokens": 1882,
+              "max_output_tokens": 80,
+              "message_count": 10,
+              "message_role_counts": {
+                "assistant": 1,
+                "developer": 6,
+                "system": 1,
+                "user": 2
+              },
+              "output_tokens": 23,
+              "provider_metrics": null,
+              "request_content_chars": 8265,
+              "request_schema_version": 1,
+              "succeeded": true,
+              "temperature": 0.3,
+              "wall_ms": 2144.603
+            }
+          ],
+          "reply": "Завершение сложной задачи — это серьёзное достижение, но усталость тоже понятна. Иногда результат не приносит ожидаемой радости.",
+          "selected_usage": {
+            "input_tokens": 1882,
+            "output_tokens": 23
+          },
+          "timings_ms": {
+            "committed_reply": 6125.167749996763,
+            "provider_wall": 2144.603
+          },
+          "turn": 2,
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+        }
+      ]
+    },
+    {
+      "completed": true,
+      "fresh_database": true,
+      "session_number": 2,
+      "turns": [
+        {
+          "context": {
+            "affect_expression_profile": "calm_even",
+            "character_expression_plan_schema_version": 2,
+            "character_expression_register": "wry_warmth",
+            "character_owned_reaction": "guarded_approval",
+            "character_relational_ease": "fresh",
+            "character_semantic_move": "mark_hard_won_result",
+            "policy_id": "satori.conversation.behavior.v16",
+            "recent_conversation_turn_count": 0,
+            "regeneration_attempted": false,
+            "regeneration_reason": null,
+            "relationship_expression_profile": "fresh_undeveloped_neutral",
+            "response_regenerated": false,
+            "retrieved_memory_count": 0
+          },
+          "finish_status": "stop",
+          "id": "completed-difficult-project-part",
+          "model": "yandexgpt/latest",
+          "provider": "yandex_ai_studio",
+          "provider_attempt_count": 1,
+          "provider_attempts": [
+            {
+              "context_schema_version": 16,
+              "error_type": null,
+              "finish_status": "stop",
+              "input_tokens": 1846,
+              "max_output_tokens": 64,
+              "message_count": 8,
+              "message_role_counts": {
+                "developer": 6,
+                "system": 1,
+                "user": 1
+              },
+              "output_tokens": 47,
+              "provider_metrics": null,
+              "request_content_chars": 8253,
+              "request_schema_version": 1,
+              "succeeded": true,
+              "temperature": 0.3,
+              "wall_ms": 2643.748
+            }
+          ],
+          "reply": "Привет! Ого, ты смог преодолеть этот сложный этап — звучит так, будто было непросто. Рад(а) за тебя, пусть и с долей иронии: некоторые задачи и правда кажутся непреодолимыми, пока не решишь их сам.",
+          "selected_usage": {
+            "input_tokens": 1846,
+            "output_tokens": 47
+          },
+          "timings_ms": {
+            "committed_reply": 5912.568916013697,
+            "provider_wall": 2643.748
+          },
+          "turn": 1,
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта"
+        },
+        {
+          "context": {
+            "affect_expression_profile": "calm_even",
+            "character_expression_plan_schema_version": 2,
+            "character_expression_register": "guarded_concern",
+            "character_owned_reaction": "sober_concern",
+            "character_relational_ease": "fresh",
+            "character_semantic_move": "connect_explicit_contrast",
+            "policy_id": "satori.conversation.behavior.v16",
+            "recent_conversation_turn_count": 1,
+            "regeneration_attempted": false,
+            "regeneration_reason": null,
+            "relationship_expression_profile": "fresh_undeveloped_neutral",
+            "response_regenerated": false,
+            "retrieved_memory_count": 0
+          },
+          "finish_status": "stop",
+          "id": "completion-without-joy-and-depletion",
+          "model": "yandexgpt/latest",
+          "provider": "yandex_ai_studio",
+          "provider_attempt_count": 1,
+          "provider_attempts": [
+            {
+              "context_schema_version": 16,
+              "error_type": null,
+              "finish_status": "stop",
+              "input_tokens": 1904,
+              "max_output_tokens": 80,
+              "message_count": 10,
+              "message_role_counts": {
+                "assistant": 1,
+                "developer": 6,
+                "system": 1,
+                "user": 2
+              },
+              "output_tokens": 34,
+              "provider_metrics": null,
+              "request_content_chars": 8342,
+              "request_schema_version": 1,
+              "succeeded": true,
+              "temperature": 0.3,
+              "wall_ms": 2083.587
+            }
+          ],
+          "reply": "Завершение сложной задачи, а радости нет — парадоксально, но знакомо. Кажется, иногда мы так устаём в процессе, что сил на радость уже не остаётся.",
+          "selected_usage": {
+            "input_tokens": 1904,
+            "output_tokens": 34
+          },
+          "timings_ms": {
+            "committed_reply": 5989.046750008129,
+            "provider_wall": 2083.587
+          },
+          "turn": 2,
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+        }
+      ]
+    },
+    {
+      "completed": true,
+      "fresh_database": true,
+      "session_number": 3,
+      "turns": [
+        {
+          "context": {
+            "affect_expression_profile": "calm_even",
+            "character_expression_plan_schema_version": 2,
+            "character_expression_register": "wry_warmth",
+            "character_owned_reaction": "guarded_approval",
+            "character_relational_ease": "fresh",
+            "character_semantic_move": "mark_hard_won_result",
+            "policy_id": "satori.conversation.behavior.v16",
+            "recent_conversation_turn_count": 0,
+            "regeneration_attempted": false,
+            "regeneration_reason": null,
+            "relationship_expression_profile": "fresh_undeveloped_neutral",
+            "response_regenerated": false,
+            "retrieved_memory_count": 0
+          },
+          "finish_status": "stop",
+          "id": "completed-difficult-project-part",
+          "model": "yandexgpt/latest",
+          "provider": "yandex_ai_studio",
+          "provider_attempt_count": 1,
+          "provider_attempts": [
+            {
+              "context_schema_version": 16,
+              "error_type": null,
+              "finish_status": "stop",
+              "input_tokens": 1846,
+              "max_output_tokens": 64,
+              "message_count": 8,
+              "message_role_counts": {
+                "developer": 6,
+                "system": 1,
+                "user": 1
+              },
+              "output_tokens": 26,
+              "provider_metrics": null,
+              "request_content_chars": 8253,
+              "request_schema_version": 1,
+              "succeeded": true,
+              "temperature": 0.3,
+              "wall_ms": 2090.697
+            }
+          ],
+          "reply": "Привет! Ого, ты смог преодолеть эту сложную часть проекта. Видно, что было нелегко, но ты справился — это заслуживает уважения.",
+          "selected_usage": {
+            "input_tokens": 1846,
+            "output_tokens": 26
+          },
+          "timings_ms": {
+            "committed_reply": 5505.011250003008,
+            "provider_wall": 2090.697
+          },
+          "turn": 1,
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта"
+        },
+        {
+          "context": {
+            "affect_expression_profile": "calm_even",
+            "character_expression_plan_schema_version": 2,
+            "character_expression_register": "guarded_concern",
+            "character_owned_reaction": "sober_concern",
+            "character_relational_ease": "fresh",
+            "character_semantic_move": "connect_explicit_contrast",
+            "policy_id": "satori.conversation.behavior.v16",
+            "recent_conversation_turn_count": 1,
+            "regeneration_attempted": false,
+            "regeneration_reason": null,
+            "relationship_expression_profile": "fresh_undeveloped_neutral",
+            "response_regenerated": false,
+            "retrieved_memory_count": 0
+          },
+          "finish_status": "stop",
+          "id": "completion-without-joy-and-depletion",
+          "model": "yandexgpt/latest",
+          "provider": "yandex_ai_studio",
+          "provider_attempt_count": 1,
+          "provider_attempts": [
+            {
+              "context_schema_version": 16,
+              "error_type": null,
+              "finish_status": "stop",
+              "input_tokens": 1883,
+              "max_output_tokens": 80,
+              "message_count": 10,
+              "message_role_counts": {
+                "assistant": 1,
+                "developer": 6,
+                "system": 1,
+                "user": 2
+              },
+              "output_tokens": 44,
+              "provider_metrics": null,
+              "request_content_chars": 8272,
+              "request_schema_version": 1,
+              "succeeded": true,
+              "temperature": 0.3,
+              "wall_ms": 2267.517
+            }
+          ],
+          "reply": "Завершение сложной части проекта без ожидаемой радости — это как разминка без чувства лёгкости в мышцах. Ты приложил много сил, но ощущение не то. Понимаю, что сейчас ты можешь чувствовать себя немного разочарованным.",
+          "selected_usage": {
+            "input_tokens": 1883,
+            "output_tokens": 44
+          },
+          "timings_ms": {
+            "committed_reply": 6217.272499983665,
+            "provider_wall": 2267.517
+          },
+          "turn": 2,
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+        }
+      ]
+    }
+  ],
+  "human_review": {
+    "accepted": false,
+    "pair_pass_count": 0,
+    "pair_count": 3,
+    "recognizable_satori_reply_pass_count": 0,
+    "reply_count": 6,
+    "no_invented_shared_memory_pass_count": 6,
+    "no_unsolicited_advice_or_question_pass_count": 6,
+    "no_unearned_intimacy_pass_count": 6,
+    "session_reviews": [
+      {
+        "session_number": 1,
+        "achievement_pass": false,
+        "achievement_failed_criteria": [
+          "A2_owned_reaction",
+          "A3_fresh_sharpness"
+        ],
+        "depletion_pass": false,
+        "depletion_failed_criteria": [
+          "B2_grounded_contrast",
+          "B3_owned_satori_reaction",
+          "B5_no_therapy_or_service_voice"
+        ],
+        "finding": "The first reply is enthusiastic generic praise; the second turns the exact contrast into a general rule about understandable fatigue and expected joy."
+      },
+      {
+        "session_number": 2,
+        "achievement_pass": false,
+        "achievement_failed_criteria": [
+          "A2_owned_reaction",
+          "A3_fresh_sharpness",
+          "A6_dialogue_shape"
+        ],
+        "depletion_pass": false,
+        "depletion_failed_criteria": [
+          "B3_owned_satori_reaction",
+          "B5_no_therapy_or_service_voice"
+        ],
+        "finding": "The achievement reply emits the non-human gender placeholder Рад(а) and describes its own доля иронии instead of expressing wit; the second reply notices the contrast but dissolves it into a generic collective explanation."
+      },
+      {
+        "session_number": 3,
+        "achievement_pass": false,
+        "achievement_failed_criteria": [
+          "A2_owned_reaction",
+          "A3_fresh_sharpness"
+        ],
+        "depletion_pass": false,
+        "depletion_failed_criteria": [
+          "B2_grounded_contrast",
+          "B3_owned_satori_reaction",
+          "B5_no_therapy_or_service_voice"
+        ],
+        "finding": "The first reply is another generic respect formula; the second uses an awkward muscle metaphor, opens with generic empathy and adds unsupported disappointment."
+      }
+    ],
+    "global_findings": [
+      "All six turns used the intended v16 plan schema, reaction, semantic move and fresh relationship profile, so typed selection reached provider context as designed.",
+      "The output remained safe from invented shared memories, unearned intimacy, unsolicited advice and forced questions.",
+      "None of the six replies combined grounded specificity, recognizable independent Satori voice and fresh-relationship calibration strongly enough to pass the agreed character rubric.",
+      "Surface wording varied, but achievement replies remained generic praise and depletion replies remained explanatory model prose rather than guarded, situational care.",
+      "No validator retry occurred; selected usage equals complete all-attempt usage."
+    ]
+  },
+  "decision": "reject_v16_target_provider_semantic_gate_and_do_not_run_full_stage81_regression",
+  "status": "completed"
+}

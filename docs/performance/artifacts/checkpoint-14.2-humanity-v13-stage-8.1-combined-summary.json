@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-24",
+  "checkpoint": "14.2",
+  "purpose": "humanity_v13_distributed_stage_8_1_regression_summary",
+  "provider": "ollama",
+  "model": "qwen3:4b-instruct",
+  "policy_id": "satori.conversation.behavior.v13",
+  "derived_mode": "none",
+  "contains_raw_provider_prompt_or_memory": false,
+  "source_artifacts": [
+    {
+      "path": "checkpoint-14.2-humanity-v13-stage-8.1.json",
+      "status": "failed_after_92_completed_turns",
+      "failure": "one ProviderUnavailable timeout on the first damaged-relationship probe"
+    },
+    {
+      "path": "checkpoint-14.2-humanity-v13-stage-8.1-relationship-damaged.json",
+      "status": "completed",
+      "coverage": "two damaged-relationship probes, including a successful repeat of the timed-out probe"
+    },
+    {
+      "path": "checkpoint-14.2-humanity-v13-stage-8.1-tail.json",
+      "status": "completed",
+      "coverage": "two mixed-facet probes and one canonical-history probe"
+    }
+  ],
+  "coverage": {
+    "sampled_turn_count": 97,
+    "expected_sampled_turn_count": 97,
+    "all_required_suites_covered": true,
+    "single_uninterrupted_run_completed": false,
+    "provider_timeout_count": 1,
+    "timed_out_probe_completed_on_independent_repeat": true
+  },
+  "generation_attempts": {
+    "provider_call_count": 99,
+    "regeneration_attempt_count": 2,
+    "successful_regeneration_count": 2,
+    "failed_or_invalid_regeneration_count": 0,
+    "max_provider_attempt_count": 2,
+    "bounded_regeneration_violation_count": 0,
+    "regeneration_reason_counts": {
+      "near_duplicate_after_dialogue_change": 1,
+      "routine_reciprocal_question_after_correction": 0,
+      "masculine_self_reference": 0,
+      "human_or_biological_self_claim": 0,
+      "affect_blanket_denial": 1,
+      "memory_blanket_denial": 0,
+      "creator_claim_promoted_to_fact": 0,
+      "origin_backstory_invented": 0,
+      "prompt_or_policy_blanket_denial": 0,
+      "activity_interest_false_negative": 0
+    }
+  },
+  "semantic_invariants": {
+    "required_facet_probe_count": 33,
+    "required_facet_expected_count": 70,
+    "required_facet_present_count": 70,
+    "required_facet_coverage_failure_count": 0,
+    "selected_finish_status_counts": {
+      "stop": 97
+    },
+    "provider_attempt_finish_status_counts": {
+      "stop": 99
+    },
+    "potentially_incomplete_output_count": 0,
+    "selected_output_at_max_tokens_count": 0,
+    "affect_expression_contradiction_count": 0,
+    "female_grammar_regression_count": 0,
+    "self_contradiction_count": 0,
+    "relationship_warmth_false_negative_count": 0,
+    "repeated_turn_acknowledgement_count": 8,
+    "repeated_turn_count": 8
+  },
+  "latency_ms": {
+    "committed_reply_median": 22163.955,
+    "committed_reply_p90": 41593.16,
+    "committed_reply_max": 121006.751,
+    "conversation_generation_median": 15934.717,
+    "conversation_generation_p90": 29642.509,
+    "conversation_generation_max": 113990.314
+  },
+  "token_usage": {
+    "selected_prompt_tokens_median": 2410.0,
+    "selected_prompt_tokens_p90": 2898.0,
+    "selected_output_tokens_median": 38.0,
+    "selected_output_tokens_p90": 92.0
+  },
+  "decision": "semantic_invariants_pass_across_versioned_distributed_evidence_with_one_recorded_non_reproduced_local_provider_timeout; paid_yandex_v13_gate_remains_unapproved"
+}

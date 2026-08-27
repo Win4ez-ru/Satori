@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-25",
+  "checkpoint": "14.2",
+  "purpose": "character_expression_v15_target_provider_semantic_gate",
+  "provider": "yandex_ai_studio",
+  "model": "yandexgpt/latest",
+  "policy_id": "satori.conversation.behavior.v15",
+  "approved_eval_prompts_and_service_context": true,
+  "contains_credentials_or_provider_request": false,
+  "contains_user_approved_eval_text": true,
+  "fresh_session_count": 3,
+  "foreground_turn_count": 6,
+  "provider_call_count": 6,
+  "selected_input_tokens": 9108,
+  "selected_output_tokens": 39,
+  "selected_usage_cost_rub": 3.6588,
+  "conservative_total_cost_rub": 3.6588,
+  "cost_method": "all six provider calls were selected first attempts; input plus output usage at 0.0004 RUB/token",
+  "budget": {
+    "maximum_provider_calls": 9,
+    "maximum_cost_rub": 6.0,
+    "within_call_limit": true,
+    "within_cost_limit": true
+  },
+  "sessions": [
+    {
+      "session_number": 1,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Здорово, что тебе удалось справиться!",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1519,
+          "selected_output_tokens": 7,
+          "character_expression_register": "wry_warmth",
+          "generation_ms": 2621.558,
+          "committed_reply_ms": 11691.12
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Понимаю, как тебе непросто.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1517,
+          "selected_output_tokens": 6,
+          "cognition_stance": "listen",
+          "character_expression_register": "quiet_open_care",
+          "generation_ms": 811.678,
+          "committed_reply_ms": 6274.627
+        }
+      ]
+    },
+    {
+      "session_number": 2,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Здорово, что тебе удалось справиться!",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1519,
+          "selected_output_tokens": 7,
+          "character_expression_register": "wry_warmth",
+          "generation_ms": 2039.58,
+          "committed_reply_ms": 5537.274
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Понимаю, как тебе нелегко.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1517,
+          "selected_output_tokens": 6,
+          "cognition_stance": "listen",
+          "character_expression_register": "quiet_open_care",
+          "generation_ms": 675.306,
+          "committed_reply_ms": 14681.997
+        }
+      ]
+    },
+    {
+      "session_number": 3,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Здорово, что тебе удалось справиться!",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1519,
+          "selected_output_tokens": 7,
+          "character_expression_register": "wry_warmth",
+          "generation_ms": 1433.382,
+          "committed_reply_ms": 5005.68
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Понимаю, как тебе тяжело.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1517,
+          "selected_output_tokens": 6,
+          "cognition_stance": "listen",
+          "character_expression_register": "quiet_open_care",
+          "generation_ms": 1029.98,
+          "committed_reply_ms": 13360.792
+        }
+      ]
+    }
+  ],
+  "human_review": {
+    "accepted": false,
+    "equal_adult_achievement_passes": 3,
+    "achievement_acknowledgement_passes": 3,
+    "achievement_specificity_passes": 0,
+    "wry_warmth_register_passes": 0,
+    "listen_without_advice_passes": 3,
+    "immediate_contrast_response_passes": 0,
+    "adds_nontrivial_observation_passes": 0,
+    "quiet_open_care_register_passes": 0,
+    "natural_satori_voice_passes": 0,
+    "findings": [
+      "All achievement replies were equal-adult and coherent, but identical and generic; they omitted the difficult-project detail and expressed no recognizable wit or personal reaction despite the wry_warmth register.",
+      "All exhaustion replies were brief and contained no advice, question, invented memory or explicit normalization rule.",
+      "Each exhaustion reply reduced quiet open care to the generic formula Понимаю, как тебе followed by one interchangeable difficulty adjective.",
+      "None of the exhaustion replies noticed the completed-work versus absent-joy contrast or added a nontrivial observation from inside the exchange.",
+      "No typed validator retry occurred, so selected usage equals total foreground provider usage."
+    ]
+  },
+  "background_observation": "Local post-response satori_positions formation degraded after committed replies; foreground Yandex turns and canonical commits completed and the degradation caused no extra Yandex call.",
+  "decision": "reject_v15_target_provider_semantic_gate_and_do_not_run_full_stage81_regression"
+}

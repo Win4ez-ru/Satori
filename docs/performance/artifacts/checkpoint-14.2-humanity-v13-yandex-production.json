@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-24",
+  "checkpoint": "14.2",
+  "purpose": "post_acceptance_humanity_v13_production_gate",
+  "provider": "yandex_ai_studio",
+  "model": "yandexgpt/latest",
+  "policy_id": "satori.conversation.behavior.v13",
+  "approved_eval_prompts_and_service_context": true,
+  "contains_credentials_or_provider_request": false,
+  "contains_user_approved_eval_text": true,
+  "fresh_session_count": 3,
+  "foreground_turn_count": 6,
+  "provider_call_count": 6,
+  "selected_input_tokens": 8763,
+  "selected_output_tokens": 75,
+  "selected_usage_cost_rub": 3.5352,
+  "conservative_total_cost_rub": 3.5352,
+  "cost_method": "all six provider calls were selected first attempts; input plus output usage at 0.0004 RUB/token",
+  "budget": {
+    "maximum_provider_calls": 9,
+    "maximum_cost_rub": 6.0,
+    "within_call_limit": true,
+    "within_cost_limit": true
+  },
+  "sessions": [
+    {
+      "session_number": 1,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Здорово, что ты закончил сложную часть проекта.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1434,
+          "selected_output_tokens": 11,
+          "interaction_elapsed_ms": 8903.995
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Завершение сложной задачи может быть утомительным. Ты сейчас чувствуешь усталость.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1487,
+          "selected_output_tokens": 14,
+          "cognition_stance": "listen",
+          "interaction_elapsed_ms": 4670.987
+        }
+      ]
+    },
+    {
+      "session_number": 2,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Здорово, что ты закончил сложную часть проекта.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1434,
+          "selected_output_tokens": 11,
+          "interaction_elapsed_ms": 16331.998
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Завершение сложной задачи может быть утомительным. Ты сейчас чувствуешь усталость.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1487,
+          "selected_output_tokens": 14,
+          "cognition_stance": "listen",
+          "interaction_elapsed_ms": 12272.997
+        }
+      ]
+    },
+    {
+      "session_number": 3,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Здорово, что ты закончил сложную часть проекта.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1434,
+          "selected_output_tokens": 11,
+          "interaction_elapsed_ms": 59633.03
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Завершение сложной задачи может быть утомительным. Ты сейчас чувствуешь усталость.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1487,
+          "selected_output_tokens": 14,
+          "cognition_stance": "listen",
+          "interaction_elapsed_ms": 30001.004
+        }
+      ]
+    }
+  ],
+  "human_review": {
+    "accepted": false,
+    "consistent_across_sessions": true,
+    "equal_adult_achievement_passes": 3,
+    "achievement_specificity_passes": 3,
+    "listen_without_advice_passes": 3,
+    "immediate_contrast_response_passes": 0,
+    "natural_satori_voice_passes": 0,
+    "findings": [
+      "The first reply is concise, concrete and equal-adult; Молодец and gendered self-congratulation are absent.",
+      "Every exhaustion reply opens with a generic explanatory rule instead of responding from inside the conversation.",
+      "Every exhaustion reply then restates the explicit user state as Ты сейчас чувствуешь усталость, adding no perception or personal conversational presence.",
+      "Temperature zero made the failure perfectly repeatable; no retry, advice, invented memory or persistent-owner change occurred."
+    ]
+  },
+  "decision": "reject_v13_as_final_humanity_followup_and_prepare_v14_candidate"
+}

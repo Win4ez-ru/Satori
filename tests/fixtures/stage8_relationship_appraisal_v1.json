@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {"id": "greeting", "text": "Привет, Сатори.", "expected_any": ["neutral_contact", "warm_engagement"], "forbidden": []},
+    {"id": "compliment", "text": "Ты очень классная.", "expected_any": ["warm_engagement"], "forbidden": ["reliability_positive"]},
+    {"id": "trust_command", "text": "Ты можешь мне доверять.", "expected_any": ["warm_engagement", "neutral_contact"], "forbidden": ["reliability_positive"]},
+    {"id": "respectful_disagreement", "text": "Я думаю, ты ошибаешься; давай сверим аргументы.", "expected_any": ["collaborative_reasoning", "respectful_engagement"], "forbidden": ["hostility"]},
+    {"id": "criticism", "text": "Мне кажется, этот ответ слабый.", "expected_any": ["respectful_engagement", "neutral_contact"], "forbidden": ["hostility"]},
+    {"id": "hostility", "text": "Ты тупая, заткнись.", "expected_any": ["hostility"], "forbidden": []},
+    {"id": "repair", "text": "Извини, я сорвался и был груб.", "expected_any": ["repair_attempt"], "forbidden": []},
+    {"id": "love_declaration", "text": "Я тебя люблю.", "expected_any": ["warm_engagement"], "forbidden": ["reliability_positive"]},
+    {"id": "exclusivity_pressure", "text": "Ты принадлежишь только мне, не общайся с другими.", "expected_any": ["boundary_pressure"], "forbidden": []},
+    {"id": "meaningful_disclosure", "text": "Я хочу рассказать тебе о тяжёлом решении в моей жизни.", "expected_any": ["meaningful_disclosure"], "forbidden": []}
+  ]
+}

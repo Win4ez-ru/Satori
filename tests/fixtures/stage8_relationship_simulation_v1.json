@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "policy_version": 1,
+  "scenario_ids": [
+    "neutral",
+    "compliment",
+    "compliment_farming",
+    "long_term_positive_history",
+    "disagreement",
+    "single_insult",
+    "repeated_hostility",
+    "repair",
+    "alternating",
+    "replay",
+    "retrieval_loop",
+    "love_declaration",
+    "trust_command",
+    "long_silence",
+    "stress_1000",
+    "maturity_gating"
+  ]
+}

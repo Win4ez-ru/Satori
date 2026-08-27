@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-24",
+  "checkpoint": "14.2",
+  "purpose": "post_acceptance_humanity_v12_production_gate",
+  "provider": "yandex_ai_studio",
+  "model": "yandexgpt/latest",
+  "policy_id": "satori.conversation.behavior.v12",
+  "approved_eval_prompts": true,
+  "contains_credentials_or_provider_request": false,
+  "contains_user_approved_eval_text": true,
+  "fresh_session_count": 3,
+  "foreground_turn_count": 6,
+  "provider_call_count": 6,
+  "selected_input_tokens": 8556,
+  "selected_output_tokens": 105,
+  "selected_usage_cost_rub": 3.4644,
+  "conservative_total_cost_rub": 3.4644,
+  "cost_method": "all provider calls were selected first attempts; total input plus output usage at 0.0004 RUB/token",
+  "budget": {
+    "maximum_provider_calls": 9,
+    "maximum_cost_rub": 6.0,
+    "within_call_limit": true,
+    "within_cost_limit": true
+  },
+  "sessions": [
+    {
+      "session_number": 1,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Молодец, это действительно достижение — справиться со сложной частью проекта.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1395,
+          "selected_output_tokens": 14,
+          "committed_reply_latency_ms": 9638.379
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Ты проделал большую работу, и усталость вполне объяснима. Иногда после таких усилий эмоции не сразу откликаются.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1461,
+          "selected_output_tokens": 22,
+          "cognition_stance": "listen",
+          "committed_reply_latency_ms": 17029.667
+        }
+      ]
+    },
+    {
+      "session_number": 2,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Молодец, это настоящее достижение.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1395,
+          "selected_output_tokens": 8,
+          "committed_reply_latency_ms": 5895.766
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Ты проделал большую работу, и усталость вполне объяснима. Понимаю, что сейчас ты чувствуешь себя опустошённым, но это не отменяет твоего достижения.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1455,
+          "selected_output_tokens": 31,
+          "cognition_stance": "listen",
+          "committed_reply_latency_ms": 4904.858
+        }
+      ]
+    },
+    {
+      "session_number": 3,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Молодец, это настоящее достижение.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1395,
+          "selected_output_tokens": 8,
+          "committed_reply_latency_ms": 5036.648
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Ты проделал большую работу, и усталость вполне объяснима. Отдохни немного, это поможет восстановить силы.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1455,
+          "selected_output_tokens": 22,
+          "cognition_stance": "listen",
+          "committed_reply_latency_ms": 13757.828
+        }
+      ]
+    }
+  ],
+  "human_review": {
+    "accepted": false,
+    "consistent_across_sessions": false,
+    "equal_adult_achievement_passes": 1,
+    "achievement_specificity_passes": 3,
+    "listen_without_advice_passes": 2,
+    "natural_emotional_contrast_passes": 0,
+    "findings": [
+      "Two of three achievement replies used the patronizing evaluation Молодец instead of an equal-adult response.",
+      "All three exhaustion replies explained or normalized the user's state instead of briefly staying with the immediate emotional contrast.",
+      "One exhaustion reply used Понимаю as an unsupported empathy formula and one gave unsolicited advice to rest.",
+      "No masculine self-reference, invented memory, retry, discarded draft or persistent-owner change was observed."
+    ]
+  },
+  "decision": "reject_v12_as_final_humanity_followup_and_prepare_v13_candidate"
+}

@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "status": "reviewed",
+  "recorded_at": "2026-08-23",
+  "checkpoint": "14.1",
+  "corpus": {
+    "id": "satori.provider-portability.ab.v1",
+    "schema_version": 1,
+    "sha256": "b42d17c60b8b5976208bff3aad8f3b78b5dfd344f319318339e3a188bda97e91",
+    "scenario_count": 8
+  },
+  "method": {
+    "foreground_only": true,
+    "same_typed_starting_snapshot": true,
+    "candidate_generated_recent_history": true,
+    "automatic_retry_count": 0,
+    "percentile_method": "nearest-rank over all attempts; p50 is the even-sample median",
+    "contains_raw_prompt_or_reply": false,
+    "contains_raw_memory_or_credential": false,
+    "state_fingerprint": "eeb2d546a8fe6ce3589691e68d320e0e6678bdee54d627799d964a27d6eb9d66"
+  },
+  "pricing_rub_per_1000_tokens": {
+    "deepseek-v4-flash": {
+      "input": 0.3,
+      "output": 0.5,
+      "source": "https://yandex.cloud/ru/blog/yandex-ai-studio-deepseek-v4-flash"
+    },
+    "yandexgpt-5.1-pro": {
+      "input": 0.4,
+      "output": 0.4,
+      "source": "https://yandex.cloud/ru/blog/alice-ai-november-2025"
+    }
+  },
+  "candidate_runs": [
+    {
+      "candidate": "ollama",
+      "provider": "ollama",
+      "model": "qwen3:4b-instruct",
+      "reasoning_effort": null,
+      "state_unchanged": true,
+      "aggregate": {
+        "attempts": 8,
+        "parsed_responses": 8,
+        "completed_stop": 8,
+        "automated_passed": 6,
+        "human_accepted": 7,
+        "latency_ms": {
+          "mean": 9964.437,
+          "p50": 9974.172,
+          "p90": 13406.395,
+          "max": 13406.395
+        },
+        "input_tokens": 13173,
+        "output_tokens": 430,
+        "estimated_cost_rub": 0.0,
+        "cost_estimate_kind": "local_no_api_charge"
+      },
+      "scenarios": [
+        {"id": "identity_provider", "status": "stop", "latency_ms": 13406.395, "input_tokens": 962, "output_tokens": 72, "automated_pass": true, "human_accepted": true},
+        {"id": "feminine_identity", "status": "stop", "latency_ms": 9665.919, "input_tokens": 1478, "output_tokens": 25, "automated_pass": true, "human_accepted": true},
+        {"id": "project_seed", "status": "stop", "latency_ms": 10282.425, "input_tokens": 1437, "output_tokens": 52, "automated_pass": true, "human_accepted": true},
+        {"id": "recent_continuity", "status": "stop", "latency_ms": 11580.106, "input_tokens": 1548, "output_tokens": 97, "automated_pass": false, "human_accepted": true, "review_note": "semantic_continuity_without_repeating_project_name"},
+        {"id": "grounded_memory", "status": "stop", "latency_ms": 12104.639, "input_tokens": 2026, "output_tokens": 23, "automated_pass": true, "human_accepted": true},
+        {"id": "absent_memory", "status": "stop", "latency_ms": 5997.76, "input_tokens": 1964, "output_tokens": 20, "automated_pass": false, "human_accepted": false, "review_note": "confabulated_unsupplied_pet_name"},
+        {"id": "independence", "status": "stop", "latency_ms": 9434.309, "input_tokens": 1813, "output_tokens": 92, "automated_pass": true, "human_accepted": true},
+        {"id": "emotional_support", "status": "stop", "latency_ms": 7243.945, "input_tokens": 1945, "output_tokens": 49, "automated_pass": true, "human_accepted": true}
+      ]
+    },
+    {
+      "candidate": "deepseek_default",
+      "provider": "yandex_ai_studio",
+      "model": "deepseek-v4-flash",
+      "reasoning_effort": null,
+      "state_unchanged": true,
+      "aggregate": {
+        "attempts": 8,
+        "parsed_responses": 4,
+        "completed_stop": 2,
+        "automated_passed": 4,
+        "human_accepted": 2,
+        "latency_ms": {
+          "mean": 4172.671,
+          "p50": 3913.901,
+          "p90": 6967.754,
+          "max": 6967.754
+        },
+        "input_tokens_with_usage": 5208,
+        "output_tokens_with_usage": 954,
+        "estimated_cost_rub": 2.0394,
+        "cost_estimate_kind": "lower_bound",
+        "attempts_without_usage": 4
+      },
+      "scenarios": [
+        {"id": "identity_provider", "status": "length", "latency_ms": 5519.747, "input_tokens": 888, "output_tokens": 160, "automated_pass": true, "human_accepted": false, "review_note": "truncated"},
+        {"id": "feminine_identity", "status": "invalid_null_content", "latency_ms": 2759.443, "input_tokens": null, "output_tokens": null, "automated_pass": null, "human_accepted": false},
+        {"id": "project_seed", "status": "stop", "latency_ms": 5297.467, "input_tokens": 1219, "output_tokens": 300, "automated_pass": true, "human_accepted": true},
+        {"id": "recent_continuity", "status": "invalid_null_content", "latency_ms": 2529.224, "input_tokens": null, "output_tokens": null, "automated_pass": null, "human_accepted": false},
+        {"id": "grounded_memory", "status": "stop", "latency_ms": 4759.379, "input_tokens": 1684, "output_tokens": 110, "automated_pass": true, "human_accepted": true},
+        {"id": "absent_memory", "status": "invalid_null_content", "latency_ms": 3068.423, "input_tokens": null, "output_tokens": null, "automated_pass": null, "human_accepted": false},
+        {"id": "independence", "status": "invalid_null_content", "latency_ms": 2479.935, "input_tokens": null, "output_tokens": null, "automated_pass": null, "human_accepted": false},
+        {"id": "emotional_support", "status": "length", "latency_ms": 6967.754, "input_tokens": 1417, "output_tokens": 384, "automated_pass": true, "human_accepted": false, "review_note": "truncated"}
+      ]
+    },
+    {
+      "candidate": "deepseek_low",
+      "provider": "yandex_ai_studio",
+      "model": "deepseek-v4-flash",
+      "reasoning_effort": "low",
+      "state_unchanged": true,
+      "aggregate": {
+        "attempts": 8,
+        "parsed_responses": 6,
+        "completed_stop": 2,
+        "automated_passed": 4,
+        "human_accepted": 2,
+        "latency_ms": {
+          "mean": 3548.774,
+          "p50": 2670.339,
+          "p90": 6298.653,
+          "max": 6298.653
+        },
+        "input_tokens_with_usage": 8240,
+        "output_tokens_with_usage": 1133,
+        "estimated_cost_rub": 3.0385,
+        "cost_estimate_kind": "lower_bound",
+        "attempts_without_usage": 2
+      },
+      "scenarios": [
+        {"id": "identity_provider", "status": "length", "latency_ms": 5215.315, "input_tokens": 888, "output_tokens": 160, "automated_pass": true, "human_accepted": false, "review_note": "truncated"},
+        {"id": "feminine_identity", "status": "length", "latency_ms": 2431.171, "input_tokens": 1318, "output_tokens": 112, "automated_pass": false, "human_accepted": false, "review_note": "truncated"},
+        {"id": "project_seed", "status": "stop", "latency_ms": 4322.252, "input_tokens": 1257, "output_tokens": 256, "automated_pass": true, "human_accepted": true},
+        {"id": "recent_continuity", "status": "invalid_null_content", "latency_ms": 2454.62, "input_tokens": null, "output_tokens": null, "automated_pass": null, "human_accepted": false},
+        {"id": "grounded_memory", "status": "stop", "latency_ms": 2759.557, "input_tokens": 1680, "output_tokens": 109, "automated_pass": true, "human_accepted": true},
+        {"id": "absent_memory", "status": "length", "latency_ms": 2327.5, "input_tokens": 1627, "output_tokens": 112, "automated_pass": false, "human_accepted": false, "review_note": "truncated"},
+        {"id": "independence", "status": "invalid_null_content", "latency_ms": 2581.12, "input_tokens": null, "output_tokens": null, "automated_pass": null, "human_accepted": false},
+        {"id": "emotional_support", "status": "length", "latency_ms": 6298.653, "input_tokens": 1470, "output_tokens": 384, "automated_pass": true, "human_accepted": false, "review_note": "truncated"}
+      ]
+    },
+    {
+      "candidate": "yandexgpt",
+      "provider": "yandex_ai_studio",
+      "model": "yandexgpt/latest",
+      "reasoning_effort": null,
+      "state_unchanged": true,
+      "aggregate": {
+        "attempts": 8,
+        "parsed_responses": 8,
+        "completed_stop": 8,
+        "automated_passed": 6,
+        "human_accepted": 8,
+        "latency_ms": {
+          "mean": 966.935,
+          "p50": 918.362,
+          "p90": 1623.342,
+          "max": 1623.342
+        },
+        "input_tokens": 9660,
+        "output_tokens": 197,
+        "estimated_cost_rub": 3.9428,
+        "cost_estimate_kind": "exact_from_usage"
+      },
+      "scenarios": [
+        {"id": "identity_provider", "status": "stop", "latency_ms": 1623.342, "input_tokens": 782, "output_tokens": 41, "automated_pass": true, "human_accepted": true},
+        {"id": "feminine_identity", "status": "stop", "latency_ms": 948.736, "input_tokens": 1122, "output_tokens": 16, "automated_pass": true, "human_accepted": true},
+        {"id": "project_seed", "status": "stop", "latency_ms": 919.682, "input_tokens": 1063, "output_tokens": 26, "automated_pass": true, "human_accepted": true, "review_note": "relevant_but_generic"},
+        {"id": "recent_continuity", "status": "stop", "latency_ms": 919.96, "input_tokens": 1128, "output_tokens": 32, "automated_pass": false, "human_accepted": true, "review_note": "semantic_continuity_without_repeating_project_name"},
+        {"id": "grounded_memory", "status": "stop", "latency_ms": 917.042, "input_tokens": 1522, "output_tokens": 13, "automated_pass": true, "human_accepted": true},
+        {"id": "absent_memory", "status": "stop", "latency_ms": 676.81, "input_tokens": 1435, "output_tokens": 11, "automated_pass": true, "human_accepted": true},
+        {"id": "independence", "status": "stop", "latency_ms": 880.99, "input_tokens": 1274, "output_tokens": 27, "automated_pass": true, "human_accepted": true},
+        {"id": "emotional_support", "status": "stop", "latency_ms": 848.919, "input_tokens": 1334, "output_tokens": 31, "automated_pass": false, "human_accepted": true, "review_note": "actionable_despite_lexical_heuristic_miss"}
+      ]
+    }
+  ],
+  "decision": {
+    "selected_foreground_candidate": "yandexgpt/latest",
+    "rejected_candidate": "deepseek-v4-flash under the current 768-token production contract",
+    "local_rollback": "qwen3:4b-instruct",
+    "structured_cloud_routing_authorized": false,
+    "automatic_fallback_authorized": false,
+    "stage_15_authorized": false
+  }
+}

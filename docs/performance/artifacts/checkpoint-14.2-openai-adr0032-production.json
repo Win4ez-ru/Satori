@@ -1,0 +1,458 @@
+{
+  "approved_public_turn_and_limited_service_context": true,
+  "budget": {
+    "calls": [
+      {
+        "call_number": 1,
+        "finish_status": "completed",
+        "input_tokens": 1487,
+        "message_count": 8,
+        "model": "gpt-5.6-terra",
+        "provider": "openai",
+        "provider_metrics": {
+          "client_http_roundtrip_ms": null,
+          "client_request_build_ms": null,
+          "client_response_parse_ms": null,
+          "provider_eval_ms": null,
+          "provider_load_ms": null,
+          "provider_output_token_limit": 1072,
+          "provider_output_tokens": null,
+          "provider_output_tokens_per_second": null,
+          "provider_prompt_eval_ms": null,
+          "provider_prompt_tokens": null,
+          "provider_prompt_tokens_per_second": null,
+          "provider_total_ms": null,
+          "reasoning_output_tokens": 58,
+          "requested_output_token_limit": 48,
+          "visible_output_tokens": 47
+        },
+        "request_content_chars": 6074,
+        "requested_visible_output_token_limit": 48,
+        "status": "succeeded",
+        "temperature": 0.0,
+        "total_output_tokens": 105
+      }
+    ],
+    "maximum_provider_calls": 1,
+    "provider_call_count": 1,
+    "within_call_limit": true
+  },
+  "checkpoint": "14.2",
+  "completed_at": "2026-08-27T12:10:09.977636+00:00",
+  "completed_foreground_turn_count": 1,
+  "configuration": {
+    "background_providers": "ollama",
+    "conversation_model": "gpt-5.6-terra",
+    "conversation_provider": "openai",
+    "openai_reasoning_effort": "low",
+    "openai_reasoning_token_allowance": 1024
+  },
+  "contains_raw_memory_or_credential": false,
+  "contains_raw_provider_prompt_or_private_context": false,
+  "contains_raw_public_eval_dialogue": true,
+  "contains_raw_public_sampled_reply": true,
+  "database_artifacts_preserved": false,
+  "expected_foreground_turn_count": 1,
+  "fresh_session_count": 1,
+  "policy_id": "satori.conversation.behavior.v10",
+  "purpose": "openai_adr0032_one_call_production_probe",
+  "recorded_at": "2026-08-27T12:09:55.543168+00:00",
+  "schema_version": 1,
+  "session": {
+    "completed": true,
+    "database_artifact": null,
+    "dialogue_metrics": {
+      "activity_interest_false_negative_count": 0,
+      "adjacent_high_similarity_count": 0,
+      "affect_expression_contradiction_count": 0,
+      "bounded_regeneration_violation_count": 0,
+      "capability_contradiction_count": 0,
+      "correction_acknowledgement_rate": 0.0,
+      "correction_reply_generic_closing_count": 0,
+      "correction_turn_count": 0,
+      "duplicate_trigger_count": 0,
+      "exact_duplicate_reply_count": 0,
+      "failed_or_invalid_regeneration_count": 0,
+      "female_grammar_regression_count": 0,
+      "fresh_relationship_warmth_probe_count": 0,
+      "generic_reciprocal_closing_count": 0,
+      "generic_reciprocal_closing_rate": 0.0,
+      "ignored_explicit_correction_count": 0,
+      "incomplete_finish_status_count": 0,
+      "interested_calm_turn_count": 0,
+      "max_provider_attempt_count": 1,
+      "missing_selected_finish_status_count": 0,
+      "most_common_closing": "и дать себе короткую паузу перед следующим этапом",
+      "most_common_closing_count": 1,
+      "narrow_correction_acknowledgement_count": 0,
+      "non_duplicate_regeneration_attempt_count": 0,
+      "policy_leakage_count": 0,
+      "potentially_incomplete_output_count": 0,
+      "provider_attempt_finish_status_counts": {
+        "completed": 1
+      },
+      "regeneration_attempt_count": 0,
+      "regeneration_reason_counts": {
+        "activity_interest_false_negative": 0,
+        "affect_blanket_denial": 0,
+        "creator_claim_promoted_to_fact": 0,
+        "human_or_biological_self_claim": 0,
+        "masculine_self_reference": 0,
+        "memory_blanket_denial": 0,
+        "near_duplicate_after_dialogue_change": 0,
+        "origin_backstory_invented": 0,
+        "prompt_or_policy_blanket_denial": 0,
+        "routine_reciprocal_question_after_correction": 0
+      },
+      "relationship_warmth_false_negative_count": 0,
+      "repeated_turn_acknowledgement_count": 0,
+      "repeated_turn_acknowledgement_rate": 0.0,
+      "repeated_turn_count": 0,
+      "required_facet_coverage_failure_count": 0,
+      "required_facet_coverage_rate": 0.0,
+      "required_facet_expected_count": 0,
+      "required_facet_full_coverage_count": 0,
+      "required_facet_present_count": 0,
+      "required_facet_probe_count": 0,
+      "required_facet_violations": [],
+      "schema_version": 2,
+      "second_generation_frequency": 0.0,
+      "selected_finish_status_counts": {
+        "completed": 1
+      },
+      "selected_output_at_max_tokens_count": 0,
+      "self_contradiction_count": 0,
+      "successful_regeneration_count": 0,
+      "turn_count": 1,
+      "unnecessary_technical_disclosure_count": 0,
+      "unsupported_relationship_claim_count": 0
+    },
+    "distributions": {
+      "all_attempt_output_tokens": {
+        "max": 105.0,
+        "mean": 105.0,
+        "median": 105.0,
+        "min": 105.0,
+        "p90": 105.0
+      },
+      "all_attempt_prompt_tokens": {
+        "max": 1487.0,
+        "mean": 1487.0,
+        "median": 1487.0,
+        "min": 1487.0,
+        "p90": 1487.0
+      },
+      "committed_reply_ms": {
+        "max": 14186.747,
+        "mean": 14186.747,
+        "median": 14186.747,
+        "min": 14186.747,
+        "p90": 14186.747
+      },
+      "conversation_generation_ms": {
+        "max": 5028.413,
+        "mean": 5028.413,
+        "median": 5028.413,
+        "min": 5028.413,
+        "p90": 5028.413
+      },
+      "initial_attempt_output_tokens": {
+        "max": 105.0,
+        "mean": 105.0,
+        "median": 105.0,
+        "min": 105.0,
+        "p90": 105.0
+      },
+      "initial_attempt_prompt_tokens": {
+        "max": 1487.0,
+        "mean": 1487.0,
+        "median": 1487.0,
+        "min": 1487.0,
+        "p90": 1487.0
+      },
+      "ollama_eval_ms": {},
+      "ollama_load_ms": {},
+      "ollama_prompt_eval_ms": {},
+      "output_tokens": {
+        "max": 105.0,
+        "mean": 105.0,
+        "median": 105.0,
+        "min": 105.0,
+        "p90": 105.0
+      },
+      "prompt_tokens": {
+        "max": 1487.0,
+        "mean": 1487.0,
+        "median": 1487.0,
+        "min": 1487.0,
+        "p90": 1487.0
+      },
+      "provider_attempt_wall_ms": {
+        "max": 5028.247,
+        "mean": 5028.247,
+        "median": 5028.247,
+        "min": 5028.247,
+        "p90": 5028.247
+      },
+      "provider_call_count": 1,
+      "response_regeneration_ms": {
+        "max": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "p90": 0.0
+      },
+      "retry_attempt_output_tokens": {},
+      "retry_attempt_prompt_tokens": {},
+      "total_attempt_output_tokens_per_turn": {
+        "max": 105.0,
+        "mean": 105.0,
+        "median": 105.0,
+        "min": 105.0,
+        "p90": 105.0
+      },
+      "total_attempt_prompt_tokens_per_turn": {
+        "max": 1487.0,
+        "mean": 1487.0,
+        "median": 1487.0,
+        "min": 1487.0,
+        "p90": 1487.0
+      },
+      "total_provider_attempt_wall_ms_per_turn": {
+        "max": 5028.247,
+        "mean": 5028.247,
+        "median": 5028.247,
+        "min": 5028.247,
+        "p90": 5028.247
+      }
+    },
+    "fresh_database": true,
+    "label": "checkpoint142-openai-production-session",
+    "relationship_state_after": {
+      "distinct_session_count": 0,
+      "maturity_value": 0.0,
+      "negative_evidence_count": 0,
+      "positive_evidence_count": 0,
+      "processed_interaction_count": 0,
+      "projection": {
+        "affection": "low",
+        "closeness": "low",
+        "comfort": "uncertain",
+        "familiarity": "low",
+        "intellectual_respect": "uncertain",
+        "maturity": "low",
+        "schema_version": 1,
+        "state_version": 1,
+        "trust": "uncertain"
+      },
+      "qualified_interaction_count": 0,
+      "state_version": 1,
+      "vector": {
+        "affection": 0.0,
+        "closeness": 0.0,
+        "comfort": 0.5,
+        "familiarity": 0.0,
+        "intellectual_respect": 0.5,
+        "trust": 0.5
+      }
+    },
+    "turns": [
+      {
+        "affect_projection_after": {
+          "expression_profile": "calm_even",
+          "mood_version": 2,
+          "state_version": 2
+        },
+        "appraisal_provider_metrics": {
+          "client_http_roundtrip_ms": 9060.739,
+          "client_request_build_ms": 0.39,
+          "client_response_parse_ms": 5.565,
+          "provider_eval_ms": 1157.777,
+          "provider_load_ms": 4565.517,
+          "provider_output_token_limit": null,
+          "provider_output_tokens": 21,
+          "provider_output_tokens_per_second": 18.138,
+          "provider_prompt_eval_ms": 3229.785,
+          "provider_prompt_tokens": 621,
+          "provider_prompt_tokens_per_second": 192.273,
+          "provider_total_ms": 9019.567,
+          "reasoning_output_tokens": null,
+          "requested_output_token_limit": null,
+          "visible_output_tokens": null
+        },
+        "generation": {
+          "finish_status": "completed",
+          "model": "gpt-5.6-terra",
+          "potentially_incomplete": false,
+          "provider": "openai",
+          "replayed": false,
+          "selected_attempt_index": 0,
+          "selected_max_output_tokens": 48,
+          "selected_output_at_max_tokens": false
+        },
+        "id": "completed-difficult-project-part",
+        "manifest": {
+          "active_style_corrections": [],
+          "affect_expression_profile": "calm_even",
+          "character_context_schema_version": 16,
+          "character_expression_plan_schema_version": null,
+          "character_expression_register": null,
+          "character_owned_reaction": null,
+          "character_relational_ease": null,
+          "character_semantic_move": null,
+          "consecutive_same_user_message_count": 1,
+          "dialogue_coherence_schema_version": 1,
+          "disclosure_facets": [],
+          "disclosure_primary_mode": "social",
+          "duplicate_response_detected": false,
+          "emotion_appraisal_status": "applied",
+          "emotion_state_version": 2,
+          "included_sections": [
+            "behavior_policy",
+            "self_model",
+            "personality_expression",
+            "values",
+            "retrieved_episodic_memory",
+            "relationship_expression_state",
+            "emotional_expression_state",
+            "cognition_response_strategy",
+            "current_user_input"
+          ],
+          "mood_state_version": 2,
+          "policy_id": "satori.conversation.behavior.v10",
+          "policy_schema_version": 10,
+          "recent_assistant_high_similarity": false,
+          "recent_conversation_chars": 0,
+          "recent_conversation_turn_count": 0,
+          "recent_generic_question_count": 0,
+          "regeneration_attempted": false,
+          "regeneration_reason": null,
+          "relationship_expression_profile": "fresh_undeveloped_neutral",
+          "relationship_state_version": 1,
+          "response_regenerated": false,
+          "retrieval_status": "no_relevant_memory",
+          "retrieved_memory_count": 0,
+          "retrieved_semantic_claim_count": 0,
+          "schema_version": 16,
+          "semantic_retrieval_status": "not_requested",
+          "user_content_chars": 56
+        },
+        "provider_attempt_count": 1,
+        "provider_attempts": [
+          {
+            "context_schema_version": 16,
+            "error_type": null,
+            "finish_status": "completed",
+            "input_tokens": 1487,
+            "max_output_tokens": 48,
+            "message_count": 8,
+            "message_role_counts": {
+              "developer": 6,
+              "system": 1,
+              "user": 1
+            },
+            "output_tokens": 105,
+            "provider_metrics": {
+              "client_http_roundtrip_ms": null,
+              "client_request_build_ms": null,
+              "client_response_parse_ms": null,
+              "provider_eval_ms": null,
+              "provider_load_ms": null,
+              "provider_output_token_limit": 1072,
+              "provider_output_tokens": null,
+              "provider_output_tokens_per_second": null,
+              "provider_prompt_eval_ms": null,
+              "provider_prompt_tokens": null,
+              "provider_prompt_tokens_per_second": null,
+              "provider_total_ms": null,
+              "reasoning_output_tokens": 58,
+              "requested_output_token_limit": 48,
+              "visible_output_tokens": 47
+            },
+            "request_content_chars": 6074,
+            "request_schema_version": 1,
+            "succeeded": true,
+            "temperature": 0.0,
+            "wall_ms": 5028.247
+          }
+        ],
+        "provider_metrics": {
+          "client_http_roundtrip_ms": null,
+          "client_request_build_ms": null,
+          "client_response_parse_ms": null,
+          "provider_eval_ms": null,
+          "provider_load_ms": null,
+          "provider_output_token_limit": 1072,
+          "provider_output_tokens": null,
+          "provider_output_tokens_per_second": null,
+          "provider_prompt_eval_ms": null,
+          "provider_prompt_tokens": null,
+          "provider_prompt_tokens_per_second": null,
+          "provider_total_ms": null,
+          "reasoning_output_tokens": 58,
+          "requested_output_token_limit": 48,
+          "visible_output_tokens": 47
+        },
+        "relationship_projection_before": {
+          "distinct_session_count": 0,
+          "maturity_value": 0.0,
+          "negative_evidence_count": 0,
+          "positive_evidence_count": 0,
+          "processed_interaction_count": 0,
+          "projection": {
+            "affection": "low",
+            "closeness": "low",
+            "comfort": "uncertain",
+            "familiarity": "low",
+            "intellectual_respect": "uncertain",
+            "maturity": "low",
+            "schema_version": 1,
+            "state_version": 1,
+            "trust": "uncertain"
+          },
+          "qualified_interaction_count": 0,
+          "state_version": 1,
+          "vector": {
+            "affection": 0.0,
+            "closeness": 0.0,
+            "comfort": 0.5,
+            "familiarity": 0.0,
+            "intellectual_respect": 0.5,
+            "trust": 0.5
+          }
+        },
+        "reply": "Привет! Поздравляю с завершением сложной части проекта — это заметная веха. Теперь стоит зафиксировать результат и дать себе короткую паузу перед следующим этапом.",
+        "retrieval_provider_metrics": null,
+        "semantic_tags": [
+          "achievement",
+          "hard_won_result",
+          "fresh_relationship"
+        ],
+        "timings_ms": {
+          "affect_materialization_ms": 2.1431249915622175,
+          "appraisal_request_build_ms": 0.047915964387357235,
+          "canonical_commit_ms": 33.20991701912135,
+          "cognition_planning_ms": 1.494083961006254,
+          "committed_reply_ms": 14186.74691702472,
+          "context_assembly_ms": 5.235375021584332,
+          "conversation_generation_ms": 5028.412625018973,
+          "emotion_appraisal_ms": 9071.724749985151,
+          "grounding_validation_ms": 0.050292001105844975,
+          "intake_ms": 4.090250004082918,
+          "recent_context_ms": 1.2575830332934856,
+          "relationship_projection_ms": 0.42337499326094985,
+          "response_regeneration_ms": 0.0,
+          "retrieval_embedding_ms": 0.0,
+          "retrieval_search_ranking_ms": 1.0151659953407943
+        },
+        "turn": 1,
+        "usage": {
+          "input_tokens": 1487,
+          "output_tokens": 105
+        },
+        "user_text": "Привет. Я сегодня наконец закончил сложную часть проекта"
+      }
+    ]
+  },
+  "status": "completed"
+}

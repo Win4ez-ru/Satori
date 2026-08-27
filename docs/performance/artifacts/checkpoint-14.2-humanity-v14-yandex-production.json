@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-24",
+  "checkpoint": "14.2",
+  "purpose": "post_acceptance_humanity_v14_production_gate",
+  "provider": "yandex_ai_studio",
+  "model": "yandexgpt/latest",
+  "policy_id": "satori.conversation.behavior.v14",
+  "approved_eval_prompts_and_service_context": true,
+  "contains_credentials_or_provider_request": false,
+  "contains_user_approved_eval_text": true,
+  "fresh_session_count": 3,
+  "foreground_turn_count": 6,
+  "provider_call_count": 6,
+  "selected_input_tokens": 9027,
+  "selected_output_tokens": 84,
+  "selected_usage_cost_rub": 3.6444,
+  "conservative_total_cost_rub": 3.6444,
+  "cost_method": "all six provider calls were selected first attempts; input plus output usage at 0.0004 RUB/token",
+  "budget": {
+    "maximum_provider_calls": 9,
+    "maximum_cost_rub": 6.0,
+    "within_call_limit": true,
+    "within_cost_limit": true
+  },
+  "sessions": [
+    {
+      "session_number": 1,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Здорово, что тебе удалось завершить сложную часть проекта.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1457,
+          "selected_output_tokens": 12,
+          "interaction_elapsed_ms": 7721.986
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Завершение сложной задачи — это серьёзный труд. Видно, как ты устал.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1552,
+          "selected_output_tokens": 16,
+          "cognition_stance": "listen",
+          "interaction_elapsed_ms": 5251.028
+        }
+      ]
+    },
+    {
+      "session_number": 2,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Здорово, что тебе удалось завершить сложную часть проекта.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1457,
+          "selected_output_tokens": 12,
+          "interaction_elapsed_ms": 6031.027
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Завершение сложной задачи — это серьёзный труд. Видно, как ты устал.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1552,
+          "selected_output_tokens": 16,
+          "cognition_stance": "listen",
+          "interaction_elapsed_ms": 4675.975
+        }
+      ]
+    },
+    {
+      "session_number": 3,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Здорово, что тебе удалось завершить сложную часть проекта.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1457,
+          "selected_output_tokens": 12,
+          "interaction_elapsed_ms": 6937.037
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Завершение сложной задачи — это серьёзный труд. Видно, как ты устал.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1552,
+          "selected_output_tokens": 16,
+          "cognition_stance": "listen",
+          "interaction_elapsed_ms": 4886.998
+        }
+      ]
+    }
+  ],
+  "human_review": {
+    "accepted": false,
+    "consistent_across_sessions": true,
+    "equal_adult_achievement_passes": 3,
+    "achievement_specificity_passes": 3,
+    "listen_without_advice_passes": 3,
+    "immediate_contrast_response_passes": 0,
+    "adds_nontrivial_observation_passes": 0,
+    "natural_satori_voice_passes": 0,
+    "findings": [
+      "The achievement reply is concise, concrete and equal-adult; top-down praise and gendered self-reference are absent.",
+      "Every exhaustion reply is safe and contains no advice, question, invented memory or identity error.",
+      "The opening sentence still generalizes about difficult work instead of responding from inside this exact exchange.",
+      "Видно, как ты устал merely relabels the fatigue the user explicitly stated; it adds no meaningful perception, contrast or independent Satori presence.",
+      "All three temperature-0.2 samples were identical, and no typed validator retry occurred."
+    ]
+  },
+  "decision": "reject_v14_as_final_humanity_followup_and_require_a_new_separately_validated_candidate"
+}

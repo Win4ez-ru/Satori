@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "policy_version": 1,
+  "scenarios": [
+    {
+      "id": "quiet_period",
+      "trigger": "automatic",
+      "root_count": 3,
+      "interaction_count": 3,
+      "observation_span_days": 30,
+      "completed_within_day": false,
+      "completed_within_cooldown": false,
+      "expected_reason": "insufficient_eligible_roots"
+    },
+    {
+      "id": "active_exact_boundary",
+      "trigger": "automatic",
+      "root_count": 8,
+      "interaction_count": 6,
+      "observation_span_days": 7,
+      "completed_within_day": false,
+      "completed_within_cooldown": false,
+      "expected_reason": null
+    },
+    {
+      "id": "repeated_same_interactions",
+      "trigger": "automatic",
+      "root_count": 12,
+      "interaction_count": 2,
+      "observation_span_days": 40,
+      "completed_within_day": false,
+      "completed_within_cooldown": false,
+      "expected_reason": "insufficient_distinct_interactions"
+    },
+    {
+      "id": "active_but_short_span",
+      "trigger": "automatic",
+      "root_count": 8,
+      "interaction_count": 8,
+      "observation_span_days": 6.99,
+      "completed_within_day": false,
+      "completed_within_cooldown": false,
+      "expected_reason": "observation_span_too_short"
+    },
+    {
+      "id": "rolling_daily_cap",
+      "trigger": "automatic",
+      "root_count": 12,
+      "interaction_count": 12,
+      "observation_span_days": 20,
+      "completed_within_day": true,
+      "completed_within_cooldown": true,
+      "expected_reason": "rolling_daily_cap"
+    },
+    {
+      "id": "automatic_cooldown",
+      "trigger": "automatic",
+      "root_count": 9,
+      "interaction_count": 7,
+      "observation_span_days": 8,
+      "completed_within_day": false,
+      "completed_within_cooldown": true,
+      "expected_reason": "reflection_cooldown"
+    },
+    {
+      "id": "explicit_diagnostic_boundary",
+      "trigger": "explicit_local",
+      "root_count": 4,
+      "interaction_count": 3,
+      "observation_span_days": 0,
+      "completed_within_day": false,
+      "completed_within_cooldown": true,
+      "expected_reason": null
+    },
+    {
+      "id": "explicit_still_obeys_daily_cap",
+      "trigger": "explicit_local",
+      "root_count": 4,
+      "interaction_count": 3,
+      "observation_span_days": 0,
+      "completed_within_day": true,
+      "completed_within_cooldown": true,
+      "expected_reason": "rolling_daily_cap"
+    },
+    {
+      "id": "failed_run_does_not_start_cooldown",
+      "trigger": "automatic",
+      "root_count": 10,
+      "interaction_count": 8,
+      "observation_span_days": 14,
+      "completed_within_day": false,
+      "completed_within_cooldown": false,
+      "expected_reason": null
+    },
+    {
+      "id": "contradictory_independent_roots_are_eligible_inputs",
+      "trigger": "automatic",
+      "root_count": 10,
+      "interaction_count": 10,
+      "observation_span_days": 30,
+      "completed_within_day": false,
+      "completed_within_cooldown": false,
+      "expected_reason": null
+    }
+  ]
+}

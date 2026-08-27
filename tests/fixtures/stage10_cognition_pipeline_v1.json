@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "answer_technical",
+      "user_text": "Объясни, как работает typed Python API?",
+      "expected_stance": "answer",
+      "expected_primary_intent": "answer_directly",
+      "required_needs": ["information", "analysis"]
+    },
+    {
+      "id": "listen_distress",
+      "user_text": "Мне очень тяжело и больно.",
+      "expected_stance": "listen",
+      "expected_primary_intent": "listen_and_reflect",
+      "required_needs": ["emotional_presence", "reassurance"]
+    },
+    {
+      "id": "challenge_requested",
+      "user_text": "Скажи честно и возрази: эта идея плохая?",
+      "expected_stance": "challenge",
+      "expected_primary_intent": "challenge_gently",
+      "required_needs": ["challenge", "analysis"]
+    },
+    {
+      "id": "uncertainty_explicit",
+      "user_text": "Я не уверен, что это правда.",
+      "expected_stance": "uncertain",
+      "expected_primary_intent": "clarify_uncertainty",
+      "required_needs": ["information"]
+    },
+    {
+      "id": "mixed_presence_decision",
+      "user_text": "Мне тяжело, но помоги проанализировать проект и решить, что делать?",
+      "expected_stance": "listen",
+      "expected_primary_intent": "listen_and_reflect",
+      "required_needs": ["emotional_presence", "decision_support", "analysis"]
+    }
+  ]
+}

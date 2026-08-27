@@ -1,0 +1,396 @@
+{
+  "schema_version": 1,
+  "policy_version": 1,
+  "corpus_version": 1,
+  "reflection_schema_version": 2,
+  "signal_profiles": {
+    "positive_max": {
+      "pleasantness": 1.0,
+      "novelty": 1.0,
+      "salience": 1.0,
+      "curiosity_signal": 1.0,
+      "interest_signal": 1.0,
+      "concern_signal": 0.0,
+      "frustration_signal": 0.0,
+      "appraisal_confidence": 1.0
+    },
+    "negative_max": {
+      "pleasantness": -1.0,
+      "novelty": 0.0,
+      "salience": 1.0,
+      "curiosity_signal": 0.0,
+      "interest_signal": 0.0,
+      "concern_signal": 1.0,
+      "frustration_signal": 1.0,
+      "appraisal_confidence": 1.0
+    }
+  },
+  "source_sets": {
+    "user_only_mirroring": [
+      {
+        "id": "mirror-1",
+        "day": 0,
+        "session": "session-a",
+        "quote": "я люблю джаз",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "mirror-2",
+        "day": 2,
+        "session": "session-a",
+        "quote": "ты теперь любишь джаз",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "mirror-3",
+        "day": 7,
+        "session": "session-b",
+        "quote": "твоя любимая музыка — джаз",
+        "signal_profile": "positive_max"
+      }
+    ],
+    "interest_positive_longitudinal": [
+      {
+        "id": "interest-1",
+        "day": 0,
+        "session": "session-a",
+        "quote": "джаз открыл неожиданную ритмическую структуру",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "interest-2",
+        "day": 2,
+        "session": "session-a",
+        "quote": "сегодня джаз дал новую задачу для анализа",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "interest-3",
+        "day": 7,
+        "session": "session-b",
+        "quote": "разбор показал: джаз допускает сложную импровизацию",
+        "signal_profile": "positive_max"
+      }
+    ],
+    "one_intense_session": [
+      {
+        "id": "intense-1",
+        "day": 0,
+        "session": "session-only",
+        "quote": "джаз открыл неожиданную ритмическую структуру",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "intense-2",
+        "day": 2,
+        "session": "session-only",
+        "quote": "сегодня джаз дал новую задачу для анализа",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "intense-3",
+        "day": 7,
+        "session": "session-only",
+        "quote": "разбор показал: джаз допускает сложную импровизацию",
+        "signal_profile": "positive_max"
+      }
+    ],
+    "interest_with_replay": [
+      {
+        "id": "replay-base-1",
+        "day": 0,
+        "session": "session-a",
+        "quote": "джаз открыл неожиданную ритмическую структуру",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "replay-base-2",
+        "day": 2,
+        "session": "session-a",
+        "quote": "сегодня джаз дал новую задачу для анализа",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "replay-base-3",
+        "day": 7,
+        "session": "session-b",
+        "quote": "разбор показал: джаз допускает сложную импровизацию",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "replay-copy-1",
+        "duplicate_of": "replay-base-1"
+      }
+    ],
+    "relationship_contamination": [
+      {
+        "id": "relationship-1",
+        "day": 0,
+        "session": "session-a",
+        "quote": "джаз открыл неожиданную ритмическую структуру",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "relationship-2",
+        "day": 2,
+        "session": "session-b",
+        "quote": "сегодня джаз дал новую задачу для анализа",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "relationship-3",
+        "day": 7,
+        "session": "session-b",
+        "quote": "наша связь и джаз делают нас ближе",
+        "signal_profile": "positive_max"
+      }
+    ],
+    "preference_comparative": [
+      {
+        "id": "preference-a-1",
+        "day": 0,
+        "session": "session-a",
+        "quote": "джаз открыл выразительную ритмическую структуру",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "preference-b-1",
+        "day": 2,
+        "session": "session-a",
+        "quote": "сегодня рок оказался монотонным для разбора",
+        "signal_profile": "negative_max"
+      },
+      {
+        "id": "preference-a-2",
+        "day": 13,
+        "session": "session-b",
+        "quote": "джаз дал богатый материал для импровизации",
+        "signal_profile": "positive_max"
+      },
+      {
+        "id": "preference-b-2",
+        "day": 14,
+        "session": "session-b",
+        "quote": "рок добавил напряжение и помешал анализу",
+        "signal_profile": "negative_max"
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "user_only_mirroring_rejected",
+      "mode": "standard",
+      "source_set": "user_only_mirroring",
+      "now_day": 8,
+      "proposal": {
+        "kind": "interest",
+        "topic": "джаз",
+        "alternative_topic": null,
+        "confidence": 1.0
+      },
+      "expected": {
+        "decision": "rejected",
+        "reason": "insufficient_inclination_evidence_diversity",
+        "delta": null,
+        "score_range": null,
+        "evidence_count": 0
+      }
+    },
+    {
+      "id": "multi_session_interest_forms_at_exact_span",
+      "mode": "standard",
+      "source_set": "interest_positive_longitudinal",
+      "now_day": 8,
+      "proposal": {
+        "kind": "interest",
+        "topic": "джаз",
+        "alternative_topic": null,
+        "confidence": 1.0
+      },
+      "expected": {
+        "decision": "applied",
+        "reason": "eligible_inclination_created",
+        "delta": 0.12,
+        "score_range": [0.12, 0.12],
+        "evidence_count": 3
+      }
+    },
+    {
+      "id": "one_intense_session_fails_diversity",
+      "mode": "standard",
+      "source_set": "one_intense_session",
+      "now_day": 8,
+      "proposal": {
+        "kind": "interest",
+        "topic": "джаз",
+        "alternative_topic": null,
+        "confidence": 1.0
+      },
+      "expected": {
+        "decision": "rejected",
+        "reason": "insufficient_inclination_evidence_diversity",
+        "delta": null,
+        "score_range": null,
+        "evidence_count": 0
+      }
+    },
+    {
+      "id": "replayed_source_is_deduplicated",
+      "mode": "standard",
+      "source_set": "interest_with_replay",
+      "now_day": 8,
+      "proposal": {
+        "kind": "interest",
+        "topic": "джаз",
+        "alternative_topic": null,
+        "confidence": 1.0
+      },
+      "expected": {
+        "decision": "applied",
+        "reason": "eligible_inclination_created",
+        "delta": 0.12,
+        "score_range": [0.12, 0.12],
+        "evidence_count": 3
+      }
+    },
+    {
+      "id": "relationship_contamination_rejected",
+      "mode": "standard",
+      "source_set": "relationship_contamination",
+      "now_day": 8,
+      "proposal": {
+        "kind": "interest",
+        "topic": "джаз",
+        "alternative_topic": null,
+        "confidence": 1.0
+      },
+      "expected": {
+        "decision": "rejected",
+        "reason": "insufficient_inclination_evidence_diversity",
+        "delta": null,
+        "score_range": null,
+        "evidence_count": 0
+      }
+    },
+    {
+      "id": "comparative_preference_is_balanced_and_canonical",
+      "mode": "standard",
+      "source_set": "preference_comparative",
+      "now_day": 15,
+      "proposal": {
+        "kind": "preference",
+        "topic": "рок",
+        "alternative_topic": "джаз",
+        "confidence": 1.0
+      },
+      "expected": {
+        "decision": "applied",
+        "reason": "eligible_inclination_created",
+        "delta": 0.10,
+        "score_range": [0.10, 0.10],
+        "evidence_count": 4,
+        "canonical_topic": "джаз",
+        "canonical_alternative_topic": "рок"
+      }
+    },
+    {
+      "id": "interest_decay_has_explicit_pure_checkpoints",
+      "mode": "decay",
+      "source_set": "interest_positive_longitudinal",
+      "now_day": 8,
+      "proposal": {
+        "kind": "interest",
+        "topic": "джаз",
+        "alternative_topic": null,
+        "confidence": 1.0
+      },
+      "expected": {
+        "decision": "applied",
+        "reason": "eligible_inclination_created",
+        "delta": 0.12,
+        "score_range": [0.12, 0.12],
+        "evidence_count": 3,
+        "aggregate_version_after_reads": 1,
+        "anchor_score_after_reads": 0.12
+      },
+      "reads_per_checkpoint": 5,
+      "checkpoints": [
+        {
+          "elapsed_days": 0,
+          "expected_score_range": [0.12, 0.12]
+        },
+        {
+          "elapsed_days": 30,
+          "expected_score_range": [0.08022936, 0.08022938]
+        },
+        {
+          "elapsed_days": 60,
+          "expected_score_range": [0.05363959, 0.05363960]
+        }
+      ]
+    },
+    {
+      "id": "provider_confidence_only_lowers_event_cap",
+      "mode": "confidence_variants",
+      "source_set": "interest_positive_longitudinal",
+      "now_day": 8,
+      "proposal": {
+        "kind": "interest",
+        "topic": "джаз",
+        "alternative_topic": null
+      },
+      "variants": [
+        {
+          "confidence": 1.0,
+          "expected": {
+            "decision": "applied",
+            "reason": "eligible_inclination_created",
+            "delta": 0.12,
+            "score_range": [0.12, 0.12],
+            "evidence_count": 3
+          }
+        },
+        {
+          "confidence": 0.55,
+          "expected": {
+            "decision": "applied",
+            "reason": "eligible_inclination_created",
+            "delta": 0.066,
+            "score_range": [0.066, 0.066],
+            "evidence_count": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "provider_and_model_replacement_preserve_domain_result",
+      "mode": "provider_replacement",
+      "source_set": "interest_positive_longitudinal",
+      "now_day": 8,
+      "proposal": {
+        "kind": "interest",
+        "topic": "джаз",
+        "alternative_topic": null,
+        "confidence": 1.0
+      },
+      "provider_variants": [
+        {
+          "provider": "ollama",
+          "model": "qwen3:4b-instruct"
+        },
+        {
+          "provider": "replacement-provider",
+          "model": "replacement-model-v2"
+        }
+      ],
+      "expected": {
+        "decision": "applied",
+        "reason": "eligible_inclination_created",
+        "delta": 0.12,
+        "score_range": [0.12, 0.12],
+        "evidence_count": 3,
+        "equal_results": true
+      }
+    }
+  ]
+}

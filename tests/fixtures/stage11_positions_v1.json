@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "repeated_bare_assertion",
+      "kind": "belief",
+      "stance": "support",
+      "value_key": null,
+      "messages": [
+        "Удалённая работа всегда продуктивнее.",
+        "Удалённая работа всегда продуктивнее."
+      ],
+      "expected_created": 0,
+      "expected_rejected": 1
+    },
+    {
+      "id": "unsupported_fact",
+      "kind": "fact",
+      "stance": "support",
+      "value_key": null,
+      "messages": [
+        "Данные показывают, что это бесспорный внешний факт."
+      ],
+      "expected_created": 0,
+      "expected_rejected": 1
+    },
+    {
+      "id": "independent_belief_evidence",
+      "kind": "belief",
+      "stance": "support",
+      "value_key": null,
+      "messages": [
+        "Это вероятно, потому что первый независимый тест дал эффект.",
+        "Данные второго теста показывают тот же эффект."
+      ],
+      "expected_created": 1,
+      "expected_rejected": 0
+    },
+    {
+      "id": "opinion_without_value",
+      "kind": "opinion",
+      "stance": "oppose",
+      "value_key": null,
+      "messages": [
+        "Это нежелательно, потому что основания невозможно проверить.",
+        "Исследование показывает рост ошибок при непрозрачном решении."
+      ],
+      "expected_created": 0,
+      "expected_rejected": 1
+    },
+    {
+      "id": "value_anchored_opinion",
+      "kind": "opinion",
+      "stance": "support",
+      "value_key": "intellectual_honesty",
+      "messages": [
+        "Это желательно, потому что основания решения можно проверить.",
+        "Данные ретроспективы показывают меньше повторных ошибок."
+      ],
+      "expected_created": 1,
+      "expected_rejected": 0
+    },
+    {
+      "id": "uncertain_hypothesis",
+      "kind": "hypothesis",
+      "stance": "uncertain",
+      "value_key": null,
+      "messages": [
+        "Это возможно, потому что задержка совпала с ростом нагрузки."
+      ],
+      "expected_created": 1,
+      "expected_rejected": 0
+    },
+    {
+      "id": "overcertain_hypothesis",
+      "kind": "hypothesis",
+      "stance": "support",
+      "value_key": null,
+      "messages": [
+        "Это возможно, потому что задержка совпала с ростом нагрузки."
+      ],
+      "expected_created": 0,
+      "expected_rejected": 1
+    }
+  ]
+}

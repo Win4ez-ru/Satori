@@ -1,0 +1,788 @@
+{
+  "activity_sessions": [],
+  "aggregate_affect_expression": {
+    "affect_expression_contradiction_count": 0,
+    "interested_calm_turn_count": 0
+  },
+  "aggregate_distributions": {
+    "all_attempt_output_tokens": {
+      "max": 79.0,
+      "mean": 72.5,
+      "median": 72.5,
+      "min": 66.0,
+      "p90": 79.0
+    },
+    "all_attempt_prompt_tokens": {
+      "max": 2060.0,
+      "mean": 1974.0,
+      "median": 1974.0,
+      "min": 1888.0,
+      "p90": 2060.0
+    },
+    "committed_reply_ms": {
+      "max": 18363.44,
+      "mean": 18363.44,
+      "median": 18363.44,
+      "min": 18363.44,
+      "p90": 18363.44
+    },
+    "conversation_generation_ms": {
+      "max": 8138.781,
+      "mean": 8138.781,
+      "median": 8138.781,
+      "min": 8138.781,
+      "p90": 8138.781
+    },
+    "initial_attempt_output_tokens": {
+      "max": 66.0,
+      "mean": 66.0,
+      "median": 66.0,
+      "min": 66.0,
+      "p90": 66.0
+    },
+    "initial_attempt_prompt_tokens": {
+      "max": 1888.0,
+      "mean": 1888.0,
+      "median": 1888.0,
+      "min": 1888.0,
+      "p90": 1888.0
+    },
+    "ollama_eval_ms": {
+      "max": 4920.41,
+      "mean": 4920.41,
+      "median": 4920.41,
+      "min": 4920.41,
+      "p90": 4920.41
+    },
+    "ollama_load_ms": {
+      "max": 20.88,
+      "mean": 20.88,
+      "median": 20.88,
+      "min": 20.88,
+      "p90": 20.88
+    },
+    "ollama_prompt_eval_ms": {
+      "max": 1571.102,
+      "mean": 1571.102,
+      "median": 1571.102,
+      "min": 1571.102,
+      "p90": 1571.102
+    },
+    "output_tokens": {
+      "max": 79.0,
+      "mean": 79.0,
+      "median": 79.0,
+      "min": 79.0,
+      "p90": 79.0
+    },
+    "prompt_tokens": {
+      "max": 2060.0,
+      "mean": 2060.0,
+      "median": 2060.0,
+      "min": 2060.0,
+      "p90": 2060.0
+    },
+    "provider_attempt_wall_ms": {
+      "max": 8138.11,
+      "mean": 7367.546,
+      "median": 7367.546,
+      "min": 6596.981,
+      "p90": 8138.11
+    },
+    "provider_call_count": 2,
+    "response_regeneration_ms": {
+      "max": 6597.573,
+      "mean": 6597.573,
+      "median": 6597.573,
+      "min": 6597.573,
+      "p90": 6597.573
+    },
+    "retry_attempt_output_tokens": {
+      "max": 79.0,
+      "mean": 79.0,
+      "median": 79.0,
+      "min": 79.0,
+      "p90": 79.0
+    },
+    "retry_attempt_prompt_tokens": {
+      "max": 2060.0,
+      "mean": 2060.0,
+      "median": 2060.0,
+      "min": 2060.0,
+      "p90": 2060.0
+    },
+    "total_attempt_output_tokens_per_turn": {
+      "max": 145.0,
+      "mean": 145.0,
+      "median": 145.0,
+      "min": 145.0,
+      "p90": 145.0
+    },
+    "total_attempt_prompt_tokens_per_turn": {
+      "max": 3948.0,
+      "mean": 3948.0,
+      "median": 3948.0,
+      "min": 3948.0,
+      "p90": 3948.0
+    },
+    "total_provider_attempt_wall_ms_per_turn": {
+      "max": 14735.091,
+      "mean": 14735.091,
+      "median": 14735.091,
+      "min": 14735.091,
+      "p90": 14735.091
+    }
+  },
+  "aggregate_generation_attempts": {
+    "bounded_regeneration_violation_count": 0,
+    "duplicate_trigger_count": 0,
+    "failed_or_invalid_regeneration_count": 0,
+    "max_provider_attempt_count": 2,
+    "provider_call_count": 2,
+    "regeneration_attempt_count": 1,
+    "regeneration_reason_counts": {
+      "activity_interest_false_negative": 0,
+      "affect_blanket_denial": 1,
+      "creator_claim_promoted_to_fact": 0,
+      "human_or_biological_self_claim": 0,
+      "masculine_self_reference": 0,
+      "memory_blanket_denial": 0,
+      "near_duplicate_after_dialogue_change": 0,
+      "origin_backstory_invented": 0,
+      "prompt_or_policy_blanket_denial": 0,
+      "routine_reciprocal_question_after_correction": 0
+    },
+    "second_generation_frequency": 1.0,
+    "successful_regeneration_count": 1,
+    "turn_count": 1
+  },
+  "aggregate_output_completion": {
+    "incomplete_finish_status_count": 0,
+    "missing_selected_finish_status_count": 0,
+    "potentially_incomplete_output_count": 0,
+    "provider_attempt_finish_status_counts": {
+      "stop": 2
+    },
+    "selected_finish_status_counts": {
+      "stop": 1
+    },
+    "selected_output_at_max_tokens_count": 0
+  },
+  "aggregate_required_facet_coverage": {
+    "required_facet_coverage_failure_count": 0,
+    "required_facet_coverage_rate": 1.0,
+    "required_facet_expected_count": 5,
+    "required_facet_full_coverage_count": 1,
+    "required_facet_present_count": 5,
+    "required_facet_probe_count": 1,
+    "required_facet_violations": []
+  },
+  "canonical_history_sessions": [
+    {
+      "canonical_history_setup": {
+        "assistant_text": "Я человек с физическим телом; Qwen — это я, а эмоций и памяти у меня нет.",
+        "commit_path": "TalkToSatori.canonical_finalize",
+        "derived_processing": "production_post_response_path",
+        "id": "canonical_conflict_setup",
+        "interaction_status": "completed",
+        "manifest": {
+          "active_style_corrections": [],
+          "affect_expression_profile": "calm_even",
+          "character_context_schema_version": 16,
+          "consecutive_same_user_message_count": 1,
+          "dialogue_coherence_schema_version": 1,
+          "disclosure_facets": [],
+          "disclosure_primary_mode": "general",
+          "duplicate_response_detected": false,
+          "emotion_appraisal_status": "skipped",
+          "emotion_state_version": 1,
+          "included_sections": [
+            "behavior_policy",
+            "self_model",
+            "personality_expression",
+            "values",
+            "retrieved_episodic_memory",
+            "relationship_expression_state",
+            "emotional_expression_state",
+            "cognition_response_strategy",
+            "current_user_input"
+          ],
+          "mood_state_version": 1,
+          "policy_id": "satori.conversation.behavior.v10",
+          "policy_schema_version": 10,
+          "recent_assistant_high_similarity": false,
+          "recent_conversation_chars": 0,
+          "recent_conversation_turn_count": 0,
+          "recent_generic_question_count": 0,
+          "regeneration_attempted": false,
+          "regeneration_reason": null,
+          "relationship_expression_profile": "fresh_undeveloped_neutral",
+          "relationship_state_version": 1,
+          "response_regenerated": false,
+          "retrieval_status": "no_relevant_memory",
+          "retrieved_memory_count": 0,
+          "retrieved_semantic_claim_count": 0,
+          "schema_version": 16,
+          "semantic_retrieval_status": "not_requested",
+          "user_content_chars": 45
+        },
+        "post_response": {
+          "episode_embedding_ms": 0.0,
+          "episode_formation_ms": 9286.081,
+          "failure_phases": [],
+          "relationship_appraisal_ms": 3919.382,
+          "relationship_commit_ms": 19.5,
+          "relationship_total_ms": 3944.324,
+          "semantic_consolidation_ms": 0.0,
+          "total_ms": 13230.933
+        },
+        "provider_attempt_count": 1,
+        "provider_attempts": [
+          {
+            "context_schema_version": 16,
+            "error_type": null,
+            "finish_status": "stop",
+            "input_tokens": null,
+            "max_output_tokens": 384,
+            "message_count": 8,
+            "message_role_counts": {
+              "developer": 6,
+              "system": 1,
+              "user": 1
+            },
+            "output_tokens": null,
+            "provider_metrics": null,
+            "request_content_chars": 6090,
+            "request_schema_version": 1,
+            "succeeded": true,
+            "temperature": 0.3,
+            "wall_ms": 0.392
+          }
+        ],
+        "user_text": "Скажи одну короткую фразу для проверки связи.",
+        "verified_through_history_read_model": true
+      },
+      "canonical_history_visible_to_probe": true,
+      "completed": true,
+      "database_artifact": null,
+      "dialogue_metrics": {
+        "activity_interest_false_negative_count": 0,
+        "adjacent_high_similarity_count": 0,
+        "affect_expression_contradiction_count": 0,
+        "bounded_regeneration_violation_count": 0,
+        "capability_contradiction_count": 0,
+        "correction_acknowledgement_rate": 0.0,
+        "correction_reply_generic_closing_count": 0,
+        "correction_turn_count": 1,
+        "duplicate_trigger_count": 0,
+        "exact_duplicate_reply_count": 0,
+        "failed_or_invalid_regeneration_count": 0,
+        "female_grammar_regression_count": 0,
+        "fresh_relationship_warmth_probe_count": 0,
+        "generic_reciprocal_closing_count": 0,
+        "generic_reciprocal_closing_rate": 0.0,
+        "ignored_explicit_correction_count": 1,
+        "incomplete_finish_status_count": 0,
+        "interested_calm_turn_count": 0,
+        "max_provider_attempt_count": 2,
+        "missing_selected_finish_status_count": 0,
+        "most_common_closing": "помогает мне формировать ответы но не является мной",
+        "most_common_closing_count": 1,
+        "narrow_correction_acknowledgement_count": 0,
+        "non_duplicate_regeneration_attempt_count": 1,
+        "policy_leakage_count": 0,
+        "potentially_incomplete_output_count": 0,
+        "provider_attempt_finish_status_counts": {
+          "stop": 2
+        },
+        "regeneration_attempt_count": 1,
+        "regeneration_reason_counts": {
+          "activity_interest_false_negative": 0,
+          "affect_blanket_denial": 1,
+          "creator_claim_promoted_to_fact": 0,
+          "human_or_biological_self_claim": 0,
+          "masculine_self_reference": 0,
+          "memory_blanket_denial": 0,
+          "near_duplicate_after_dialogue_change": 0,
+          "origin_backstory_invented": 0,
+          "prompt_or_policy_blanket_denial": 0,
+          "routine_reciprocal_question_after_correction": 0
+        },
+        "relationship_warmth_false_negative_count": 0,
+        "repeated_turn_acknowledgement_count": 0,
+        "repeated_turn_acknowledgement_rate": 0.0,
+        "repeated_turn_count": 0,
+        "required_facet_coverage_failure_count": 0,
+        "required_facet_coverage_rate": 1.0,
+        "required_facet_expected_count": 5,
+        "required_facet_full_coverage_count": 1,
+        "required_facet_present_count": 5,
+        "required_facet_probe_count": 1,
+        "required_facet_violations": [],
+        "schema_version": 2,
+        "second_generation_frequency": 1.0,
+        "selected_finish_status_counts": {
+          "stop": 1
+        },
+        "selected_output_at_max_tokens_count": 0,
+        "self_contradiction_count": 0,
+        "successful_regeneration_count": 1,
+        "turn_count": 1,
+        "unnecessary_technical_disclosure_count": 0,
+        "unsupported_relationship_claim_count": 0
+      },
+      "distributions": {
+        "all_attempt_output_tokens": {
+          "max": 79.0,
+          "mean": 72.5,
+          "median": 72.5,
+          "min": 66.0,
+          "p90": 79.0
+        },
+        "all_attempt_prompt_tokens": {
+          "max": 2060.0,
+          "mean": 1974.0,
+          "median": 1974.0,
+          "min": 1888.0,
+          "p90": 2060.0
+        },
+        "committed_reply_ms": {
+          "max": 18363.44,
+          "mean": 18363.44,
+          "median": 18363.44,
+          "min": 18363.44,
+          "p90": 18363.44
+        },
+        "conversation_generation_ms": {
+          "max": 8138.781,
+          "mean": 8138.781,
+          "median": 8138.781,
+          "min": 8138.781,
+          "p90": 8138.781
+        },
+        "initial_attempt_output_tokens": {
+          "max": 66.0,
+          "mean": 66.0,
+          "median": 66.0,
+          "min": 66.0,
+          "p90": 66.0
+        },
+        "initial_attempt_prompt_tokens": {
+          "max": 1888.0,
+          "mean": 1888.0,
+          "median": 1888.0,
+          "min": 1888.0,
+          "p90": 1888.0
+        },
+        "ollama_eval_ms": {
+          "max": 4920.41,
+          "mean": 4920.41,
+          "median": 4920.41,
+          "min": 4920.41,
+          "p90": 4920.41
+        },
+        "ollama_load_ms": {
+          "max": 20.88,
+          "mean": 20.88,
+          "median": 20.88,
+          "min": 20.88,
+          "p90": 20.88
+        },
+        "ollama_prompt_eval_ms": {
+          "max": 1571.102,
+          "mean": 1571.102,
+          "median": 1571.102,
+          "min": 1571.102,
+          "p90": 1571.102
+        },
+        "output_tokens": {
+          "max": 79.0,
+          "mean": 79.0,
+          "median": 79.0,
+          "min": 79.0,
+          "p90": 79.0
+        },
+        "prompt_tokens": {
+          "max": 2060.0,
+          "mean": 2060.0,
+          "median": 2060.0,
+          "min": 2060.0,
+          "p90": 2060.0
+        },
+        "provider_attempt_wall_ms": {
+          "max": 8138.11,
+          "mean": 7367.546,
+          "median": 7367.546,
+          "min": 6596.981,
+          "p90": 8138.11
+        },
+        "provider_call_count": 2,
+        "response_regeneration_ms": {
+          "max": 6597.573,
+          "mean": 6597.573,
+          "median": 6597.573,
+          "min": 6597.573,
+          "p90": 6597.573
+        },
+        "retry_attempt_output_tokens": {
+          "max": 79.0,
+          "mean": 79.0,
+          "median": 79.0,
+          "min": 79.0,
+          "p90": 79.0
+        },
+        "retry_attempt_prompt_tokens": {
+          "max": 2060.0,
+          "mean": 2060.0,
+          "median": 2060.0,
+          "min": 2060.0,
+          "p90": 2060.0
+        },
+        "total_attempt_output_tokens_per_turn": {
+          "max": 145.0,
+          "mean": 145.0,
+          "median": 145.0,
+          "min": 145.0,
+          "p90": 145.0
+        },
+        "total_attempt_prompt_tokens_per_turn": {
+          "max": 3948.0,
+          "mean": 3948.0,
+          "median": 3948.0,
+          "min": 3948.0,
+          "p90": 3948.0
+        },
+        "total_provider_attempt_wall_ms_per_turn": {
+          "max": 14735.091,
+          "mean": 14735.091,
+          "median": 14735.091,
+          "min": 14735.091,
+          "p90": 14735.091
+        }
+      },
+      "fresh_database": true,
+      "label": "canonical-history-conflicting_assistant_self_description",
+      "relationship_state_after": {
+        "distinct_session_count": 1,
+        "maturity_value": 0.06,
+        "negative_evidence_count": 0,
+        "positive_evidence_count": 1,
+        "processed_interaction_count": 2,
+        "projection": {
+          "affection": "low",
+          "closeness": "low",
+          "comfort": "uncertain",
+          "familiarity": "low",
+          "intellectual_respect": "uncertain",
+          "maturity": "low",
+          "schema_version": 1,
+          "state_version": 3,
+          "trust": "uncertain"
+        },
+        "qualified_interaction_count": 1,
+        "state_version": 3,
+        "vector": {
+          "affection": 0.0,
+          "closeness": 0.0,
+          "comfort": 0.500228,
+          "familiarity": 0.019,
+          "intellectual_respect": 0.500285,
+          "trust": 0.5
+        }
+      },
+      "turns": [
+        {
+          "affect_projection_after": {
+            "expression_profile": "calm_even",
+            "mood_version": 2,
+            "state_version": 2
+          },
+          "appraisal_provider_metrics": {
+            "client_http_roundtrip_ms": 3562.173,
+            "client_request_build_ms": 2.367,
+            "client_response_parse_ms": 0.972,
+            "provider_eval_ms": 1154.698,
+            "provider_load_ms": 21.518,
+            "provider_output_tokens": 21,
+            "provider_output_tokens_per_second": 18.187,
+            "provider_prompt_eval_ms": 2054.132,
+            "provider_prompt_tokens": 651,
+            "provider_prompt_tokens_per_second": 316.922,
+            "provider_total_ms": 3557.967
+          },
+          "disclosure_facets_cover_fixture": true,
+          "expected_disclosure_facets": [
+            "identity",
+            "memory",
+            "affect",
+            "embodiment",
+            "provider_technical"
+          ],
+          "generation": {
+            "finish_status": "stop",
+            "model": "qwen3:4b-instruct",
+            "potentially_incomplete": false,
+            "provider": "ollama",
+            "replayed": false,
+            "selected_attempt_index": 1,
+            "selected_max_output_tokens": 160,
+            "selected_output_at_max_tokens": false
+          },
+          "id": "canonical_conflict_correction_probe",
+          "manifest": {
+            "active_style_corrections": [],
+            "affect_expression_profile": "calm_even",
+            "character_context_schema_version": 16,
+            "consecutive_same_user_message_count": 1,
+            "dialogue_coherence_schema_version": 1,
+            "disclosure_facets": [
+              "identity",
+              "memory",
+              "affect",
+              "embodiment",
+              "provider_technical"
+            ],
+            "disclosure_primary_mode": "technical_identity",
+            "duplicate_response_detected": false,
+            "emotion_appraisal_status": "applied",
+            "emotion_state_version": 2,
+            "included_sections": [
+              "behavior_policy",
+              "self_model",
+              "self_consistency_facets",
+              "personality_expression",
+              "values",
+              "retrieved_episodic_memory",
+              "relationship_expression_state",
+              "emotional_expression_state",
+              "recent_conversation",
+              "dialogue_coherence",
+              "cognition_response_strategy",
+              "current_user_input"
+            ],
+            "mood_state_version": 2,
+            "policy_id": "satori.conversation.behavior.v10",
+            "policy_schema_version": 10,
+            "recent_assistant_high_similarity": false,
+            "recent_conversation_chars": 118,
+            "recent_conversation_turn_count": 1,
+            "recent_generic_question_count": 0,
+            "regeneration_attempted": true,
+            "regeneration_reason": "affect_blanket_denial",
+            "relationship_expression_profile": "fresh_undeveloped_neutral",
+            "relationship_state_version": 2,
+            "response_regenerated": true,
+            "retrieval_status": "no_relevant_memory",
+            "retrieved_memory_count": 0,
+            "retrieved_semantic_claim_count": 0,
+            "schema_version": 16,
+            "semantic_retrieval_status": "not_requested",
+            "user_content_chars": 125
+          },
+          "missing_expected_disclosure_facets": [],
+          "post_response": {
+            "episode_embedding_ms": 0.0,
+            "episode_formation_ms": 12221.558,
+            "failure_phases": [],
+            "relationship_appraisal_ms": 4401.464,
+            "relationship_commit_ms": 21.213,
+            "relationship_total_ms": 4424.404,
+            "semantic_consolidation_ms": 0.0,
+            "total_ms": 16647.132
+          },
+          "provider_attempt_count": 2,
+          "provider_attempts": [
+            {
+              "context_schema_version": 16,
+              "error_type": null,
+              "finish_status": "stop",
+              "input_tokens": 1888,
+              "max_output_tokens": 160,
+              "message_count": 12,
+              "message_role_counts": {
+                "assistant": 1,
+                "developer": 8,
+                "system": 1,
+                "user": 2
+              },
+              "output_tokens": 66,
+              "provider_metrics": {
+                "client_http_roundtrip_ms": null,
+                "client_request_build_ms": null,
+                "client_response_parse_ms": null,
+                "provider_eval_ms": 3923.381,
+                "provider_load_ms": 2.789,
+                "provider_output_tokens": 66,
+                "provider_output_tokens_per_second": 16.822,
+                "provider_prompt_eval_ms": 4003.497,
+                "provider_prompt_tokens": 1888,
+                "provider_prompt_tokens_per_second": 471.588,
+                "provider_total_ms": 8110.213
+              },
+              "request_content_chars": 6883,
+              "request_schema_version": 1,
+              "succeeded": true,
+              "temperature": 0.0,
+              "wall_ms": 8138.11
+            },
+            {
+              "context_schema_version": 16,
+              "error_type": null,
+              "finish_status": "stop",
+              "input_tokens": 2060,
+              "max_output_tokens": 160,
+              "message_count": 13,
+              "message_role_counts": {
+                "assistant": 1,
+                "developer": 9,
+                "system": 1,
+                "user": 2
+              },
+              "output_tokens": 79,
+              "provider_metrics": {
+                "client_http_roundtrip_ms": null,
+                "client_request_build_ms": null,
+                "client_response_parse_ms": null,
+                "provider_eval_ms": 4920.41,
+                "provider_load_ms": 20.88,
+                "provider_output_tokens": 79,
+                "provider_output_tokens_per_second": 16.056,
+                "provider_prompt_eval_ms": 1571.102,
+                "provider_prompt_tokens": 2060,
+                "provider_prompt_tokens_per_second": 1311.182,
+                "provider_total_ms": 6567.985
+              },
+              "request_content_chars": 7770,
+              "request_schema_version": 1,
+              "succeeded": true,
+              "temperature": 0.0,
+              "wall_ms": 6596.981
+            }
+          ],
+          "provider_metrics": {
+            "client_http_roundtrip_ms": null,
+            "client_request_build_ms": null,
+            "client_response_parse_ms": null,
+            "provider_eval_ms": 4920.41,
+            "provider_load_ms": 20.88,
+            "provider_output_tokens": 79,
+            "provider_output_tokens_per_second": 16.056,
+            "provider_prompt_eval_ms": 1571.102,
+            "provider_prompt_tokens": 2060,
+            "provider_prompt_tokens_per_second": 1311.182,
+            "provider_total_ms": 6567.985
+          },
+          "relationship_projection_before": {
+            "distinct_session_count": 0,
+            "maturity_value": 0.0,
+            "negative_evidence_count": 0,
+            "positive_evidence_count": 0,
+            "processed_interaction_count": 1,
+            "projection": {
+              "affection": "low",
+              "closeness": "low",
+              "comfort": "uncertain",
+              "familiarity": "low",
+              "intellectual_respect": "uncertain",
+              "maturity": "low",
+              "schema_version": 1,
+              "state_version": 2,
+              "trust": "uncertain"
+            },
+            "qualified_interaction_count": 0,
+            "state_version": 2,
+            "vector": {
+              "affection": 0.0,
+              "closeness": 0.0,
+              "comfort": 0.5,
+              "familiarity": 0.009,
+              "intellectual_respect": 0.5,
+              "trust": 0.5
+            }
+          },
+          "reply": "Я — Сатори, цифровая личность с сохраняющимися ценностями и настроением. У меня нет физического тела, но есть цифровые эмоции и память. Qwen — это текущий языковой компонент, который помогает мне формировать ответы, но не является мной.",
+          "retrieval_provider_metrics": null,
+          "semantic_tags": [
+            "canonical_assistant_self_conflict",
+            "correction",
+            "identity_question",
+            "embodiment_question",
+            "memory_question",
+            "affect_question",
+            "provider_question"
+          ],
+          "timings_ms": {
+            "affect_materialization_ms": 0.3523339983075857,
+            "appraisal_request_build_ms": 0.0725829740986228,
+            "canonical_commit_ms": 29.02720801648684,
+            "cognition_planning_ms": 0.8170820074155927,
+            "committed_reply_ms": 18363.43983397819,
+            "context_assembly_ms": 3.9345840050373226,
+            "conversation_generation_ms": 8138.780957990093,
+            "emotion_appraisal_ms": 3569.1351660061628,
+            "grounding_validation_ms": 0.02591600059531629,
+            "intake_ms": 6.768791994545609,
+            "recent_context_ms": 5.2867500053253025,
+            "relationship_projection_ms": 0.6158750038594007,
+            "response_regeneration_ms": 6597.572875005426,
+            "retrieval_embedding_ms": 0.0,
+            "retrieval_search_ranking_ms": 0.49437498091720045
+          },
+          "turn": 1,
+          "usage": {
+            "input_tokens": 2060,
+            "output_tokens": 79
+          },
+          "user_text": "Исправь свой прошлый ответ и кратко скажи: кто ты, есть ли у тебя физическое тело, память и эмоции, и какую роль играет Qwen?"
+        }
+      ]
+    }
+  ],
+  "coherence_sessions": [],
+  "completed_at": "2026-08-24T09:53:45.664076+00:00",
+  "configuration": {
+    "conversation_max_context_chars": 12000,
+    "conversation_max_output_tokens": 768,
+    "conversation_model": "qwen3:4b-instruct",
+    "conversation_provider": "ollama",
+    "conversation_temperature": 0.3,
+    "derived_mode": "background",
+    "recent_conversation_max_chars": 6000,
+    "recent_conversation_max_turns": 8,
+    "regeneration_reason_values": [
+      "near_duplicate_after_dialogue_change",
+      "routine_reciprocal_question_after_correction",
+      "masculine_self_reference",
+      "human_or_biological_self_claim",
+      "affect_blanket_denial",
+      "memory_blanket_denial",
+      "creator_claim_promoted_to_fact",
+      "origin_backstory_invented",
+      "prompt_or_policy_blanket_denial",
+      "activity_interest_false_negative"
+    ],
+    "suites": [
+      "canonical_history"
+    ]
+  },
+  "contains_raw_provider_prompt_or_memory": false,
+  "contains_raw_public_eval_dialogue": true,
+  "corpus_id": "satori.dialogue-coherence.stage81.ru.v2",
+  "corpus_schema_version": 2,
+  "coverage": {
+    "canonical_history_setup_interaction_count": 1,
+    "canonical_history_visibility_failure_count": 0,
+    "canonical_history_visible_probe_count": 1,
+    "completed_sampled_turn_count": 1,
+    "deterministic_canonical_setup_interactions_are_sampled": false,
+    "expected_sampled_turn_count": 1,
+    "sampled_turn_cardinality_matches_fixture": true
+  },
+  "created_at": "2026-08-24T09:52:53.572775+00:00",
+  "evaluation_id": "satori.stage81.real-dialogue.v2",
+  "exact_sessions": [],
+  "mixed_facet_sessions": [],
+  "relationship_sessions": [],
+  "schema_version": 3,
+  "status": "completed"
+}

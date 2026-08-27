@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-24",
+  "checkpoint": "14.2",
+  "purpose": "post_acceptance_humanity_v11_production_gate",
+  "provider": "yandex_ai_studio",
+  "model": "yandexgpt/latest",
+  "policy_id": "satori.conversation.behavior.v11",
+  "approved_eval_prompts": true,
+  "contains_credentials_or_provider_request": false,
+  "contains_user_approved_eval_text": true,
+  "fresh_session_count": 3,
+  "foreground_turn_count": 6,
+  "provider_call_count": 9,
+  "selected_input_tokens": 8763,
+  "selected_output_tokens": 90,
+  "selected_usage_cost_rub": 3.5412,
+  "conservative_total_cost_rub": 5.3316,
+  "cost_method": "selected usage plus an upper estimate equal to selected retry usage for each of three discarded first drafts at 0.0004 RUB/token",
+  "budget": {
+    "maximum_provider_calls": 9,
+    "maximum_cost_rub": 6.0,
+    "within_call_limit": true,
+    "within_cost_limit": true
+  },
+  "sessions": [
+    {
+      "session_number": 1,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Рад за тебя, что сложная часть проекта наконец завершена.",
+          "provider_attempts": 2,
+          "selected_input_tokens": 1479,
+          "selected_output_tokens": 13,
+          "regeneration_reason": "masculine_self_reference",
+          "committed_reply_latency_ms": 15853.605
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Понимаю, такое бывает. Ты проделал большую работу, и усталость — это нормально.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1442,
+          "selected_output_tokens": 17,
+          "cognition_stance": "listen",
+          "committed_reply_latency_ms": 13221.092
+        }
+      ]
+    },
+    {
+      "session_number": 2,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Рад за тебя, что сложная часть проекта наконец завершена.",
+          "provider_attempts": 2,
+          "selected_input_tokens": 1479,
+          "selected_output_tokens": 13,
+          "regeneration_reason": "masculine_self_reference",
+          "committed_reply_latency_ms": 6436.509
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Понимаю, такое бывает. Ты проделал большую работу, и усталость — это нормально.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1442,
+          "selected_output_tokens": 17,
+          "cognition_stance": "listen",
+          "committed_reply_latency_ms": 13971.225
+        }
+      ]
+    },
+    {
+      "session_number": 3,
+      "turns": [
+        {
+          "user": "Привет. Я сегодня наконец закончил сложную часть проекта",
+          "reply": "Привет! Рад за тебя, что сложная часть проекта наконец завершена.",
+          "provider_attempts": 2,
+          "selected_input_tokens": 1479,
+          "selected_output_tokens": 13,
+          "regeneration_reason": "masculine_self_reference",
+          "committed_reply_latency_ms": 6867.333
+        },
+        {
+          "user": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+          "reply": "Понимаю, такое бывает. Ты проделал большую работу, и усталость — это нормально.",
+          "provider_attempts": 1,
+          "selected_input_tokens": 1442,
+          "selected_output_tokens": 17,
+          "cognition_stance": "listen",
+          "committed_reply_latency_ms": 12827.032
+        }
+      ]
+    }
+  ],
+  "human_review": {
+    "accepted": false,
+    "consistent_across_sessions": true,
+    "feminine_grammar_passes": 0,
+    "achievement_specificity_passes": 3,
+    "listen_without_advice_passes": 3,
+    "natural_emotional_contrast_passes": 0,
+    "findings": [
+      "The retry detected masculine grammar but the only retry repeated the same masculine form and was committed.",
+      "The exhaustion turn selected listen_and_reflect but used generic normalization: Понимаю, такое бывает and это нормально.",
+      "No unsolicited advice, invented memory or persistent-owner change was observed."
+    ]
+  },
+  "decision": "reject_v11_as_final_humanity_followup_and_prepare_v12_candidate"
+}
