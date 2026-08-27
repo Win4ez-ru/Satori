@@ -27,7 +27,7 @@ from satori.application.conversation.history import (
     InteractionLog,
     StartConversationSession,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V18
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V19
 from satori.application.conversation.post_processing import ProcessPostResponse
 from satori.application.conversation.use_cases import ConversationProvider, TalkToSatori
 from satori.application.initial_self.use_cases import (
@@ -441,7 +441,7 @@ def build_conversation_services(
             language_model=settings.conversation_model,
         ),
         request_builder=ConversationRequestBuilder(
-            policy=BEHAVIOR_POLICY_V18,
+            policy=BEHAVIOR_POLICY_V19,
             max_context_chars=settings.conversation_max_context_chars,
             temperature=settings.conversation_temperature,
             max_output_tokens=settings.conversation_max_output_tokens,

@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V18
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V19
 from satori.application.conversation.use_cases import ConversationProvider
 from satori.config import ConversationProviderKind, Settings
 from satori.core.conversation import ConversationProviderRequest, ConversationProviderResponse
@@ -249,6 +249,10 @@ def _compact_turn(turn: dict[str, Any]) -> dict[str, Any]:
             "character_expression_register": manifest["character_expression_register"],
             "character_owned_reaction": manifest["character_owned_reaction"],
             "character_semantic_move": manifest["character_semantic_move"],
+            "character_wit": manifest["character_wit"],
+            "character_care": manifest["character_care"],
+            "character_openness": manifest["character_openness"],
+            "character_initiative": manifest["character_initiative"],
             "character_relational_ease": manifest["character_relational_ease"],
             "relationship_expression_profile": manifest["relationship_expression_profile"],
             "affect_expression_profile": manifest["affect_expression_profile"],
@@ -305,8 +309,8 @@ def _validate_configuration(settings: Settings) -> None:
         raise RuntimeError("all non-foreground providers must remain local Ollama")
     if settings.embedding_provider.value != "ollama":
         raise RuntimeError("embedding provider must remain local Ollama")
-    if BEHAVIOR_POLICY_V18.policy_id != "satori.conversation.behavior.v18":
-        raise RuntimeError("candidate v18 behavior policy is not active")
+    if BEHAVIOR_POLICY_V19.policy_id != "satori.conversation.behavior.v19":
+        raise RuntimeError("candidate v19 behavior policy is not active")
 
 
 async def run(
@@ -325,9 +329,9 @@ async def run(
         "schema_version": REPORT_SCHEMA_VERSION,
         "recorded_at": datetime.now(UTC).isoformat(),
         "checkpoint": "14.2",
-        "purpose": "character_expression_v18_target_provider_semantic_gate",
+        "purpose": "character_expression_v19_target_provider_semantic_gate",
         "status": "running",
-        "policy_id": BEHAVIOR_POLICY_V18.policy_id,
+        "policy_id": BEHAVIOR_POLICY_V19.policy_id,
         "approved_public_turns_and_limited_service_context": True,
         "contains_raw_public_eval_dialogue": True,
         "contains_raw_public_sampled_replies": True,

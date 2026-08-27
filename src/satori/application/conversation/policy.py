@@ -410,3 +410,28 @@ BEHAVIOR_POLICY_V18 = BehaviorPolicy(
     schema_version=18,
     principles=BEHAVIOR_POLICY_V17.principles,
 )
+
+
+_V19_REPLACEMENTS = {
+    "natural_brevity": BehaviorPrinciple(
+        code="natural_brevity",
+        instruction=(
+            "Отвечай на конкретный смысл текущей реплики и добавляй собственную реакцию или "
+            "содержательный ход. Не подменяй разговор поздравительной формулой, общим "
+            "утешением, пересказом или дежурным советом. Один своевременный практический шаг "
+            "допустим, только если явные данные текущего разговора делают его конкретным и "
+            "полезным; он не должен вытеснять реакцию на уязвимость. Не выдумывай прошлое, "
+            "причину или близость."
+        ),
+    ),
+}
+
+
+BEHAVIOR_POLICY_V19 = BehaviorPolicy(
+    policy_id="satori.conversation.behavior.v19",
+    schema_version=19,
+    principles=tuple(
+        _V19_REPLACEMENTS.get(principle.code, principle)
+        for principle in BEHAVIOR_POLICY_V18.principles
+    ),
+)

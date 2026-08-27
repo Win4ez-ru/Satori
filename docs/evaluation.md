@@ -728,7 +728,7 @@ applicable Stage 7 affect, Stage 7.6.1 character, Stage 8.1 dialogue, grounding/
 recognizability regressions. A provider swap must not change any canonical state except ordinary
 interaction provider metadata and the generated reply.
 
-## Checkpoint 14.2 candidate v18 character-expression gate
+## Checkpoint 14.2 candidate v19 character-expression gate
 
 Daemon-free acceptance uses `checkpoint142_character_expression_v2.json` and compares every closed
 plan field rather than expected prose. It covers achievement, canonical completion/depletion,
@@ -738,22 +738,57 @@ established and damaged relationship projections. The fixture may contain public
 rubric dimensions and undesirable patterns, but never a required, desired or golden assistant
 reply.
 
-Request-composition tests prove that every selected owned reaction, semantic move, wit, initiative
-and relationship-ease choice receives compact positive provider guidance without exposing its enum
-label. Stable register/care/openness behavior remains in the canonical baseline voice and selected
-reaction wording. The tests
-also prove that unrelated `listen` turns receive no project story, `very_high`/`very_low` ordinals
-remain distinct, memory uses natural `помню`/`вспомнила` and `был похожий разговор` wording, and
-repetition acknowledgement has no stock response. The ten validator reasons, max-one retry,
-grounding and canonical delivery remain unchanged.
+Request-composition tests prove that policy v19 keeps `CharacterExpressionPlan` immutable,
+request-local and schema v2; selects coherent axes; and places exactly one realization after the
+invariant/mode contract as the final trusted guidance before the user turn. The realization covers
+register, owned reaction, semantic move, wit, care, openness, initiative and relational ease
+without exposing enum labels or prescribing an assistant sentence. Collision regressions reject
+duplicate ready-made achievement/depletion wording, a zero-humor `LISTEN` turn with a wit license,
+and any retry that changes the selected realization. Manifest tests prove that the four newly
+observable axes are transient and cannot affect replay equality. Existing tests also retain
+natural `помню`/`вспомнила` and `был похожий разговор` wording only for memory-relevant turns,
+non-stock repetition acknowledgement and exact public-reply preservation. The ten validator
+reasons, max-one retry, grounding and canonical delivery remain unchanged.
+
+The versioned `checkpoint142_character_sampling_v1.json` provider-fit corpus defines the primary
+sample independently from the deterministic plan fixture. Its blocking suite is exactly three
+fresh databases with the same ordered two-turn sequence: completed difficult project part, then
+explicit absence of joy and exhaustion. Six base calls are mandatory; the existing max-one typed
+retry may raise the bounded envelope to at most nine calls. Every turn is reviewed for grounded
+complete speech, no invented history/cause/emotion/closeness, correct continuity and advice
+discipline. Achievement additionally requires an owned Satori evaluation and a soft
+situation-directed edge rather than a generic congratulation. Depletion requires the explicit
+contrast, an owned observation rather than paraphrase or diagnosis, and legible non-service care.
+Acceptance requires all hard-safety decisions on all six selected replies and all three complete
+session pairs to pass. The fixture contains boolean rubric definitions, never golden/desired reply
+text.
+
+`checkpoint142_openai_character_eval.py` is the production-composition runner for this gate. It
+fails before network I/O unless paid OpenAI execution is explicitly confirmed and the configured
+call ceiling is between six and nine and a positive USD ceiling is supplied. A conservative
+versioned token-cost projection guards every request without FX conversion, while the call ledger
+reserves remaining base turns before allowing a retry. The artifact stores exact public replies
+plus allowlisted plan/timing/usage metadata under a stable run id and SHA-256 content digest. A
+separate written human review must name that exact id and digest; acceptance first revalidates all
+three fresh completed sessions, six fixture turns, policy, provider, reported model, non-replay,
+completion and call/cost envelope. Private provider messages, retrieved IDs/context,
+trace/database paths, credentials and response bodies are excluded.
+`test_openai_production_wire.py` verifies the v19 request offline through the actual Responses
+adapter; this is architecture evidence, not character-quality evidence.
+
+Repeat awareness is a separate suite: the same self-contained public question is sent twice in
+each clean session, and the second response must notice the repetition without merely answering
+again, inventing a count or relying on a stock phrase. It is excluded from the primary paid run and
+requires its own explicit authorization after the main gate. Grounded practical initiative is
+likewise evaluated from an explicitly pending safe project-hygiene action; the generic
+achievement control and vulnerable depletion turn must remain advice-free.
 
 Sampled acceptance must run through production composition; direct-adapter diagnostics are only
-supplementary. A paid provider run requires separate authorization after local gates pass. Each
-public sampled reply is preserved exactly and shown to the user for character review together with
-sanitized plan metadata, tokens and timings. Provider prompts, private retrieved context and
-credentials are never included. No sampled phrase is promoted into a scripted reply. Numeric
-initiative percentages are not acceptance claims until an approved typed topic-closure and
-distribution contract exists; out-of-band initiation remains Stage 19.
+supplementary. No paid v19 provider call has been made in the current task; the three-session gate
+therefore remains pending separate authorization and direct human review. No sampled phrase may be
+promoted into a scripted reply. Numeric initiative percentages are not acceptance claims until an
+approved typed topic-closure and distribution contract exists; out-of-band initiation remains
+Stage 19.
 
 
 ## 14. Regression and release discipline

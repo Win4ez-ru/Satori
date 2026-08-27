@@ -31,6 +31,7 @@ from satori.application.conversation.character_expression import (
     render_character_delivery_brief,
     render_character_expression_plan,
     render_literal_character_delivery_brief,
+    render_single_late_character_realization,
 )
 
 
@@ -169,7 +170,7 @@ def test_two_turn_completion_depletion_contrast_outranks_generic_listen() -> Non
     assert plan.register is CharacterExpressionRegister.GUARDED_CONCERN
     assert plan.owned_reaction is CharacterOwnedReaction.SOBER_CONCERN
     assert plan.semantic_move is CharacterSemanticMove.CONNECT_EXPLICIT_CONTRAST
-    assert plan.wit is CharacterWitStyle.SITUATION_DIRECTED
+    assert plan.wit is CharacterWitStyle.NONE
     assert plan.care is CharacterCareStyle.UNDERSTATED
     assert plan.openness is CharacterOpenness.BALANCED
     assert plan.initiative is CharacterInitiative.RESPONSIVE
@@ -207,6 +208,72 @@ def test_request_flag_changes_initiative_without_changing_default_character() ->
     assert requested_help.owned_reaction is compliment.owned_reaction
     assert requested_help.semantic_move is compliment.semantic_move
     assert requested_help.initiative is CharacterInitiative.CONCRETE_NEXT_STEP
+
+
+def test_grounded_pending_project_step_can_license_one_practical_follow_through() -> None:
+    ordinary_achievement = plan_character_expression(
+        _strategy(PositionStance.ANSWER),
+        affect_profile="positive_light",
+        completed_achievement=True,
+    )
+    achievement_with_pending_step = plan_character_expression(
+        _strategy(PositionStance.ANSWER),
+        affect_profile="positive_light",
+        completed_achievement=True,
+        grounded_practical_follow_through=True,
+    )
+    achievement_with_request = plan_character_expression(
+        _strategy(PositionStance.ANSWER),
+        affect_profile="positive_light",
+        completed_achievement=True,
+        explicit_request=True,
+    )
+
+    assert ordinary_achievement.initiative is CharacterInitiative.RESPONSIVE
+    assert achievement_with_pending_step.initiative is CharacterInitiative.CONCRETE_NEXT_STEP
+    assert achievement_with_request.initiative is CharacterInitiative.CONCRETE_NEXT_STEP
+    assert achievement_with_pending_step.semantic_move is CharacterSemanticMove.MARK_HARD_WON_RESULT
+
+
+def test_single_late_realization_uses_every_axis_without_scripting_the_reply() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.ANSWER),
+        affect_profile="positive_light",
+        relationship_profile="fresh_undeveloped_neutral",
+        completed_achievement=True,
+    )
+
+    rendered = render_single_late_character_realization(plan)
+
+    assert "Финальная реализация характера Сатори" in rendered
+    assert "Манера и реакция:" in rendered
+    assert "Смысловой ход:" in rendered
+    assert "Острота и забота:" in rendered
+    assert "Открытость и инициатива:" in rendered
+    assert "Отношения:" in rendered
+    assert "мягкий сухой штрих" in rendered
+    assert "заботу сдержанной" in rendered
+    assert "собственной реакцией" not in rendered
+    assert "силы ушли на завершение" not in rendered
+    assert "сложная часть наконец уступила" not in rendered
+    assert "wry_warmth" not in rendered
+    assert "guarded_approval" not in rendered
+
+
+def test_single_late_realization_does_not_reintroduce_wit_on_fresh_listen_turn() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.LISTEN, humor=0.0),
+        affect_profile="soft_negative_non_hostile",
+        relationship_profile="fresh_undeveloped_neutral",
+        completion_depletion_contrast=True,
+    )
+
+    rendered = render_single_late_character_realization(plan)
+
+    assert plan.wit is CharacterWitStyle.NONE
+    assert "Не добавляй шутку или сарказм" in rendered
+    assert "Не добавляй остроту сверх выбранной подачи" in rendered
+    assert "мягкий сухой штрих" not in rendered
 
 
 def test_challenge_and_creative_collaboration_select_distinct_reactions() -> None:
@@ -369,16 +436,34 @@ def test_versioned_v2_corpus_maps_to_every_closed_plan_field() -> None:
             "undesirable_patterns",
         }, scenario["id"]
         setup = scenario["typed_setup"]
-        assert set(setup) == {
-            "strategy",
-            "affect_profile",
-            "relationship_profile",
-            "relationship_relevant",
-            "completed_achievement",
-            "completion_depletion_contrast",
-            "explicit_request",
-            "repeated_turn",
-            "technical_identity",
+        assert frozenset(setup) in {
+            frozenset(
+                {
+                    "strategy",
+                    "affect_profile",
+                    "relationship_profile",
+                    "relationship_relevant",
+                    "completed_achievement",
+                    "completion_depletion_contrast",
+                    "explicit_request",
+                    "repeated_turn",
+                    "technical_identity",
+                }
+            ),
+            frozenset(
+                {
+                    "strategy",
+                    "affect_profile",
+                    "relationship_profile",
+                    "relationship_relevant",
+                    "completed_achievement",
+                    "completion_depletion_contrast",
+                    "explicit_request",
+                    "grounded_practical_follow_through",
+                    "repeated_turn",
+                    "technical_identity",
+                }
+            ),
         }, scenario["id"]
         strategy_setup = setup["strategy"]
         assert set(strategy_setup) == {"stance", "point_codes", "humor"}, scenario["id"]
@@ -401,6 +486,7 @@ def test_versioned_v2_corpus_maps_to_every_closed_plan_field() -> None:
             completed_achievement=setup["completed_achievement"],
             completion_depletion_contrast=setup["completion_depletion_contrast"],
             explicit_request=setup["explicit_request"],
+            grounded_practical_follow_through=setup.get("grounded_practical_follow_through", False),
             repeated_turn=setup["repeated_turn"],
             technical_identity=setup["technical_identity"],
         )

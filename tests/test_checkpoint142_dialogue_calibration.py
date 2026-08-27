@@ -31,6 +31,7 @@ from satori.application.conversation.policy import (
     BEHAVIOR_POLICY_V16,
     BEHAVIOR_POLICY_V17,
     BEHAVIOR_POLICY_V18,
+    BEHAVIOR_POLICY_V19,
 )
 from satori.application.conversation.response_validation import ResponseRegenerationReason
 from satori.application.relationship.contracts import RelationshipExpressionContext
@@ -56,7 +57,7 @@ def _builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
         recent_conversation_available=True,
     )
     return (
-        ConversationRequestBuilder(BEHAVIOR_POLICY_V18, 12_000, 0.3, 768),
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V19, 12_000, 0.3, 768),
         context,
     )
 
@@ -167,6 +168,17 @@ def test_policy_v18_preserves_v17_principles_for_literal_projection() -> None:
     assert len(ResponseRegenerationReason) == 10
 
 
+def test_policy_v19_allows_only_grounded_timely_practical_advice() -> None:
+    principles = {item.code: item.instruction for item in BEHAVIOR_POLICY_V19.principles}
+
+    assert BEHAVIOR_POLICY_V19.policy_id == "satori.conversation.behavior.v19"
+    assert BEHAVIOR_POLICY_V19.schema_version == 19
+    assert "дежурным советом" in principles["natural_brevity"]
+    assert "явные данные текущего разговора" in principles["natural_brevity"]
+    assert "не должен вытеснять реакцию на уязвимость" in principles["natural_brevity"]
+    assert len(ResponseRegenerationReason) == 10
+
+
 def test_canonical_completion_depletion_pair_selects_guarded_concern() -> None:
     builder, context = _builder()
     user_text = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
@@ -191,10 +203,15 @@ def test_canonical_completion_depletion_pair_selects_guarded_concern() -> None:
     assert cognition.internal_position.stance is PositionStance.LISTEN
     assert "presence_before_advice" in cognition.response_strategy.point_codes
     trusted = _trusted_text(request)
-    assert "Реализация текущей реплики Сатори" in reminder
-    assert "силы ушли на завершение" in reminder
-    assert "сдержанное беспокойство о явно названной цене результата" in reminder
-    assert "колкость допустима только в сторону задачи или ситуации" in reminder
+    assert reminder.count("Финальная реализация характера Сатори") == 1
+    assert reminder.index("Обязательный доверенный контракт") < reminder.index(
+        "Финальная реализация характера Сатори"
+    )
+    assert "силы ушли на завершение" not in reminder
+    assert "почти все силы ушли на результат" not in reminder
+    assert "сдержанное беспокойство только в пределах явно сказанного" in reminder
+    assert "Не добавляй шутку или сарказм" in reminder
+    assert "заботу сдержанной" in reminder
     assert "Отношения свежие" in reminder
     assert "register=" not in trusted
     assert "owned_reaction=" not in trusted
@@ -203,6 +220,10 @@ def test_canonical_completion_depletion_pair_selects_guarded_concern() -> None:
     assert manifest.character_expression_plan_schema_version == 2
     assert manifest.character_owned_reaction == "sober_concern"
     assert manifest.character_semantic_move == "connect_explicit_contrast"
+    assert manifest.character_wit == "none"
+    assert manifest.character_care == "understated"
+    assert manifest.character_openness == "balanced"
+    assert manifest.character_initiative == "responsive"
     assert manifest.character_relational_ease == "fresh"
     assert request.parameters.temperature == 0.3
     assert request.parameters.max_output_tokens == 96
@@ -225,14 +246,24 @@ def test_completed_achievement_avoids_gendered_self_congratulation() -> None:
     reminder = request.messages[-2].content
 
     trusted = _trusted_text(request)
-    assert "Одна-две короткие, буквальные" in reminder
-    assert "Одобрение должно читаться в сухой реакции равной собеседницы" in reminder
-    assert "сложность как на то, что наконец уступило" in reminder
-    assert "Не называй и не объясняй стиль" in reminder
+    assert reminder.count("Финальная реализация характера Сатори") == 1
+    assert reminder.index("Обязательный доверенный контракт") < reminder.index(
+        "Финальная реализация характера Сатори"
+    )
+    assert "Пусть одобрение читается за сухой реакцией" in reminder
+    assert "явно завершённую работу или часть" in reminder
+    assert "Значимость и трудность бери только из текущей реплики" in reminder
+    assert "мягкий сухой штрих" in reminder
+    assert "После краткого приветствия" not in reminder
+    assert "сложная часть наконец уступила" not in reminder
     assert "register=" not in trusted
     assert "owned_reaction=" not in trusted
     assert "semantic_move=" not in trusted
     assert manifest.character_relational_ease == "fresh"
+    assert manifest.character_wit == "situation_directed"
+    assert manifest.character_care == "understated"
+    assert manifest.character_openness == "balanced"
+    assert manifest.character_initiative == "responsive"
     assert request.parameters.temperature == 0.3
     assert request.parameters.max_output_tokens == 80
 
@@ -252,13 +283,17 @@ def test_unrelated_listen_turn_does_not_receive_a_project_backstory() -> None:
     trusted = _trusted_text(request)
 
     assert cognition.internal_position.stance is PositionStance.LISTEN
-    assert "Скажи о заботе прямо" in reminder
-    assert "Ответь только на прямо выраженную уязвимость" in reminder
+    assert "Вырази соразмерную заботу прямо" in reminder
+    assert "Ответь на явно выраженную уязвимость" in reminder
     assert "сложная часть уже закончена" not in reminder
     assert "цена результата" not in reminder
     assert "register=" not in trusted
     assert "owned_reaction=" not in trusted
     assert manifest.character_semantic_move == "respond_to_explicit_vulnerability"
+    assert manifest.character_wit == "none"
+    assert manifest.character_care == "open"
+    assert manifest.character_openness == "direct"
+    assert manifest.character_initiative == "responsive"
     assert request.parameters.temperature == 0.3
     assert request.parameters.max_output_tokens == 96
 
@@ -292,14 +327,58 @@ def test_negated_conditional_or_uncertain_completion_is_not_an_achievement(
 @pytest.mark.parametrize("user_text", ["Я закончил проект", "Проект уже завершён"])
 def test_explicit_completed_work_remains_a_positive_control(user_text: str) -> None:
     builder, context = _builder()
-    _, manifest = builder.build(
+    request, manifest = builder.build(
         context,
         user_text=user_text,
         trace_id="checkpoint142-positive-achievement",
     )
+    reminder = request.messages[-2].content
 
     assert manifest.character_semantic_move == "mark_hard_won_result"
     assert manifest.character_owned_reaction == "guarded_approval"
+    assert "явно завершённую работу или часть" in reminder
+    assert "Значимость и трудность бери только из текущей реплики" in reminder
+    assert "завершённую трудную часть" not in reminder
+
+
+def test_explicit_pending_commit_licenses_one_grounded_practical_step() -> None:
+    builder, context = _builder()
+    request, manifest = builder.build(
+        context,
+        user_text="Я закончил работу над рефакторингом. Осталось закоммитить изменения",
+        trace_id="checkpoint142-grounded-commit",
+    )
+
+    reminder = request.messages[-2].content
+    assert manifest.character_semantic_move == "mark_hard_won_result"
+    assert manifest.character_initiative == "concrete_next_step"
+    assert "явно названным незавершённым практическим шагом" in reminder
+
+
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        "Я закончил работу и уже закоммитил изменения",
+        "Я закончил работу; коммитить изменения не нужно",
+        "Я закончил сложную часть проекта",
+        "Я уже закоммитил изменения, но осталось отдохнуть",
+        "Я сохранил изменения, осталось только уйти",
+        "Я решил не закоммитить изменения",
+        "Если нужно, я уже прогнал тесты",
+        "Пока не закоммитил изменения и не буду",
+    ],
+)
+def test_practical_follow_through_is_not_licensed_without_an_explicit_pending_step(
+    user_text: str,
+) -> None:
+    builder, context = _builder()
+    _, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-no-grounded-step",
+    )
+
+    assert manifest.character_initiative == "responsive"
 
 
 def test_relationship_ordinals_include_very_high_and_keep_very_low_scoped() -> None:
@@ -358,7 +437,7 @@ def test_no_relevant_memory_is_current_turn_uncertainty_not_global_amnesia() -> 
     )
     trusted = _trusted_text(request)
 
-    assert manifest.policy_schema_version == 18
+    assert manifest.policy_schema_version == 19
     assert manifest.retrieval_status == "no_relevant_memory"
     assert "did not recall a relevant grounded episode" in trusted
     assert "«не вспомнила»/«не помню»" in trusted
@@ -377,7 +456,7 @@ def test_unrelated_no_recall_stays_silent_about_memory() -> None:
     )
     trusted = _trusted_text(request)
 
-    assert manifest.policy_schema_version == 18
+    assert manifest.policy_schema_version == 19
     assert "do not mention memory, remembering or forgetting" in trusted
     assert "«не вспомнила»/«не помню»" not in trusted
     assert "say «был похожий разговор»" not in trusted

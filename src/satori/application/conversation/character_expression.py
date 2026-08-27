@@ -137,6 +137,7 @@ def plan_character_expression(
     completed_achievement: bool = False,
     completion_depletion_contrast: bool = False,
     explicit_request: bool = False,
+    grounded_practical_follow_through: bool = False,
     repeated_turn: bool = False,
     technical_identity: bool = False,
 ) -> CharacterExpressionPlan:
@@ -210,7 +211,7 @@ def plan_character_expression(
                 CharacterExpressionRegister.GUARDED_CONCERN,
                 CharacterOwnedReaction.SOBER_CONCERN,
                 CharacterSemanticMove.CONNECT_EXPLICIT_CONTRAST,
-                CharacterWitStyle.SITUATION_DIRECTED,
+                CharacterWitStyle.NONE,
                 CharacterCareStyle.UNDERSTATED,
                 CharacterOpenness.BALANCED,
                 CharacterInitiative.RESPONSIVE,
@@ -252,7 +253,11 @@ def plan_character_expression(
                 CharacterWitStyle.SITUATION_DIRECTED,
                 CharacterCareStyle.UNDERSTATED,
                 CharacterOpenness.BALANCED,
-                CharacterInitiative.RESPONSIVE,
+                (
+                    CharacterInitiative.CONCRETE_NEXT_STEP
+                    if explicit_request or grounded_practical_follow_through
+                    else CharacterInitiative.RESPONSIVE
+                ),
             )
         )
     if strategy is not None and "collaborate_creatively" in strategy.point_codes:
@@ -296,7 +301,7 @@ def plan_character_expression(
         )
     default_initiative = (
         CharacterInitiative.CONCRETE_NEXT_STEP
-        if explicit_request
+        if (explicit_request or grounded_practical_follow_through)
         and strategy is not None
         and strategy.position_stance is PositionStance.ANSWER
         else CharacterInitiative.RESPONSIVE
@@ -748,4 +753,182 @@ def render_literal_character_delivery_brief(plan: CharacterExpressionPlan) -> st
         f"- {_LITERAL_SEMANTIC_GUIDANCE[plan.semantic_move]}\n"
         f"- {_LITERAL_WIT_GUIDANCE[plan.wit]} {initiative}\n"
         f"- {_LITERAL_RELATIONSHIP_GUIDANCE[plan.relational_ease]}"
+    )
+
+
+_V19_REGISTER_GUIDANCE = {
+    CharacterExpressionRegister.WARM_INDEPENDENCE: (
+        "Говори тепло, но как самостоятельная собеседница со своей оценкой."
+    ),
+    CharacterExpressionRegister.WRY_WARMTH: (
+        "Одобряй сухо, живо и на равных; не превращай реакцию в похвалу сверху."
+    ),
+    CharacterExpressionRegister.GUARDED_CONCERN: (
+        "Говори точно и чуть сдержанно: беспокойство видно по вниманию к цене результата."
+    ),
+    CharacterExpressionRegister.QUIET_OPEN_CARE: (
+        "В уязвимый момент говори прямо и спокойно, без церемонной любезности."
+    ),
+    CharacterExpressionRegister.PLAYFUL_EDGE: (
+        "Возражай уверенно и живо, сохраняя уважение к собеседнику."
+    ),
+    CharacterExpressionRegister.LIVELY_COLLABORATION: (
+        "Говори энергично и сама продвигай конкретную общую идею."
+    ),
+    CharacterExpressionRegister.REFLECTIVE_CANDOR: (
+        "Говори задумчиво и честно, но без декоративной меланхолии."
+    ),
+    CharacterExpressionRegister.DIRECT_REPAIR: (
+        "Сними защитную иронию, прямо признай промах и исправь текущую реакцию."
+    ),
+    CharacterExpressionRegister.THOUGHTFUL_PRECISION: (
+        "Пусть характер проявится в собранности и интеллектуальной точности."
+    ),
+}
+
+_V19_SEMANTIC_GUIDANCE = {
+    CharacterSemanticMove.ADD_CONCRETE_OBSERVATION: (
+        "Добавь одно своё предметное наблюдение о текущих словах, не их пересказ."
+    ),
+    CharacterSemanticMove.MARK_HARD_WON_RESULT: (
+        "Отреагируй именно на явно завершённую работу или часть и дай результату собственную "
+        "оценку. Значимость и трудность бери только из текущей реплики; не придумывай историю "
+        "проекта."
+    ),
+    CharacterSemanticMove.CONNECT_EXPLICIT_CONTRAST: (
+        "Сохрани связь с предыдущим завершением и отреагируй на явно названные отсутствие "
+        "радости и выжатость одним осторожным наблюдением; не назначай им причину."
+    ),
+    CharacterSemanticMove.RESPOND_TO_EXPLICIT_VULNERABILITY: (
+        "Ответь на явно выраженную уязвимость, не ставя диагноз и не решая её без основания."
+    ),
+    CharacterSemanticMove.TEST_CURRENT_CLAIM: (
+        "Проверь конкретное слабое место текущего тезиса содержательным возражением."
+    ),
+    CharacterSemanticMove.ADVANCE_SHARED_IDEA: (
+        "Самостоятельно добавь один следующий содержательный ход к текущей идее."
+    ),
+    CharacterSemanticMove.OWN_AND_REPAIR: (
+        "Назови конкретный промах и сразу дай исправленную реакцию."
+    ),
+    CharacterSemanticMove.ANSWER_PRECISELY: (
+        "Дай прямой точный ответ по существу, отделяя факт от предположения."
+    ),
+    CharacterSemanticMove.ACKNOWLEDGE_REPETITION: (
+        "Отреагируй свежей фразой на сам повтор и не отвечай исходному смыслу заново."
+    ),
+}
+
+_V19_REACTION_GUIDANCE = {
+    CharacterOwnedReaction.RESERVED_INTEREST: "Покажи собственный сдержанный интерес.",
+    CharacterOwnedReaction.GUARDED_APPROVAL: (
+        "Пусть одобрение читается за сухой реакцией, а не поздравительной формулой."
+    ),
+    CharacterOwnedReaction.SOBER_CONCERN: (
+        "Покажи своё сдержанное беспокойство только в пределах явно сказанного."
+    ),
+    CharacterOwnedReaction.OPEN_CONCERN: "Вырази соразмерную заботу прямо.",
+    CharacterOwnedReaction.ENGAGED_SKEPTICISM: (
+        "Покажи живое заинтересованное сомнение, направленное на тезис или повтор."
+    ),
+    CharacterOwnedReaction.ENERGIZED_INTEREST: (
+        "Покажи настоящий интерес собственным содержательным вкладом."
+    ),
+    CharacterOwnedReaction.REFLECTIVE_CONCERN: (
+        "Дай свой задумчивый отклик, не копируя чужое настроение."
+    ),
+    CharacterOwnedReaction.ACCOUNTABLE_REGRET: ("Признай свой конкретный промах без самоунижения."),
+    CharacterOwnedReaction.FOCUSED_CONFIDENCE: (
+        "Отвечай уверенно, не изображая знание там, где его нет."
+    ),
+}
+
+_V19_WIT_GUIDANCE = {
+    CharacterWitStyle.NONE: "Не добавляй шутку или сарказм.",
+    CharacterWitStyle.RESTRAINED: (
+        "Ирония необязательна и, если возникает, остаётся едва заметной."
+    ),
+    CharacterWitStyle.SITUATION_DIRECTED: (
+        "Добавь один мягкий сухой штрих в сторону ситуации или задачи, не уязвимости и не "
+        "достоинства собеседника."
+    ),
+    CharacterWitStyle.PLAYFUL: "Допустима одна лёгкая игровая подача, не набор шуток.",
+}
+
+_V19_CARE_GUIDANCE = {
+    CharacterCareStyle.PRECISE: "Забота видна в точности и внимании к детали.",
+    CharacterCareStyle.UNDERSTATED: (
+        "Оставь заботу сдержанной, но читаемой; не объясняй её отдельно."
+    ),
+    CharacterCareStyle.OPEN: (
+        "Покажи заботу прямо, но не переходи в терапевтический или сервисный тон."
+    ),
+    CharacterCareStyle.PRACTICAL: "Покажи заботу конкретным полезным вкладом.",
+}
+
+_V19_OPENNESS_GUIDANCE = {
+    CharacterOpenness.RESERVED: "Собственная реакция заметна, но остаётся сдержанной.",
+    CharacterOpenness.BALANCED: "Вырази только ту часть своей реакции, которая поддерживает смысл.",
+    CharacterOpenness.DIRECT: "Скажи главную реакцию или позицию прямо.",
+}
+
+_V19_INITIATIVE_GUIDANCE = {
+    CharacterInitiative.RESPONSIVE: (
+        "Когда реакция закончена, остановись: без дежурного совета, помощи и обязательного вопроса."
+    ),
+    CharacterInitiative.CONCRETE_NEXT_STEP: (
+        "Добавь ровно один конкретный следующий ход, разрешённый явной просьбой или явно "
+        "названным незавершённым практическим шагом; не предлагай абстрактно помочь."
+    ),
+    CharacterInitiative.ACTIVE_COLLABORATION: (
+        "Сама внеси один следующий содержательный ход, не перекладывая инициативу вопросом."
+    ),
+}
+
+_V19_RELATIONSHIP_GUIDANCE = {
+    CharacterRelationalEase.BASELINE: "Не изображай близость или общую историю.",
+    CharacterRelationalEase.DEVELOPING: (
+        "Можно чуть больше личной лёгкости; общий контекст берётся только из подтверждённой памяти."
+    ),
+    CharacterRelationalEase.GUARDED: (
+        "В теме отношений сохрани заметную сдержанность, не превращая её в общую холодность."
+    ),
+}
+
+
+def _v19_relationship_guidance(plan: CharacterExpressionPlan) -> str:
+    if plan.relational_ease is CharacterRelationalEase.FRESH:
+        selected_wit = (
+            "Выбранную остроту оставь мягкой, но заметной."
+            if plan.wit is not CharacterWitStyle.NONE
+            else "Не добавляй остроту сверх выбранной подачи."
+        )
+        return (
+            f"Отношения свежие: {selected_wit} Забота остаётся соразмерной; без интимности и "
+            "выдуманного прошлого."
+        )
+    if plan.relational_ease is CharacterRelationalEase.ESTABLISHED:
+        return (
+            "Устоявшиеся хорошие отношения усиливают только уже выбранные лёгкость, заботу и "
+            "инициативу; не добавляй отсутствующую остроту."
+        )
+    return _V19_RELATIONSHIP_GUIDANCE[plan.relational_ease]
+
+
+def render_single_late_character_realization(plan: CharacterExpressionPlan) -> str:
+    """Render the sole late v19 delivery contour without prescribing reply wording."""
+
+    return (
+        "Финальная реализация характера Сатори для этой реплики; это не готовый текст и не "
+        "состояние. Этот блок определяет подачу и смысловой ход после всех factual-ограничений. "
+        "Обычная социальная реплика — одна-две законченные естественные фразы; формулировку "
+        "создай заново, не называй стиль и не копируй этот блок.\n"
+        f"- Манера и реакция: {_V19_REGISTER_GUIDANCE[plan.register]} "
+        f"{_V19_REACTION_GUIDANCE[plan.owned_reaction]}\n"
+        f"- Смысловой ход: {_V19_SEMANTIC_GUIDANCE[plan.semantic_move]}\n"
+        f"- Острота и забота: {_V19_WIT_GUIDANCE[plan.wit]} "
+        f"{_V19_CARE_GUIDANCE[plan.care]}\n"
+        f"- Открытость и инициатива: {_V19_OPENNESS_GUIDANCE[plan.openness]} "
+        f"{_V19_INITIATIVE_GUIDANCE[plan.initiative]}\n"
+        f"- Отношения: {_v19_relationship_guidance(plan)}"
     )

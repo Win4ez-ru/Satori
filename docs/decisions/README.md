@@ -37,6 +37,7 @@ Accepted ADRs are immutable history. To change a decision, add a new ADR with `S
 | [0031](0031-openai-foreground-provider.md) | Accepted | Optional credential-pinned OpenAI Responses foreground provider with unchanged local owners |
 | [0032](0032-openai-visible-and-reasoning-output-budgets.md) | Accepted | Separate application-visible and OpenAI reasoning output budgets with fail-closed enforcement |
 | [0033](0033-late-compact-character-delivery.md) | Superseded in part | Late compact realization of the typed character-expression plan without enum labels or scripts |
-| [0034](0034-relevance-scoped-memory-and-literal-delivery.md) | Accepted | Relevance-scoped no-recall wording and shorter literal realization of the same typed character plan |
+| [0034](0034-relevance-scoped-memory-and-literal-delivery.md) | Superseded in part | Relevance-scoped no-recall wording and shorter literal realization of the same typed character plan |
+| [0035](0035-single-late-character-realization.md) | Accepted | Single late realization of the complete typed character plan with grounded practical initiative |
 
 Open implementation choices are tracked in `../open-questions.md`; do not create a fictional ADR where evidence is not yet available.

@@ -930,6 +930,20 @@ def test_near_duplicate_after_repetition_gets_at_most_one_precommit_retry(
     assert len(provider.requests) == 5
     assert provider.requests[1].trace_id == provider.requests[2].trace_id == "trace-2"
     assert "Bounded response-contract retry" in provider.requests[2].messages[-2].content
+    assert "Preserve the already selected final character realization" in (
+        provider.requests[2].messages[-2].content
+    )
+    assert "Финальная реализация характера Сатори" in provider.requests[2].messages[-2].content
+    assert provider.requests[2].messages[-2].content.index(
+        "Bounded response-contract retry"
+    ) < provider.requests[2].messages[-2].content.index("Финальная реализация характера Сатори")
+    assert (
+        sum(
+            "Финальная реализация характера Сатори" in message.content
+            for message in provider.requests[2].messages
+        )
+        == 1
+    )
     assert "second consecutive identical message" in provider.requests[2].messages[-2].content
     assert "In one short fresh Russian sentence" in (provider.requests[2].messages[-2].content)
     assert "Do not use a prescribed stock sentence" in (provider.requests[2].messages[-2].content)
@@ -1247,6 +1261,8 @@ def test_masculine_retry_forbids_gendered_gladness_from_production_failure(
     retry_guidance = provider.requests[-1].messages[-2].content
     assert "do not use either Russian word 'рад' or 'рада'" in retry_guidance
     assert "Preserve the current semantic move, concrete news" in retry_guidance
+    assert "Preserve the already selected final character realization" in retry_guidance
+    assert "Финальная реализация характера Сатори" in provider.requests[-1].messages[-2].content
     assert "instead of falling back to a generic congratulation" in retry_guidance
     assert "Start the substantive response with 'Это'" not in retry_guidance
 
@@ -1277,8 +1293,13 @@ def test_retry_reuses_one_tentative_affect_and_exact_original_evidence_context(
 
     assert reply.context_manifest.response_regenerated is True
     assert len(provider.requests) == 2
-    assert provider.requests[1].messages[:-2] == provider.requests[0].messages[:-1]
+    assert provider.requests[1].messages[:-2] == provider.requests[0].messages[:-2]
     assert provider.requests[1].messages[-1] == provider.requests[0].messages[-1]
+    assert "Bounded response-contract retry" in provider.requests[1].messages[-2].content
+    assert "Финальная реализация характера Сатори" in provider.requests[1].messages[-2].content
+    assert provider.requests[1].messages[-2].content.index(
+        "Bounded response-contract retry"
+    ) < provider.requests[1].messages[-2].content.index("Финальная реализация характера Сатори")
     assert provider.requests[1].trace_id == provider.requests[0].trace_id
     assert len(appraisal.requests) == 1
     assert len(services.emotion_history.execute()) == 1

@@ -74,6 +74,8 @@ ConversationProvider = ConversationGenerationPort[
     ConversationProviderResponse,
 ]
 
+_FINAL_CHARACTER_REALIZATION_MARKER = "Финальная реализация характера Сатори для этой реплики"
+
 
 def _log_fields(**fields: object) -> dict[str, object]:
     return {"satori_fields": fields}
@@ -737,6 +739,10 @@ class TalkToSatori:
             "character_expression_register": (reply.context_manifest.character_expression_register),
             "character_owned_reaction": reply.context_manifest.character_owned_reaction,
             "character_semantic_move": reply.context_manifest.character_semantic_move,
+            "character_wit": reply.context_manifest.character_wit,
+            "character_care": reply.context_manifest.character_care,
+            "character_openness": reply.context_manifest.character_openness,
+            "character_initiative": reply.context_manifest.character_initiative,
             "character_relational_ease": reply.context_manifest.character_relational_ease,
             "cognition_fallback_reasons": list(reply.context_manifest.cognition_fallback_reasons),
             "emotion_state_version": reply.context_manifest.emotion_state_version,
@@ -799,6 +805,13 @@ class TalkToSatori:
     ) -> ConversationProviderRequest:
         if request.messages[-1].role is not ConversationMessageRole.USER:
             raise ValueError("conversation request must end with the current user message")
+        if (
+            len(request.messages) < 2
+            or request.messages[-2].role is not ConversationMessageRole.DEVELOPER
+        ):
+            raise ValueError(
+                "conversation request must keep its final trusted guidance before the user"
+            )
         activity_retry_question_guidance = (
             "Because a session correction against routine reciprocal questions is active, use "
             "statements only and do not ask a question in this retry."
@@ -962,16 +975,31 @@ class TalkToSatori:
             content=(
                 "Bounded response-contract retry. "
                 f"{reason_guidance} Preserve the same user request, trusted facts, current affect, "
-                "relationship bounds and evidence. Do not mention validation or the discarded "
-                f"draft.{active_correction_guidance}{activity_correction_guidance}"
+                "relationship bounds and evidence. Preserve the already selected final character "
+                "realization, including its reaction, semantic move, wit, care, openness and "
+                "initiative bounds; do not collapse into generic service language. Do not mention "
+                f"validation or the discarded draft.{active_correction_guidance}"
+                f"{activity_correction_guidance}"
                 f"{prompt_correction_guidance}{concise_relevance_guidance}{facet_guidance} This is "
                 "the only retry."
             ),
         )
-        return replace(
-            request,
-            messages=(*request.messages[:-1], retry_instruction, request.messages[-1]),
-        )
+        final_guidance = request.messages[-2]
+        if _FINAL_CHARACTER_REALIZATION_MARKER in final_guidance.content:
+            invariant_content, marker, realization_content = final_guidance.content.partition(
+                _FINAL_CHARACTER_REALIZATION_MARKER
+            )
+            final_guidance = replace(
+                final_guidance,
+                content=(
+                    f"{invariant_content.rstrip()}\n{retry_instruction.content}\n"
+                    f"{marker}{realization_content}"
+                ),
+            )
+            messages = (*request.messages[:-2], final_guidance, request.messages[-1])
+        else:
+            messages = (*request.messages[:-1], retry_instruction, request.messages[-1])
+        return replace(request, messages=messages)
 
     def _mark_failed(self, interaction_id: str, error: Exception) -> None:
         try:

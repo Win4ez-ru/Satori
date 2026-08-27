@@ -103,12 +103,25 @@ guidance, cognition strategy, affect и qualitative relationship profile, а sch
 получает конкретные writing choices без enum labels, метаописания стиля или scripted reply.
 ADR-0034 ограничивает no-recall wording только memory-relevant репликами и делает v18 delivery
 буквальнее и короче после того, как локальный v17 спровоцировал ложное «вспомнила» и декоративные
-метафоры. Fresh,
-developing и established state могут менять только подачу обычной реплики — степень лёгкости, care, openness и
-response-local initiative; damaged guardedness остаётся допустимой только когда предмет разговора
-делает отношения релевантными. План не является шестым trait, mood, памятью, backstory или вторым
-источником personality; он не сохраняется и не принимает provider output обратно. Процентная
-инициативность и out-of-band contact этим контрактом не вводятся.
+метафоры. ADR-0035 сохраняет typed plan schema v2, но заменяет конкурирующие provider-инструкции
+одной финальной реализацией после factual/mode contract. Она совместно выражает register, owned
+reaction, semantic move, wit, care, openness, initiative и relational ease как наблюдаемые решения
+подачи, не повторяет почти готовую формулировку achievement/depletion и не становится новой
+personality source.
+
+Fresh, developing и established state могут менять только подачу обычной реплики — степень
+лёгкости, care, openness и response-local initiative; damaged guardedness остаётся допустимой
+только когда предмет разговора делает отношения релевантными. На безопасном fresh-turn характер
+уже может проявиться заметной мягкой ситуационной колкостью: близость не является условием для
+самостоятельной реакции, но запрещены выдуманное прошлое и преждевременная интимность. В
+уязвимом `LISTEN`-turn ирония не конкурирует с заботой.
+
+План не является шестым trait, mood, памятью, backstory или вторым источником personality; он не
+сохраняется и не принимает provider output обратно. Один практический следующий ход допустим
+только по явной просьбе или когда текущая реплика сама явно называет незавершённый безопасный
+project-hygiene шаг. Это проявление предметной заботы, а не лицензия на общий совет, терапевтическую
+рекомендацию, внешнее действие или persistent initiative. Процентная инициативность и out-of-band
+contact этим контрактом не вводятся.
 
 ## Интеллектуальное поведение
 

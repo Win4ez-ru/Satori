@@ -435,19 +435,22 @@ does not authorize Stage 9.
   absent-memory confabulation, one generic project reply and an expression layer that can sound
   more technical than lived.
 - **Prerequisites:** accepted checkpoint 14.1; exact A/B evidence; Stage 15 remains locked.
-- **Scope:** versioned behavior calibration (v10 grounded baseline; rejected v11-v17 and candidate
-  v18 literal character-delivery follow-up), stronger `no_relevant_memory` generation guidance,
+- **Scope:** versioned behavior calibration (v10 grounded baseline; rejected v11-v18 and candidate
+  v19 single-late-character-realization follow-up under ADR-0035), stronger `no_relevant_memory`
+  generation guidance,
   concrete current-turn specificity, natural first-person expression of the existing qualitative
   affect/mood projection, request-local owned reaction and semantic move, positive ordinary-turn
-  relationship modulation, deterministic cognition cue refinements, versioned corpus and provider
-  sampling.
+  relationship modulation, all-eight-axis transient expression observability, deterministic
+  cognition cue refinements, narrow grounded current-reply practical initiative, versioned corpus
+  and provider sampling.
 - **Out of scope:** Stage 15, new memory/emotion state or owner, human physiology/subjective-
   consciousness claims, an eleventh Stage 8.1 validator reason, output rewriting, judge LLM,
   unbounded retry, numeric initiative distribution or out-of-band contact, structured cloud
   routing, voice or avatar.
-- **Deliverables:** policy/projection changes, typed transient character-expression plan,
-  deterministic no-memory/specificity/affect/character fixtures,
-  regression tests, metadata-only YandexGPT evidence and refreshed Stage 8.1 real-Ollama evidence.
+- **Deliverables:** policy/projection changes, typed transient character-expression plan, one final
+  provider realization after invariant/mode contracts, deterministic
+  no-memory/specificity/affect/character fixtures, offline OpenAI wire coverage, versioned 3 × 2
+  human-review runner, metadata-only provider evidence and refreshed Stage 8.1 real-Ollama evidence.
 - **Acceptance criteria:** no-memory scenarios explicitly preserve uncertainty and propose no
   value; specific prompts receive a concrete response rather than a generic offer; qualitative
   affect profiles produce natural bounded first-person expression without internal labels or
@@ -457,15 +460,19 @@ does not authorize Stage 9.
 - **Automated tests:** prompt composition/status boundaries, policy version, no-memory injection,
   affect-profile expression contract, generic-assistant diagnostics and existing identity,
   relationship, grounding, replay and provider-portability regressions.
-- **Manual verification:** separately authorized credentialed YandexGPT multi-scenario run plus the
-  mandatory Stage 8.1 three fresh exact dialogues, 30-turn coherence, activity and
-  relationship-expression samples; preserve every public sampled reply for direct user review and
-  record tokens/timings without durable private prompt or retrieved-context logging.
+- **Manual verification:** separately authorized credentialed OpenAI main gate with the same public
+  achievement/depletion pair in three independent clean production sessions, followed by direct
+  written human review; then the applicable Stage 8.1 three fresh exact dialogues, 30-turn
+  coherence, activity and relationship-expression samples. Preserve every public sampled reply
+  and record tokens/timings without durable private prompt or retrieved-context logging. No paid
+  v19 call has been made yet.
 - **Risks:** prompt overconstraint, scripted emotion, false certainty from a polished tone,
   regressions in brevity, paid retry cost and treating a small sample as a hallucination proof.
 - **Exit condition:** deterministic and sampled gates improve the reproduced failures together,
-  persistent state/owners remain unchanged and the residual impossibility of guaranteeing zero
-  open-domain hallucinations is documented before Stage 15 is reconsidered.
+  all three complete v19 OpenAI session pairs pass the versioned human rubric, persistent
+  state/owners remain unchanged and the residual impossibility of guaranteeing zero open-domain
+  hallucinations is documented before Stage 15 is reconsidered. Until then Stage 15 remains
+  locked.
 
 ## Stage 15 — Autobiographical Self
 

@@ -7,7 +7,9 @@ complete. YandexGPT 5.1 Pro was the accepted opt-in foreground candidate; DeepSe
 rejected under the current production output contract. Later v16 character review rejected
 YandexGPT as the current delivery model. The separately authorized OpenAI one-call probe accepts
 the ADR-0032 transport-budget boundary but rejects the sampled reply at the human character gate.
-Stage 15 remains locked.
+ADR-0035 now makes policy v19 the production-composition candidate for a separate three-session
+OpenAI character gate; no paid v19 provider call or provider-fit acceptance exists yet. Stage 15
+remains locked.
 
 ## Purpose and boundary
 
@@ -101,7 +103,7 @@ interrupted answer cannot become a canonical Satori reply. Diagnostics expose on
 unrecognized provider detail are not logged. The API key must be created and funded
 by the operator and must never be committed or pasted into logs/tasks. OpenAI remains a candidate
 until the frozen public dialogues pass separately authorized semantic and direct human character
-review. ADR-0034 activates policy v18 in local production composition for that future review; it
+review. ADR-0035 activates policy v19 in local production composition for that future review; it
 does not itself accept OpenAI character quality or authorize a paid call.
 
 OpenAI sampling temperature is sent only with `SATORI_OPENAI_REASONING_EFFORT=none`. With `low` or
@@ -138,6 +140,34 @@ reply allowance. It does not accept OpenAI character quality. Human review rejec
 generic congratulatory/productivity-assistant prose with unsolicited advice rather than Satori's
 guarded wit, independent reaction or light edge. The sample is one turn, not a model-fit gate.
 No further paid call, policy v17 or Stage 15 work is implied.
+
+## Current v19 production-composition candidate
+
+ADR-0035 changes only request-local character realization and bounded practical initiative. The
+typed `CharacterExpressionPlan` remains schema v2 and provider-neutral. Disclosure, grounding and
+mode invariants come first; one realization of all eight selected axes is the final trusted
+developer guidance before the current user message. Achievement and depletion contracts no longer
+repeat nearly generated wording, `LISTEN` with zero humor receives no contradictory wit license,
+and a safe fresh turn may carry a visible soft edge without implying closeness.
+
+A narrow deterministic current-input license may select one concrete next step for an explicitly
+requested or explicitly pending safe project-hygiene action. It does not permit a generic
+productivity suggestion inferred from `project`, advice during an unrequested vulnerable
+`LISTEN` turn, provider-selected external action or persistent initiative state.
+
+An offline production-wire regression builds the exact v19 achievement and depletion requests,
+passes them through the OpenAI Responses adapter without network access and proves message-order
+preservation, a single late realization, `store=false`, low-reasoning wire allowance, omission of
+incompatible temperature and secret/prompt-safe logs. The versioned
+`checkpoint142_character_sampling_v1.json` fixture and
+`checkpoint142_openai_character_eval.py` runner define the main gate as three independent clean
+production sessions with the same two public turns: six mandatory base calls and an absolute
+nine-call ceiling for the existing max-one typed retry. A user-supplied USD ceiling and
+conservative versioned token-cost projection guard every network request without FX conversion.
+Every public reply is preserved exactly with allowlisted metadata, a stable artifact id and a
+SHA-256 content digest; written human review must bind to that exact completed sample before it can
+accept provider fit. This task made no paid request; provider fit is still pending separate
+explicit call/cost authorization and review.
 
 ## Credentialed smoke evidence
 

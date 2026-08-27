@@ -720,23 +720,33 @@ composite threshold. The manifest records personality aggregate version and cue 
 No numeric trait value, checkpoint, evidence, revision or budget enters generation, and the
 projection has no writer or persistence of its own.
 
-Checkpoint 14.2 candidate behavior policy v18 builds on ADR-0029's request-local
-character-expression plan at the application boundary. ADR-0030 supersedes its relationship and
-provider-delivery clauses: the plan may consume the existing qualitative fresh/developing/established profile on
-ordinary turns to modulate delivery, while damaged guardedness remains limited to a relationally
-relevant subject. One closed register, owned reaction and semantic move plus bounded
-wit/care/openness/initiative codes are selected deterministically. ADR-0033 keeps stable canonical
-voice in the early character context and renders only concrete guidance for the selected reaction,
-semantic move, wit, initiative and relationship boundary in the final trusted developer message;
-internal enum labels and scripted reply text are not exposed. ADR-0034 further scopes natural
-no-recall wording to requests whose deterministic disclosure plan requires memory; unrelated turns
-receive only the no-invented-shared-past boundary. The memory payload and provenance contract do
-not change.
-Initiative here is contribution within the current reply, not observer-driven or out-of-band
-contact; percentage targets and Stage 19 behavior are not introduced. The plan has no persistence
-adapter or domain owner; schema, register, owned reaction, semantic move and relationship ease are
-safe live-request metadata, and replay does not treat them as state. Grounding, max-one typed
-regeneration and canonical delivery remain unchanged.
+Checkpoint 14.2 candidate behavior policy v19 builds on ADR-0029's request-local
+`CharacterExpressionPlan` v2 at the application boundary. ADR-0030 permits the plan to consume the
+existing qualitative fresh/developing/established profile on ordinary turns, while damaged
+guardedness remains limited to a relationally relevant subject. One closed register, owned
+reaction and semantic move plus bounded wit/care/openness/initiative codes are selected
+deterministically. ADR-0034 continues to scope natural no-recall wording to requests whose
+deterministic disclosure plan requires memory; unrelated turns receive only the
+no-invented-shared-past boundary. Its memory payload and provenance decision is unchanged.
+
+ADR-0035 supersedes the provider-rendering part of ADR-0034. Stable identity, disclosure,
+grounding and mode invariants appear first; exactly one compact character-realization block is the
+last trusted guidance before the current user turn. It renders all eight observable axes together:
+register, owned reaction, semantic move, wit, care, openness, initiative and relational ease.
+Mode guidance no longer duplicates nearly ready achievement/depletion wording, and the selector
+does not combine a zero-humor `LISTEN` strategy with a wit license. A fresh relationship can show
+a visible soft situation-directed edge without inventing familiarity.
+
+Initiative here remains a contribution within the current reply, not observer-driven or
+out-of-band contact; percentage targets and Stage 19 behavior are not introduced. A pure
+deterministic current-input check may license at most one concrete next step only when an explicit
+request or an explicitly pending safe project-hygiene action grounds it. Generic advice inferred
+from the word `project`, and advice that displaces presence on a vulnerable turn, remain blocked.
+The plan stays immutable, request-local and schema v2 with no persistence adapter or domain owner.
+Manifest v16 exposes its previously absent wit, care, openness and initiative choices only as
+transient `compare=False` observation fields alongside the existing plan axes; replay does not
+treat them as state. A max-one typed retry reuses the same realization and license. Grounding,
+the ten-reason validator and canonical delivery remain unchanged.
 
 ## 8. Deterministic vs LLM responsibilities
 

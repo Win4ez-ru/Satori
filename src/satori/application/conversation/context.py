@@ -24,6 +24,7 @@ from satori.application.conversation.character_expression import (
     render_character_delivery_brief,
     render_character_expression_plan,
     render_literal_character_delivery_brief,
+    render_single_late_character_realization,
 )
 from satori.application.conversation.coherence import (
     DialogueCoherenceContext,
@@ -462,6 +463,35 @@ def _states_completed_work(normalized: str) -> bool:
     )
 
 
+def _states_pending_project_hygiene(normalized: str) -> bool:
+    """License one practical note only for an explicit, still-pending safe project step."""
+
+    pending_action = re.compile(
+        r"\b(?:осталось|надо|нужно|следует|не\s+забудь)\s+"
+        r"(?:(?:только|еще|потом)\s+)?"
+        r"(?:закоммитить(?:\s+изменения)?|сделать\s+коммит|"
+        r"прогнать\s+тесты|запустить\s+тесты|проверить\s+тесты|"
+        r"сохранить\s+изменения|зафиксировать\s+изменения)\b"
+    )
+    explicitly_incomplete_action = re.compile(
+        r"\b(?:еще|пока)\s+не\s+"
+        r"(?:закоммитил(?:а)?(?:\s+изменения)?|сделал(?:а)?\s+коммит|"
+        r"прогнал(?:а)?\s+тесты|запустил(?:а)?\s+тесты|проверил(?:а)?\s+тесты|"
+        r"сохранил(?:а)?\s+изменения|зафиксировал(?:а)?\s+изменения)\b"
+    )
+    rejected_or_uncertain = re.compile(
+        r"\b(?:не\s+(?:надо|нужно|следует|стоит|буду|собираюсь|планирую|хочу)|"
+        r"решил(?:а)?\s+не|не\s+(?:думаю|уверен|уверена)\b|сомневаюсь\b|"
+        r"если(?:\s+бы)?\b|возможно\b)"
+    )
+    for clause in re.split(r"[.!?;]", normalized):
+        if rejected_or_uncertain.search(clause):
+            continue
+        if pending_action.search(clause) or explicitly_incomplete_action.search(clause):
+            return True
+    return False
+
+
 def _completion_depletion_contrast(
     normalized: str,
     recent: RecentConversationContext | None,
@@ -848,6 +878,7 @@ class ConversationRequestBuilder:
             normalized_user_text,
             recent_context,
         )
+        grounded_practical_follow_through = _states_pending_project_hygiene(normalized_user_text)
         explicit_request = bool(
             cognition_trace is not None
             and PerceptionSignal.REQUEST in cognition_trace.perception.signals
@@ -885,6 +916,7 @@ class ConversationRequestBuilder:
             completed_achievement=completed_achievement,
             completion_depletion_contrast=completion_depletion_contrast,
             explicit_request=explicit_request,
+            grounded_practical_follow_through=grounded_practical_follow_through,
             repeated_turn=coherence.current_user_message_repeated,
             technical_identity=(disclosure_mode is ConversationalDisclosureMode.TECHNICAL_IDENTITY),
         )
@@ -990,7 +1022,13 @@ class ConversationRequestBuilder:
             completed_achievement=completed_achievement,
             completion_depletion_contrast=completion_depletion_contrast,
         )
-        if self.policy.schema_version >= 18:
+        if self.policy.schema_version >= 19:
+            identity_reminder_content = (
+                identity_reminder_content
+                + "\n"
+                + render_single_late_character_realization(character_expression_plan)
+            )
+        elif self.policy.schema_version >= 18:
             identity_reminder_content = (
                 render_literal_character_delivery_brief(character_expression_plan)
                 + "\n"
@@ -1444,6 +1482,22 @@ class ConversationRequestBuilder:
             ),
             character_semantic_move=(
                 character_expression_plan.semantic_move.value
+                if self.policy.schema_version >= 15
+                else None
+            ),
+            character_wit=(
+                character_expression_plan.wit.value if self.policy.schema_version >= 15 else None
+            ),
+            character_care=(
+                character_expression_plan.care.value if self.policy.schema_version >= 15 else None
+            ),
+            character_openness=(
+                character_expression_plan.openness.value
+                if self.policy.schema_version >= 15
+                else None
+            ),
+            character_initiative=(
+                character_expression_plan.initiative.value
                 if self.policy.schema_version >= 15
                 else None
             ),
@@ -1947,7 +2001,15 @@ class ConversationRequestBuilder:
             and mode is ConversationalDisclosureMode.SOCIAL
             and completed_achievement
         ):
-            if self.policy.schema_version >= 18:
+            if self.policy.schema_version >= 19:
+                mode_guidance = (
+                    "Одна-две законченные разговорные фразы без обязательного приветствия. "
+                    "Опирайся только на явные факты текущей реплики; не выдумывай историю проекта, "
+                    "причину или прошлое. Этот контракт задаёт только форму и factual-границы; "
+                    "реакцию, смысловой ход и инициативу задаёт финальный character-realization "
+                    "блок."
+                )
+            elif self.policy.schema_version >= 18:
                 mode_guidance = (
                     "После краткого приветствия начни сразу с сухой реакции на то, что сложная "
                     "часть наконец уступила, затем коротко признай вес результата. Используй "
@@ -2054,7 +2116,24 @@ class ConversationRequestBuilder:
             )
         if self.policy.schema_version >= 10 and mode is ConversationalDisclosureMode.GENERAL:
             if self.policy.schema_version >= 11 and listen_before_advice:
-                if self.policy.schema_version >= 18:
+                if self.policy.schema_version >= 19:
+                    if completion_depletion_contrast:
+                        mode_guidance = (
+                            "Одна-две законченные разговорные фразы с сохранением связности с "
+                            "предыдущей репликой. Не добавляй скрытую причину, диагноз или общий "
+                            "вывод о людях. Этот контракт задаёт только форму и factual-границы; "
+                            "реакцию, смысловой ход и инициативу задаёт финальный "
+                            "character-realization блок."
+                        )
+                    else:
+                        mode_guidance = (
+                            "Одна-две законченные разговорные фразы на прямо выраженную "
+                            "уязвимость. Не добавляй скрытую причину, диагноз или общее утешение. "
+                            "Этот контракт задаёт только форму и factual-границы; реакцию, "
+                            "смысловой ход и инициативу задаёт финальный character-realization "
+                            "блок."
+                        )
+                elif self.policy.schema_version >= 18:
                     if completion_depletion_contrast:
                         mode_guidance = (
                             "Начни сразу со связи между завершением и выжатостью: почти все силы "
@@ -3141,11 +3220,19 @@ class ConversationRequestBuilder:
             sort_keys=True,
             separators=(",", ":"),
         )
+        baseline_priority = (
+            "These capabilities stay available; the final request-local character realization "
+            "decides which are visible. Independence, precision, warmth and dry wit are peers; "
+            "relationship and affect only modulate expression."
+            if self.policy.schema_version >= 19
+            else (
+                "Baseline warmth, openness and curiosity remain primary; relationship and affect "
+                "only modulate them."
+            )
+        )
         return (
             "Trusted compact baseline voice Сатори: мягкие склонности, не биография и не текст "
-            "ответа. "
-            "Baseline warmth, openness and curiosity remain primary; relationship and affect only "
-            "modulate them. Core values guide choices silently.\n"
+            f"ответа. {baseline_priority} Core values guide choices silently.\n"
             f"{serialized}" + expression_content
         )
 

@@ -19,7 +19,7 @@ from tests.stage81_real_eval import _build_runtime, _new_record, _run_dialogue, 
 
 REPORT_SCHEMA_VERSION = 1
 SESSION_COUNT = 3
-EXPECTED_POLICY_ID = "satori.conversation.behavior.v18"
+EXPECTED_POLICY_ID = "satori.conversation.behavior.v19"
 FIXTURE_TURNS: tuple[dict[str, Any], ...] = (
     {
         "turn": 1,
@@ -59,7 +59,7 @@ async def run(*, output_path: Path, alembic_config: Path) -> dict[str, Any]:
         "schema_version": REPORT_SCHEMA_VERSION,
         "recorded_at": datetime.now(UTC).isoformat(),
         "checkpoint": "14.2",
-        "purpose": "character_expression_v18_local_production_gate",
+        "purpose": "character_expression_v19_local_production_gate",
         "status": "running",
         "contains_raw_public_eval_dialogue": True,
         "contains_raw_public_sampled_replies": True,
@@ -87,12 +87,12 @@ async def run(*, output_path: Path, alembic_config: Path) -> dict[str, Any]:
         _write_report(output_path, report)
 
     checkpoint()
-    with tempfile.TemporaryDirectory(prefix="satori-v18-local-") as directory:
+    with tempfile.TemporaryDirectory(prefix="satori-v19-local-") as directory:
         database_directory = Path(directory)
         for session_number in range(1, SESSION_COUNT + 1):
             database_path = database_directory / f"session-{session_number}.db"
             record = _new_record(
-                f"character-v18-local-session-{session_number}",
+                f"character-v19-local-session-{session_number}",
                 database_path,
                 False,
             )

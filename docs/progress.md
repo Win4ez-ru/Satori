@@ -9,15 +9,31 @@ Behavior policy v10 is the last provider-accepted baseline. Post-acceptance cand
 v16 were rejected by bounded production semantic gates. On 2026-08-27 the user explicitly
 authorized the next character-visibility implementation. ADR-0033 introduced candidate v17, whose
 three-session local production sample was rejected at 0/3 complete pairs for truncation, an
-invented recollection and unnatural metaphors. ADR-0034 then accepts candidate policy v18 with
-relevance-scoped no-recall wording and a shorter literal realization of the existing typed
-`CharacterExpressionPlan` v2; local production composition now uses v18 for the next cloud-provider
-review. The selector, manifest,
-canonical personality source, persistent owners, ten-reason validator and max-one retry are
-unchanged. No paid provider call was authorized or made by this follow-up, so v18 character quality
-is not yet provider-accepted. The rebuilt-wheel Foundation gate is clean at `1156 passed,
-4 skipped`; Ruff and mypy pass, migration head plus default and isolated clean bootstrap pass.
-Stage 15 remains locked pending a separate user command.**
+invented recollection and unnatural metaphors. ADR-0034 candidate v18 preserved grounding and
+completed all six local replies but was rejected at 0/3 complete pairs for copied semantic wording
+and generic repetition. ADR-0035 now accepts candidate policy v19 for production composition while
+keeping `CharacterExpressionPlan` immutable, request-local and schema v2. One final realization
+after the invariant/mode contract renders all eight axes; duplicate ready-made
+achievement/depletion wording and the zero-humor depletion wit conflict are removed. Fresh safe
+turns can show a visible soft edge, and only an explicit request or explicitly pending safe
+project-hygiene step can license one concrete next move. Generic and vulnerability advice remain
+blocked. The complete plan is exposed only through transient manifest fields, a retry preserves
+the same realization, and the canonical personality source, persistent owners, ten-reason
+validator and max-one retry remain unchanged. Offline OpenAI wire coverage and a versioned 3 × 2
+human-review fixture/runner are implemented. No paid v19 provider call has been made, provider fit
+remains pending separate authorization and human review. A free three-session local v19 production
+smoke completed 6/6 turns on first attempts and exposed every intended typed axis. A final audit
+then removed unsupported difficulty from generic completion, made the practical-step license
+fail-closed for completed/negated/hypothetical/unrelated actions and placed retry correction before
+the unchanged final realization. The required post-audit 3 × 2 local rerun also completed 6/6
+first-attempt turns (13,084 input + 337 output) and again rejected the 4B provider at 0/3 pairs:
+achievement remained generic/metaphorical or invented detail, while depletion introduced general
+rules and speculative causes. Both immutable results are recorded without prompt/private context
+and are not being tuned into scripted phrases. Stage 15 remains locked pending a separate user
+command. The rebuilt-wheel Foundation
+gate is clean at `1198 passed, 4 skipped`;
+Ruff format/check, mypy on 266 files, migration head, default bootstrap, isolated clean bootstrap,
+`git diff --check` and repository marker checks all pass.**
 
 On 2026-08-25 the user authorized replacing only the rejected Yandex foreground delivery engine
 with OpenAI. ADR-0031 adds a credential-pinned, stateless Responses API foreground adapter while
@@ -1264,6 +1280,30 @@ Stage 15 remains locked and must not begin automatically after Stage 14.
   `1156 passed, 4 skipped`, migration head, default bootstrap and isolated clean bootstrap pass.
   Local v18 sampling remains human-rejected for generic/repeated wording, so the large local
   regression stays conditional and a cloud-provider sample requires separate authorization.
+- [x] Accept ADR-0035 and implement candidate policy v19 as one late realization of all eight
+  existing typed plan axes after the invariant/mode contract, without changing plan schema v2,
+  persistent owners, validator reasons or retry count.
+- [x] Remove duplicate ready-made achievement/depletion wording, resolve the zero-humor
+  `LISTEN`/wit conflict, keep a visible safe fresh-turn soft edge and add only a narrow typed license
+  for one explicitly grounded pending project-hygiene step.
+- [x] Add an offline OpenAI production-wire regression and a versioned three-clean-session by
+  two-turn human-review fixture/runner with six mandatory base calls, an absolute nine-call ceiling
+  and exact public-reply preservation. No paid provider call is implied.
+- [x] Complete the free three-clean-session local v19 production smoke: 6/6 first-attempt replies,
+  12,991 input plus 348 output tokens, correct all-eight-axis manifests and a direct 0/3 pair human
+  verdict for the local 4B provider. Preserve the public artifact without private provider context.
+- [x] Close the final audit findings: keep generic completion difficulty grounded, reject
+  completed/negated/hypothetical/unrelated practical-step false positives, keep retry correction
+  before the same final realization, and bind OpenAI review to a completed UUID/SHA-256 sample with
+  fail-before-network call and USD cost guards.
+- [x] Rerun the exact free 3 × 2 local gate after those fixes: 6/6 first-attempt calls, 13,084 input
+  plus 337 output tokens and another direct 0/3 pair verdict. Preserve the post-audit artifact and
+  every public reply rather than rewriting the earlier evidence.
+- [x] Complete the candidate-v19 rebuilt-wheel Foundation gate: Ruff format/check clean, mypy clean
+  on 266 files, `1198 passed, 4 skipped`, migration head, default and isolated clean bootstrap,
+  `git diff --check` and repository marker checks clean.
+- [ ] After separate explicit call/cost authorization, run the v19 three-session OpenAI gate and
+  obtain direct human review before accepting provider fit.
 
 Stage 15 remains locked and must not begin automatically after checkpoint 14.2.
 

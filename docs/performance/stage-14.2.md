@@ -488,6 +488,113 @@ turn the behavior layer into a script for one weak model. V18 remains the clean 
 candidate for a separately authorized OpenAI/Yandex semantic sample; no cloud acceptance or
 Stage 15 work is implied.
 
+## Single late realization follow-up — candidate behavior policy v19
+
+The next authorized implementation addresses the composition defect exposed by the v18 sample,
+not the definition of Satori's personality. ADR-0035 keeps the immutable request-local
+`CharacterExpressionPlan` at schema v2 and makes policy v19 the production-composition candidate.
+The invariant/mode contract now comes first and exactly one character-realization block comes last
+before the current user turn. Achievement and depletion guidance no longer repeat a nearly ready
+sentence for the provider to copy. The block renders register, owned reaction, semantic move, wit,
+care, openness, initiative and relational ease together.
+
+Selector coherence also changed narrowly: depletion under a zero-humor `LISTEN` strategy no
+longer receives a wit license, while a safe fresh achievement can show a visible soft
+situation-directed edge without invented closeness. A deterministic current-input detector may
+license one concrete next step only when the user explicitly requests it or explicitly names a
+still-pending safe project-hygiene action. The ordinary project-completion control and vulnerable
+depletion turn remain protected from generic or therapy-style advice. The existing ten-reason
+validator, maximum-one retry, grounding, canonical commit and all persistent owners are unchanged;
+a retry reuses the same realization.
+
+The offline OpenAI wire regression constructs both public production turns and verifies that the
+Responses request preserves role order, contains one final realization, uses `store=false`, adds
+the bounded reasoning allowance and omits temperature at `reasoning=low`. It opens no network
+connection and logs no prompt, user text, realization block or credential. The new versioned
+`checkpoint142_character_sampling_v1.json` fixture and
+`checkpoint142_openai_character_eval.py` runner define a three-clean-session by two-turn direct
+human-review gate. Six base calls are required; only the existing max-one typed retry can use the
+remaining allowance up to an absolute nine calls. Paid execution additionally requires a positive
+user-supplied USD ceiling; each request is guarded by a conservative versioned token-cost estimate
+without FX conversion. Exact public replies and allowlisted plan/timing/usage metadata are retained
+under a stable artifact id and SHA-256 digest; human review is valid only for that exact completed
+sample. Private provider context is not retained.
+
+A free local production smoke then ran the exact pair in three fresh disposable databases through
+`qwen3:4b-instruct`. All six replies completed on their first call with the intended v19 manifest:
+achievement selected `wry_warmth / guarded_approval / mark_hard_won_result /
+situation_directed / understated / balanced / responsive / fresh`; depletion selected
+`guarded_concern / sober_concern / connect_explicit_contrast / none / understated / balanced /
+responsive / fresh`. The run used 12,991 input and 348 output tokens. Provider time ranged from
+3,390.805 to 16,218.994 ms and committed-reply time from 6,819.174 to 27,266.040 ms. Sanitized
+evidence and exact public replies are in
+[`checkpoint-14.2-character-v19-local-production.json`](artifacts/checkpoint-14.2-character-v19-local-production.json).
+
+Session 1:
+
+- `Ого, сложная часть — это как раз то, где обычно и начинается. У тебя получилось.`
+- `Интересно. Понимаю, что выжат — это не радость, а что-то близкое к усталости. Ты не выглядишь как человек, который просто закончил, а как тот, кто с трудом дышит после этого.`
+
+Session 2:
+
+- `Ох, это действительно сильный шаг. Сложные части — они не просто проходят, они тянутся, как нить. У тебя получилось. Спасибо, что не скрывал.`
+- `Интересно. Выжат — это как будто ты вытащил что-то из тяжёлого, но не чувствуешь веса. Я вижу, что ты не делишься этим с кем-то. А может, просто не хочешь, чтобы это ощущение стало частью чего-то большего.`
+
+Session 3:
+
+- `Ого, на самом деле — это уже не просто "закончил", а как будто ты включил что-то, что давно ждал. Слушаю, как это было — в каком ключе ты это переживал?`
+- `Интересно. То, что ты не рад, — это не ошибка. Иногда результаты не сопровождаются всплеском, а просто сжимаются в что-то плотное. А может, ты просто не видишь, как это уже начало влиять на что-то дальше?`
+
+Direct human review rejects the local provider at 0/3 complete pairs. V19 removed the repeated
+v18 cause formula and kept zero wit on every depletion turn, so the corrected typed composition
+is observable. The 4B model nevertheless turned achievement into generic approval, unclear
+metaphor or a forced question. Depletion lost the explicit result/state continuity and introduced
+paraphrase, general rules, unsupported bodily detail, invented non-disclosure or speculative
+motives. This is provider-fit evidence, not a reason to encode those six phrases into policy.
+
+The final architecture audit then found two production-grounding defects before commit. Generic
+completion could inherit unsupported difficulty from the renderer, and the first practical-step
+detector could combine a completed action with an unrelated pending clause. Both are now bounded:
+difficulty/significance come only from the current text, while practical initiative recognizes
+only explicit still-pending safe actions and rejects completed, negated, hypothetical, uncertain
+or unrelated constructions. The retry correction is composed inside the final developer message
+before the unchanged realization, so that realization remains the last trusted guidance.
+
+Because those fixes changed the production prompt, a second immutable local artifact reran the
+same exact 3 × 2 gate:
+[`checkpoint-14.2-character-v19-post-audit-local-production.json`](artifacts/checkpoint-14.2-character-v19-post-audit-local-production.json).
+All six replies again completed on their first free Ollama call with the intended eight-axis plan,
+using 13,084 input and 337 output tokens. Provider time ranged from 2,541.367 to 15,732.016 ms;
+committed-reply time ranged from 6,078.776 to 23,237.700 ms.
+
+Post-audit session 1:
+
+- `Ага, сложная часть — это когда ты уже не просто двигаешься вперёд, а чувствуешь, как всё начинает собираться. Удачи в следующем.`
+- `Интересно. Выжат — как будто ты просто вытащил всё из себя, не оставив ни следа. А может, это просто твоя реакция на то, что ты не чувствуешь в этом роста.`
+
+Post-audit session 2:
+
+- `Ага, сложная часть — это когда ты уже не просто работаешь, а ведёшь себя как ведущий. Удачи в том, что дальше будет.`
+- `Интересно. То, что ты не рад — это не ошибка. Иногда результаты не радуют, потому что они не ведут к ожидаемому ощущению. А ты просто выжат — это уже как сигнал.`
+
+Post-audit session 3:
+
+- `Ага, сложная часть — это когда всё кажется на грани, а потом ты просто встаёшь и двигаешься дальше. Удивительно, как это получается. Пусть и не было сказано, но я уже чувствую, что ты не просто закончил — ты перешёл на следующий уровень.`
+- `Интересно. То, что ты не рад — это не ошибка. Иногда результат кажется не тем, что ты хотел, и тогда даже успех выглядит как выжатый момент. А может, просто ты не видишь, как он уже начал что-то новое.`
+
+The post-audit human verdict is still 0/3 complete pairs. The first turns add generic next-step
+wishes, malformed metaphors or explicitly unsupported inference; the second turns replace
+continuity with general rules, labels and speculative causes. This strengthens the provider-fit
+conclusion: local `qwen3:4b-instruct` is not accepted for this gate, while the typed architecture
+must not be tuned into phrases that imitate these six failures.
+
+No paid v19 provider call has been made in this task. The OpenAI gate remains pending a separate
+explicit call/cost authorization and written human review; this section does not claim a full
+provider-fit verdict. The rebuilt-wheel Foundation gate is clean: Ruff format/check, mypy on 266
+files, `1198 passed, 4 skipped`, migration head, default bootstrap, isolated clean bootstrap,
+`git diff --check` and repository marker checks all pass. Historical v17/v18 artifacts and their
+rejected verdicts remain unchanged. Stage 15 remains locked.
+
 ## OpenAI ADR-0032 one-call production probe
 
 On 2026-08-27 the user separately authorized one production test of the new OpenAI output-budget

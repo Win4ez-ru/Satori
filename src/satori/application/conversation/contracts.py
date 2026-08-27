@@ -395,6 +395,10 @@ class ConversationContextManifest:
     character_expression_register: str | None = field(default=None, compare=False)
     character_owned_reaction: str | None = field(default=None, compare=False)
     character_semantic_move: str | None = field(default=None, compare=False)
+    character_wit: str | None = field(default=None, compare=False)
+    character_care: str | None = field(default=None, compare=False)
+    character_openness: str | None = field(default=None, compare=False)
+    character_initiative: str | None = field(default=None, compare=False)
     character_relational_ease: str | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
@@ -489,6 +493,39 @@ class ConversationContextManifest:
                 "acknowledge_repetition",
             }:
                 raise ValueError("character semantic move is not supported")
+            expression_axes = (
+                self.character_wit,
+                self.character_care,
+                self.character_openness,
+                self.character_initiative,
+            )
+            if self.policy_schema_version >= 19 and any(item is None for item in expression_axes):
+                raise ValueError("behavior policy v19 requires complete character expression axes")
+            if any(item is not None for item in expression_axes):
+                if any(item is None for item in expression_axes):
+                    raise ValueError("character expression axes must be supplied together")
+                if self.character_wit not in {
+                    "none",
+                    "restrained",
+                    "situation_directed",
+                    "playful",
+                }:
+                    raise ValueError("character wit is not supported")
+                if self.character_care not in {
+                    "precise",
+                    "understated",
+                    "open",
+                    "practical",
+                }:
+                    raise ValueError("character care is not supported")
+                if self.character_openness not in {"reserved", "balanced", "direct"}:
+                    raise ValueError("character openness is not supported")
+                if self.character_initiative not in {
+                    "responsive",
+                    "concrete_next_step",
+                    "active_collaboration",
+                }:
+                    raise ValueError("character initiative is not supported")
             if self.character_relational_ease not in {
                 "baseline",
                 "fresh",
@@ -503,6 +540,10 @@ class ConversationContextManifest:
                 self.character_expression_register,
                 self.character_owned_reaction,
                 self.character_semantic_move,
+                self.character_wit,
+                self.character_care,
+                self.character_openness,
+                self.character_initiative,
                 self.character_relational_ease,
             )
         ):
