@@ -20,7 +20,12 @@ from satori.application.conversation.contracts import (
     RecentConversationTurn,
     RuntimeCharacterContext,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V19, BEHAVIOR_POLICY_V20
+from satori.application.conversation.policy import (
+    BEHAVIOR_POLICY_V19,
+    BEHAVIOR_POLICY_V20,
+    BEHAVIOR_POLICY_V22,
+    BEHAVIOR_POLICY_V23,
+)
 from satori.application.relationship.contracts import RelationshipExpressionContext
 from satori.core.conversation import (
     ConversationMessageRole,
@@ -31,6 +36,8 @@ from satori.infrastructure.providers.openai import OpenAIConversationAdapter
 from satori.infrastructure.seeds.loader import JsonSeedLoader
 
 _REALIZATION_BLOCK = "Финальная реализация характера Сатори для этой реплики"
+_V22_REALIZATION_BLOCK = "Финальный response-act контракт Сатори для этой реплики"
+_V23_REALIZATION_BLOCK = "Финальный компактный речевой контракт Сатори для этой реплики"
 _ACHIEVEMENT = "Привет. Я сегодня наконец закончил сложную часть проекта"
 _DEPLETION = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
 
@@ -54,6 +61,7 @@ class _CapturingTransport:
             {
                 "model": "gpt-5.6-terra-test",
                 "status": "completed",
+                "service_tier": "default",
                 "output": [
                     {
                         "type": "message",
@@ -69,6 +77,10 @@ class _CapturingTransport:
                 ],
                 "usage": {
                     "input_tokens": 100,
+                    "input_tokens_details": {
+                        "cached_tokens": 0,
+                        "cache_write_tokens": 0,
+                    },
                     "output_tokens": 4,
                     "output_tokens_details": {"reasoning_tokens": 2},
                     "total_tokens": 104,
@@ -98,6 +110,22 @@ def _v20_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]
     _, context = _builder()
     return (
         ConversationRequestBuilder(BEHAVIOR_POLICY_V20, 12_000, 0.3, 768),
+        context,
+    )
+
+
+def _v22_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
+    _, context = _builder()
+    return (
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V22, 12_000, 0.3, 768),
+        context,
+    )
+
+
+def _v23_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
+    _, context = _builder()
+    return (
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V23, 12_000, 0.3, 768),
         context,
     )
 
@@ -183,6 +211,53 @@ def _v20_depletion_request() -> ConversationProviderRequest:
     return request
 
 
+def _v22_request(*, depleted: bool) -> ConversationProviderRequest:
+    builder, context = _v22_builder()
+    user_text = _DEPLETION if depleted else _ACHIEVEMENT
+    request, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="openai-v22-depletion" if depleted else "openai-v22-achievement",
+        relationship_context=_fresh_relationship(),
+        recent_context=_recent_completion() if depleted else None,
+        cognition_trace=_cognition(
+            user_text,
+            suffix="v22-depletion" if depleted else "v22-achievement",
+        ),
+    )
+    assert manifest.policy_id == "satori.conversation.behavior.v22"
+    assert manifest.character_expression_plan_schema_version == 4
+    assert manifest.character_contribution_mode == (
+        "emotional_reaction" if depleted else "owned_evaluation"
+    )
+    assert manifest.character_acknowledgement_mode == ("omit" if depleted else "implicit")
+    return request
+
+
+def _v23_request(*, depleted: bool) -> ConversationProviderRequest:
+    builder, context = _v23_builder()
+    user_text = _DEPLETION if depleted else _ACHIEVEMENT
+    request, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="openai-v23-depletion" if depleted else "openai-v23-achievement",
+        relationship_context=_fresh_relationship(),
+        recent_context=_recent_completion() if depleted else None,
+        cognition_trace=_cognition(
+            user_text,
+            suffix="v23-depletion" if depleted else "v23-achievement",
+        ),
+    )
+    assert manifest.policy_id == "satori.conversation.behavior.v23"
+    assert manifest.character_expression_plan_schema_version == 5
+    assert manifest.character_contribution_mode == (
+        "grounded_direction" if depleted else "owned_evaluation"
+    )
+    assert manifest.character_motivational_posture == ("supportive_push" if depleted else "none")
+    assert manifest.character_acknowledgement_mode == ("omit" if depleted else "implicit")
+    return request
+
+
 @pytest.mark.parametrize(
     ("depleted", "expected_roles", "visible_limit"),
     [
@@ -258,6 +333,8 @@ def test_v19_production_composition_reaches_openai_wire_without_reordering(
     ]
     assert payload["max_output_tokens"] == visible_limit + 1024
     assert payload["reasoning"] == {"effort": "low"}
+    assert payload["service_tier"] == "default"
+    assert payload["prompt_cache_options"] == {"mode": "explicit"}
     assert payload["store"] is False
     assert "temperature" not in payload
     assert timeout_seconds == 30.0
@@ -302,9 +379,106 @@ def test_v20_supportive_push_reaches_stateless_openai_wire_without_private_loggi
     ]
     assert payload["max_output_tokens"] == request.parameters.max_output_tokens + 1024
     assert payload["reasoning"] == {"effort": "low"}
+    assert payload["service_tier"] == "default"
+    assert payload["prompt_cache_options"] == {"mode": "explicit"}
     assert payload["store"] is False
     assert "temperature" not in payload
     assert _ACHIEVEMENT not in caplog.text
     assert _DEPLETION not in caplog.text
     assert _REALIZATION_BLOCK not in caplog.text
     assert "offline-v20-test-key" not in caplog.text
+
+
+@pytest.mark.parametrize("depleted", [False, True])
+def test_v22_response_act_reaches_stateless_openai_wire_without_failed_anchor_or_logging(
+    depleted: bool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    request = _v22_request(depleted=depleted)
+    final_developer = request.messages[-2]
+
+    assert final_developer.content.count(_V22_REALIZATION_BLOCK) == 1
+    assert "Речевой акт:" in final_developer.content
+    assert "Evidence-граница:" in final_developer.content
+    assert "Фактическая граница:" not in final_developer.content
+    assert "цена результата" not in final_developer.content.casefold()
+    assert "отсутствие радости" not in final_developer.content.casefold()
+    assert "выжатость" not in final_developer.content.casefold()
+
+    transport = _CapturingTransport()
+    provider = OpenAIConversationAdapter(
+        base_url="https://api.openai.com/v1",
+        api_key="offline-v22-test-key",
+        model="gpt-5.6-terra",
+        timeout_seconds=30.0,
+        reasoning_effort="low",
+        reasoning_token_allowance=1024,
+        http_client=transport,
+    )
+
+    asyncio.run(provider.generate(request))
+
+    assert len(transport.calls) == 1
+    path, payload, _, _ = transport.calls[0]
+    assert path == "/responses"
+    assert payload["input"] == [
+        {"role": message.role.value, "content": message.content} for message in request.messages
+    ]
+    assert payload["max_output_tokens"] == request.parameters.max_output_tokens + 1024
+    assert payload["reasoning"] == {"effort": "low"}
+    assert payload["service_tier"] == "default"
+    assert payload["prompt_cache_options"] == {"mode": "explicit"}
+    assert payload["store"] is False
+    assert "temperature" not in payload
+    assert _ACHIEVEMENT not in caplog.text
+    assert _DEPLETION not in caplog.text
+    assert _V22_REALIZATION_BLOCK not in caplog.text
+    assert "offline-v22-test-key" not in caplog.text
+
+
+@pytest.mark.parametrize("depleted", [False, True])
+def test_v23_compact_contract_reaches_medium_reasoning_openai_wire_without_private_logging(
+    depleted: bool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    request = _v23_request(depleted=depleted)
+    final_developer = request.messages[-2]
+
+    assert final_developer.content.count(_V23_REALIZATION_BLOCK) == 1
+    assert final_developer.content.count("\n- Действие:") == 1
+    assert final_developer.content.count("\n- Опора:") == 1
+    assert final_developer.content.count("\n- Голос:") == 1
+    assert final_developer.content.count("\n- Стоп:") == 1
+    assert "Речевой акт:" not in final_developer.content
+    assert "Фактическая граница:" not in final_developer.content
+    assert "Смысловой ход:" not in final_developer.content
+
+    transport = _CapturingTransport()
+    provider = OpenAIConversationAdapter(
+        base_url="https://api.openai.com/v1",
+        api_key="offline-v23-test-key",
+        model="gpt-5.6-terra",
+        timeout_seconds=30.0,
+        reasoning_effort="medium",
+        reasoning_token_allowance=1024,
+        http_client=transport,
+    )
+
+    asyncio.run(provider.generate(request))
+
+    assert len(transport.calls) == 1
+    path, payload, _, _ = transport.calls[0]
+    assert path == "/responses"
+    assert payload["input"] == [
+        {"role": message.role.value, "content": message.content} for message in request.messages
+    ]
+    assert payload["max_output_tokens"] == request.parameters.max_output_tokens + 1024
+    assert payload["reasoning"] == {"effort": "medium"}
+    assert payload["service_tier"] == "default"
+    assert payload["prompt_cache_options"] == {"mode": "explicit"}
+    assert payload["store"] is False
+    assert "temperature" not in payload
+    assert _ACHIEVEMENT not in caplog.text
+    assert _DEPLETION not in caplog.text
+    assert _V23_REALIZATION_BLOCK not in caplog.text
+    assert "offline-v23-test-key" not in caplog.text

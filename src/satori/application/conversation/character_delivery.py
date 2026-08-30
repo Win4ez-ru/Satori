@@ -1,0 +1,61 @@
+"""Compatibility facade for the modular request-local character-delivery policy."""
+
+from satori.application.conversation.character_delivery_contracts import (
+    CHARACTER_DELIVERY_DECISION_SCHEMA_VERSION,
+    CHARACTER_DELIVERY_DECISION_V2_SCHEMA_VERSION,
+    CHARACTER_DELIVERY_DECISION_V3_SCHEMA_VERSION,
+    CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION,
+    CHARACTER_PRESENCE_PROJECTION_SCHEMA_VERSION,
+    CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION,
+    CHARACTER_PRESENCE_VALUE_KEYS,
+    CharacterAffectSignal,
+    CharacterAffectSignalCode,
+    CharacterDeliveryDecision,
+    CharacterDeliveryGoal,
+    CharacterDeliveryVoice,
+    CharacterPersonalitySignal,
+    CharacterPresenceProjection,
+    CharacterPresenceStrength,
+    CharacterRelationshipSignal,
+    CharacterRelationshipSignalCode,
+    CharacterValueSignal,
+)
+from satori.application.conversation.character_delivery_rendering import (
+    render_character_delivery_director,
+    render_character_presence,
+    render_cohesive_character_core,
+)
+from satori.application.conversation.character_delivery_selection import (
+    decide_character_delivery,
+    project_character_affect_profile,
+    project_character_presence,
+    project_character_relationship_profile,
+)
+
+__all__ = [
+    "CHARACTER_DELIVERY_DECISION_SCHEMA_VERSION",
+    "CHARACTER_DELIVERY_DECISION_V2_SCHEMA_VERSION",
+    "CHARACTER_DELIVERY_DECISION_V3_SCHEMA_VERSION",
+    "CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION",
+    "CHARACTER_PRESENCE_PROJECTION_SCHEMA_VERSION",
+    "CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION",
+    "CHARACTER_PRESENCE_VALUE_KEYS",
+    "CharacterAffectSignal",
+    "CharacterAffectSignalCode",
+    "CharacterDeliveryDecision",
+    "CharacterDeliveryGoal",
+    "CharacterDeliveryVoice",
+    "CharacterPersonalitySignal",
+    "CharacterPresenceProjection",
+    "CharacterPresenceStrength",
+    "CharacterRelationshipSignal",
+    "CharacterRelationshipSignalCode",
+    "CharacterValueSignal",
+    "decide_character_delivery",
+    "project_character_affect_profile",
+    "project_character_presence",
+    "project_character_relationship_profile",
+    "render_character_delivery_director",
+    "render_character_presence",
+    "render_cohesive_character_core",
+]

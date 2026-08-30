@@ -34,6 +34,9 @@ from satori.application.conversation.policy import (
     BEHAVIOR_POLICY_V18,
     BEHAVIOR_POLICY_V19,
     BEHAVIOR_POLICY_V20,
+    BEHAVIOR_POLICY_V21,
+    BEHAVIOR_POLICY_V22,
+    BEHAVIOR_POLICY_V23,
 )
 from satori.application.conversation.response_validation import ResponseRegenerationReason
 from satori.application.relationship.contracts import RelationshipExpressionContext
@@ -70,6 +73,204 @@ def _v20_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]
         ConversationRequestBuilder(BEHAVIOR_POLICY_V20, 12_000, 0.3, 768),
         context,
     )
+
+
+def _v21_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
+    _, context = _builder()
+    return (
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V21, 12_000, 0.3, 768),
+        context,
+    )
+
+
+def _v22_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
+    _, context = _builder()
+    return (
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V22, 12_000, 0.3, 768),
+        context,
+    )
+
+
+def _v23_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
+    _, context = _builder()
+    return (
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V23, 12_000, 0.3, 768),
+        context,
+    )
+
+
+def _recent_user_turns(*texts: str) -> RecentConversationContext:
+    turns = tuple(
+        RecentConversationTurn(
+            interaction_id=f"checkpoint142-v21-recent-{index}",
+            user_message_id=f"checkpoint142-v21-user-{index}",
+            user_content=text,
+            assistant_message_id=f"checkpoint142-v21-assistant-{index}",
+            assistant_content="Я учла замечание.",
+        )
+        for index, text in enumerate(texts, start=1)
+    )
+    return RecentConversationContext(
+        schema_version=1,
+        turns=turns,
+        content_chars=sum(len(turn.user_content) + len(turn.assistant_content) for turn in turns),
+        excluded_turn_count=0,
+    )
+
+
+def test_v21_canonical_pair_removes_echo_and_mandatory_recovery_advice() -> None:
+    builder, context = _v21_builder()
+    user_text = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+    request, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v21-depletion",
+        cognition_trace=_cognition(user_text, suffix="v21-depletion"),
+        recent_context=_recent_completion(),
+    )
+
+    realization = request.messages[-2].content
+    assert manifest.policy_id == "satori.conversation.behavior.v21"
+    assert manifest.character_expression_plan_schema_version == 4
+    assert manifest.character_acknowledgement_mode == "omit"
+    assert manifest.character_continuation_mode == "complete"
+    assert manifest.character_contribution_mode == "emotional_reaction"
+    assert manifest.character_motivational_posture == "none"
+    assert manifest.character_pressure_level == "none"
+    assert "Не повторяй и не переименовывай" in realization
+    assert "Вопрос, совет, предложение помощи и новая тема не нужны" in realization
+
+
+def test_v22_canonical_pair_uses_response_act_without_rendering_failed_anchor() -> None:
+    builder, context = _v22_builder()
+    achievement_text = "Привет. Я сегодня наконец закончил сложную часть проекта"
+    achievement_request, achievement_manifest = builder.build(
+        context,
+        user_text=achievement_text,
+        trace_id="checkpoint142-v22-achievement",
+        cognition_trace=_cognition(achievement_text, suffix="v22-achievement"),
+    )
+    depletion_text = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+    depletion_request, depletion_manifest = builder.build(
+        context,
+        user_text=depletion_text,
+        trace_id="checkpoint142-v22-depletion",
+        cognition_trace=_cognition(depletion_text, suffix="v22-depletion"),
+        recent_context=_recent_completion(),
+    )
+
+    assert achievement_manifest.policy_id == "satori.conversation.behavior.v22"
+    assert depletion_manifest.policy_id == "satori.conversation.behavior.v22"
+    assert achievement_manifest.character_expression_plan_schema_version == 4
+    assert depletion_manifest.character_expression_plan_schema_version == 4
+    assert achievement_manifest.character_acknowledgement_mode == "implicit"
+    assert depletion_manifest.character_acknowledgement_mode == "omit"
+    for request in (achievement_request, depletion_request):
+        final_guidance = request.messages[-2].content.casefold()
+        assert "финальный response-act контракт" in final_guidance
+        assert "фактическая граница:" not in final_guidance
+        assert "смысловой ход:" not in final_guidance
+        assert "соседство двух сообщений само по себе не образует причинную связь" in final_guidance
+        for failed_anchor in (
+            "сложная часть",
+            "цена результата",
+            "отсутствие радости",
+            "выжатость",
+        ):
+            assert failed_anchor not in final_guidance
+
+
+def test_v23_canonical_pair_uses_compact_contract_and_practical_depletion_act() -> None:
+    builder, context = _v23_builder()
+    achievement_text = "Привет. Я сегодня наконец закончил сложную часть проекта"
+    achievement_request, achievement_manifest = builder.build(
+        context,
+        user_text=achievement_text,
+        trace_id="checkpoint142-v23-achievement",
+        cognition_trace=_cognition(achievement_text, suffix="v23-achievement"),
+    )
+    depletion_text = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+    depletion_request, depletion_manifest = builder.build(
+        context,
+        user_text=depletion_text,
+        trace_id="checkpoint142-v23-depletion",
+        cognition_trace=_cognition(depletion_text, suffix="v23-depletion"),
+        recent_context=_recent_completion(),
+    )
+
+    assert achievement_manifest.policy_id == "satori.conversation.behavior.v23"
+    assert depletion_manifest.policy_id == "satori.conversation.behavior.v23"
+    assert achievement_manifest.character_expression_plan_schema_version == 5
+    assert depletion_manifest.character_expression_plan_schema_version == 5
+    assert achievement_manifest.character_contribution_mode == "owned_evaluation"
+    assert depletion_manifest.character_contribution_mode == "grounded_direction"
+    assert depletion_manifest.character_motivational_posture == "supportive_push"
+    assert depletion_manifest.character_pressure_level == "gentle"
+    for request in (achievement_request, depletion_request):
+        final_guidance = request.messages[-2].content
+        assert final_guidance.count("Финальный компактный речевой контракт") == 1
+        assert final_guidance.count("\n- Действие:") == 1
+        assert final_guidance.count("\n- Опора:") == 1
+        assert final_guidance.count("\n- Голос:") == 1
+        assert final_guidance.count("\n- Стоп:") == 1
+        assert "Речевой акт:" not in final_guidance
+        assert "Фактическая граница:" not in final_guidance
+        assert "Смысловой ход:" not in final_guidance
+        for failed_anchor in (
+            "сложная часть",
+            "цена результата",
+            "отсутствие радости",
+            "выжатость",
+        ):
+            assert failed_anchor not in final_guidance.casefold()
+
+
+def test_v21_third_criticism_is_guarded_but_still_answers_explicit_request() -> None:
+    builder, context = _v21_builder()
+    recent = _recent_user_turns(
+        "Этот ответ совсем не то",
+        "Мне не нравится этот ответ",
+    )
+    user_text = "Опять не так. Исправь конкретно второй пункт"
+    request, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v21-guarded-help",
+        cognition_trace=_cognition(user_text, suffix="v21-guarded-help"),
+        recent_context=recent,
+    )
+
+    assert manifest.character_expression_register == "cool_reserve"
+    assert manifest.character_owned_reaction == "restrained_hurt"
+    assert manifest.character_continuation_mode == "guarded"
+    assert (
+        "не отменяет точный ответ на важную или практическую просьбу"
+        in request.messages[-2].content
+    )
+
+
+def test_v21_first_state_question_stays_open_but_repeated_probe_becomes_guarded() -> None:
+    builder, context = _v21_builder()
+    first_text = "Ты обиделась?"
+    _, first = builder.build(
+        context,
+        user_text=first_text,
+        trace_id="checkpoint142-v21-first-state-probe",
+        cognition_trace=_cognition(first_text, suffix="v21-first-state-probe"),
+    )
+    second_text = "Ну скажи уже, на что обиделась?"
+    _, second = builder.build(
+        context,
+        user_text=second_text,
+        trace_id="checkpoint142-v21-second-state-probe",
+        cognition_trace=_cognition(second_text, suffix="v21-second-state-probe"),
+        recent_context=_recent_user_turns(first_text),
+    )
+
+    assert first.character_continuation_mode == "complete"
+    assert first.character_owned_reaction != "restrained_hurt"
+    assert second.character_continuation_mode == "guarded"
+    assert second.character_owned_reaction == "restrained_hurt"
 
 
 def _neutral_affect() -> EmotionalExpressionContext:
@@ -198,6 +399,29 @@ def test_policy_v20_separates_owned_contribution_from_bounded_motivation() -> No
     assert "typed current-turn posture" in principles["natural_brevity"]
     assert "не связывай ценность человека с продуктивностью" in principles["natural_brevity"]
     assert "При серьёзной уязвимости" in principles["independent_character"]
+    assert len(ResponseRegenerationReason) == 10
+
+
+def test_policy_v22_requires_one_response_act_and_evidence_backed_user_world_claims() -> None:
+    principles = {item.code: item.instruction for item in BEHAVIOR_POLICY_V22.principles}
+
+    assert BEHAVIOR_POLICY_V22.policy_id == "satori.conversation.behavior.v22"
+    assert BEHAVIOR_POLICY_V22.schema_version == 22
+    assert "выбранный response act Сатори" in principles["natural_brevity"]
+    assert "соседство сообщений и контраст не доказывают причину" in (principles["natural_brevity"])
+    assert len(ResponseRegenerationReason) == 10
+
+
+def test_policy_v23_defers_delivery_to_one_compact_final_contract() -> None:
+    principles = {item.code: item.instruction for item in BEHAVIOR_POLICY_V23.principles}
+
+    assert BEHAVIOR_POLICY_V23.policy_id == "satori.conversation.behavior.v23"
+    assert BEHAVIOR_POLICY_V23.schema_version == 23
+    assert (
+        "действие Сатори, допустимую опору, голос и момент остановки"
+        in (principles["natural_brevity"])
+    )
+    assert "психологическое объяснение" in principles["natural_brevity"]
     assert len(ResponseRegenerationReason) == 10
 
 

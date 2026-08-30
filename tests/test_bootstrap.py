@@ -33,7 +33,7 @@ def test_bootstrap_migrates_clean_database(
             ).scalar_one()
     finally:
         engine.dispose()
-    assert revision == "0012_personality_evolution"
+    assert revision == "0013_conversation_failure_reason"
 
     engine = create_engine(sqlite_url)
     try:

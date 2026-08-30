@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from satori.core.conversation import (
     ConversationMessageRole,
+    ConversationProviderError,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     ConversationProviderResponse,
     ConversationUsage,
@@ -168,21 +170,34 @@ class YandexAIStudioConversationAdapter:
                 max_response_bytes=MAX_HTTP_RESPONSE_BYTES,
             )
         except YandexAIStudioHttpStatusError as error:
-            error_type = (
-                ProviderUnavailable
-                if error.status in {408, 409, 425, 429} or error.status >= 500
-                else GenerationFailed
-            )
+            error_type: type[ConversationProviderError]
+            if error.status == 429:
+                error_type = ProviderUnavailable
+                reason = ConversationProviderFailureReason.RATE_OR_QUOTA_LIMITED
+            elif error.status in {408, 409, 425} or error.status >= 500:
+                error_type = ProviderUnavailable
+                reason = ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE
+            elif error.status in {401, 403}:
+                error_type = GenerationFailed
+                reason = ConversationProviderFailureReason.CREDENTIALS_REJECTED
+            elif error.status == 404:
+                error_type = GenerationFailed
+                reason = ConversationProviderFailureReason.RESOURCE_NOT_FOUND
+            else:
+                error_type = GenerationFailed
+                reason = ConversationProviderFailureReason.REQUEST_REJECTED
             raise error_type(
                 YANDEX_AI_STUDIO_PROVIDER_NAME,
                 self.model,
                 f"Yandex AI Studio returned HTTP {error.status}",
+                reason=reason,
             ) from error
         except YandexAIStudioTransportError as error:
             raise ProviderUnavailable(
                 YANDEX_AI_STUDIO_PROVIDER_NAME,
                 self.model,
                 "Yandex AI Studio is unavailable or timed out",
+                reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
             ) from error
         finally:
             if owned_client:
@@ -194,6 +209,7 @@ class YandexAIStudioConversationAdapter:
                 YANDEX_AI_STUDIO_PROVIDER_NAME,
                 self.model,
                 "Yandex AI Studio response exceeded the adapter byte limit",
+                reason=ConversationProviderFailureReason.RESPONSE_TOO_LARGE,
             )
         try:
             raw: object = json.loads(body.decode("utf-8"))
@@ -217,6 +233,7 @@ class YandexAIStudioConversationAdapter:
                 YANDEX_AI_STUDIO_PROVIDER_NAME,
                 self.model,
                 "Yandex AI Studio returned a malformed chat response",
+                reason=ConversationProviderFailureReason.RESPONSE_MALFORMED,
             ) from error
 
     @staticmethod

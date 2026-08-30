@@ -9,6 +9,7 @@ from satori.domain.conversation_history import (
     ConversationInteraction,
     ConversationSession,
     HistoricalMessage,
+    InteractionFailureMetadata,
     InteractionProviderMetadata,
 )
 
@@ -34,7 +35,7 @@ class ConversationHistoryRepository(Protocol):
     def add_interaction(self, interaction: ConversationInteraction) -> bool:
         """Stage a pending interaction and exact user message atomically."""
 
-    def mark_failed(self, interaction_id: str, *, failure_kind: str) -> None:
+    def mark_failed(self, interaction_id: str, *, failure: InteractionFailureMetadata) -> None:
         """Mark an incomplete interaction as retryable failed."""
 
     def complete_interaction(

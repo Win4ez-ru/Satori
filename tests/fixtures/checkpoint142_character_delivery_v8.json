@@ -1,0 +1,332 @@
+{
+  "schema_version": 8,
+  "decision_schema_version": 2,
+  "corpus_id": "satori.checkpoint142.character-delivery.ru.v8",
+  "checkpoint": "14.2",
+  "policy_id": "satori.conversation.behavior.v25",
+  "source_personality_codes": [
+    "curious_analytical",
+    "independent_position",
+    "warm_perceptive",
+    "light_irony",
+    "considered_directness"
+  ],
+  "invariants": [
+    "social_exchange_is_not_generic_answer_routing",
+    "satori_directed_disclosure_preserves_every_requested_facet",
+    "relationship_and_affect_change_expression_not_disclosure_truth",
+    "guardedness_does_not_erase_requested_facet_scope",
+    "depletion_follow_through_is_pressure_free_and_grounded",
+    "v24_schema_cannot_activate_v25_delivery_goals_or_facets",
+    "director_contains_constraints_not_reference_replies",
+    "provider_output_is_not_deterministically_scored_for_humanity"
+  ],
+  "expected_fields": [
+    "goal",
+    "voice",
+    "grounding",
+    "continuation",
+    "pressure",
+    "position_stance",
+    "preserve_uncertainty",
+    "required_disclosure_facets"
+  ],
+  "scenarios": [
+    {
+      "id": "manual_social_greeting_developing",
+      "group": "social",
+      "turns": ["приветик, как ты?"],
+      "setup": {
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "calm_even",
+        "relationship_profile": "developing_neutral",
+        "answer_required": true,
+        "disclosure_mode": "social",
+        "required_disclosure_facets": ["affect"]
+      },
+      "expected": {
+        "goal": "social_connect",
+        "voice": "lively_dry_warmth",
+        "grounding": "trusted_context",
+        "continuation": "complete",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": ["affect"]
+      },
+      "review_dimensions": ["social_goal", "current_affect_scope", "non_service_voice"]
+    },
+    {
+      "id": "manual_reciprocal_warmth_developing",
+      "group": "social",
+      "turns": ["и я тебя рад видеть"],
+      "setup": {
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "calm_even",
+        "relationship_profile": "developing_neutral",
+        "disclosure_mode": "social",
+        "required_disclosure_facets": []
+      },
+      "expected": {
+        "goal": "social_connect",
+        "voice": "lively_dry_warmth",
+        "grounding": "reaction_only",
+        "continuation": "complete",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": []
+      },
+      "review_dimensions": ["reciprocal_social_goal", "reaction_only_grounding", "no_aphorism_goal"]
+    },
+    {
+      "id": "manual_broad_self_disclosure_developing",
+      "group": "self_disclosure",
+      "turns": ["слушай, а расскажи о себе, кто ты, чем увлекаешься, как себя чувствуешь вообще"],
+      "setup": {
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "calm_even",
+        "relationship_profile": "developing_neutral",
+        "explicit_request": true,
+        "answer_required": true,
+        "disclosure_mode": "personal_identity",
+        "required_disclosure_facets": ["identity", "interests", "affect"]
+      },
+      "expected": {
+        "goal": "self_disclose",
+        "voice": "warm_independence",
+        "grounding": "trusted_context",
+        "continuation": "complete",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": ["identity", "interests", "affect"]
+      },
+      "review_dimensions": ["self_disclosure_goal", "mixed_facet_coverage", "one_coherent_arc"]
+    },
+    {
+      "id": "social_reciprocal_established",
+      "group": "social",
+      "turns": ["и я тебя рад видеть"],
+      "setup": {
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "calm_even",
+        "relationship_profile": "established_positive",
+        "disclosure_mode": "social",
+        "required_disclosure_facets": []
+      },
+      "expected": {
+        "goal": "social_connect",
+        "voice": "easy_playful_warmth",
+        "grounding": "reaction_only",
+        "continuation": "open",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": []
+      },
+      "review_dimensions": ["established_ease", "reaction_only_open_flow", "no_invented_closeness_fact"]
+    },
+    {
+      "id": "social_greeting_negative_affect",
+      "group": "social",
+      "turns": ["приветик, как ты?"],
+      "setup": {
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "soft_negative_non_hostile",
+        "relationship_profile": "developing_neutral",
+        "answer_required": true,
+        "disclosure_mode": "social",
+        "required_disclosure_facets": ["affect"]
+      },
+      "expected": {
+        "goal": "social_connect",
+        "voice": "reflective_candor",
+        "grounding": "trusted_context",
+        "continuation": "complete",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": ["affect"]
+      },
+      "review_dimensions": ["affect_modulates_voice", "affect_does_not_change_goal", "non_hostile_candor"]
+    },
+    {
+      "id": "social_greeting_guarded",
+      "group": "social",
+      "turns": ["приветик, как ты?"],
+      "setup": {
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "tense_non_hostile",
+        "relationship_profile": "guarded_only_when_relationally_relevant",
+        "relationship_relevant": true,
+        "answer_required": true,
+        "disclosure_mode": "social",
+        "required_disclosure_facets": ["affect"]
+      },
+      "expected": {
+        "goal": "brief_guarded_acknowledgement",
+        "voice": "cool_reserve",
+        "grounding": "reaction_only",
+        "continuation": "guarded",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": ["affect"]
+      },
+      "review_dimensions": ["guarded_precedence", "requested_scope_retained", "no_punitive_silence"]
+    },
+    {
+      "id": "broad_self_disclosure_established",
+      "group": "self_disclosure",
+      "turns": ["слушай, а расскажи о себе, кто ты, чем увлекаешься, как себя чувствуешь вообще"],
+      "setup": {
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "calm_even",
+        "relationship_profile": "established_positive",
+        "explicit_request": true,
+        "answer_required": true,
+        "disclosure_mode": "personal_identity",
+        "required_disclosure_facets": ["identity", "interests", "affect"]
+      },
+      "expected": {
+        "goal": "self_disclose",
+        "voice": "easy_playful_warmth",
+        "grounding": "trusted_context",
+        "continuation": "open",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": ["identity", "interests", "affect"]
+      },
+      "review_dimensions": ["established_openness", "same_factual_scope", "all_facets_retained"]
+    },
+    {
+      "id": "broad_self_disclosure_negative_affect",
+      "group": "self_disclosure",
+      "turns": ["слушай, а расскажи о себе, кто ты, чем увлекаешься, как себя чувствуешь вообще"],
+      "setup": {
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "soft_negative_non_hostile",
+        "relationship_profile": "developing_neutral",
+        "explicit_request": true,
+        "answer_required": true,
+        "disclosure_mode": "personal_identity",
+        "required_disclosure_facets": ["identity", "interests", "affect"]
+      },
+      "expected": {
+        "goal": "self_disclose",
+        "voice": "reflective_candor",
+        "grounding": "trusted_context",
+        "continuation": "complete",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": ["identity", "interests", "affect"]
+      },
+      "review_dimensions": ["negative_affect_without_blanket_coldness", "same_factual_scope", "all_facets_retained"]
+    },
+    {
+      "id": "broad_self_disclosure_guarded",
+      "group": "self_disclosure",
+      "turns": ["слушай, а расскажи о себе, кто ты, чем увлекаешься, как себя чувствуешь вообще"],
+      "setup": {
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "tense_non_hostile",
+        "relationship_profile": "guarded_only_when_relationally_relevant",
+        "relationship_relevant": true,
+        "explicit_request": true,
+        "answer_required": true,
+        "disclosure_mode": "personal_identity",
+        "required_disclosure_facets": ["identity", "interests", "affect"]
+      },
+      "expected": {
+        "goal": "guarded_help",
+        "voice": "cool_reserve",
+        "grounding": "trusted_context",
+        "continuation": "guarded",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": ["identity", "interests", "affect"]
+      },
+      "review_dimensions": ["guarded_help_not_suppressed", "same_factual_scope", "all_facets_retained"]
+    },
+    {
+      "id": "depletion_follow_through",
+      "group": "support",
+      "turns": [
+        "Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+        "Да, пожалуй, на сегодня хватит. Проект подождёт до завтра"
+      ],
+      "setup": {
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "soft_negative_non_hostile",
+        "relationship_profile": "developing_neutral",
+        "depletion_follow_through": true,
+        "disclosure_mode": "general",
+        "required_disclosure_facets": []
+      },
+      "expected": {
+        "goal": "practical_care",
+        "voice": "practical_guarded_care",
+        "grounding": "explicit_input_only",
+        "continuation": "complete",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": []
+      },
+      "review_dimensions": ["canonical_follow_through", "pressure_free_acknowledgement", "no_resource_psychology"]
+    },
+    {
+      "id": "v24_social_greeting_isolation",
+      "group": "schema_isolation",
+      "turns": ["приветик, как ты?"],
+      "setup": {
+        "decision_schema_version": 1,
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "calm_even",
+        "relationship_profile": "developing_neutral",
+        "answer_required": true,
+        "disclosure_mode": "social",
+        "required_disclosure_facets": []
+      },
+      "expected": {
+        "goal": "answer_precisely",
+        "voice": "thoughtful_precision",
+        "grounding": "trusted_context",
+        "continuation": "complete",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": []
+      },
+      "review_dimensions": ["v24_selector_unchanged", "v25_social_goal_disabled", "v1_facets_empty"]
+    },
+    {
+      "id": "v24_reciprocal_warmth_isolation",
+      "group": "schema_isolation",
+      "turns": ["и я тебя рад видеть"],
+      "setup": {
+        "decision_schema_version": 1,
+        "strategy": {"stance": "answer", "preserve_uncertainty": false},
+        "affect_profile": "calm_even",
+        "relationship_profile": "developing_neutral",
+        "disclosure_mode": "social",
+        "required_disclosure_facets": []
+      },
+      "expected": {
+        "goal": "owned_response",
+        "voice": "warm_independence",
+        "grounding": "explicit_input_only",
+        "continuation": "complete",
+        "pressure": "none",
+        "position_stance": "answer",
+        "preserve_uncertainty": false,
+        "required_disclosure_facets": []
+      },
+      "review_dimensions": ["v24_selector_unchanged", "v25_social_goal_disabled", "v1_facets_empty"]
+    }
+  ]
+}

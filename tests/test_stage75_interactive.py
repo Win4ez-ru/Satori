@@ -22,6 +22,7 @@ from satori.config import Environment, Settings
 from satori.core.affect import AffectiveAppraisalProposal, AffectiveAppraisalProviderResponse
 from satori.core.conversation import (
     ConversationPastClaim,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     ConversationProviderResponse,
     ConversationUsage,
@@ -397,7 +398,7 @@ def test_recent_completed_context_preserves_immediate_name_continuity(
         if message.role.value in {"user", "assistant"}
     ]
     assert conversational == ["Меня зовут Кирилл.", "Ответ 1", "\u0410 как меня зовут?"]
-    assert "Прошлый ответ" in second.messages[-2].content
+    assert "Trusted current-turn presence Сатори" in second.messages[-2].content
     assert second.messages[-1].content == "\u0410 как меня зовут?"
 
 
@@ -741,7 +742,12 @@ def test_provider_and_post_processing_failures_are_safe_and_readable(
 ) -> None:
     activate(migrated_database)
     failed_provider = FakeConversationProvider(
-        error=ProviderUnavailable("ollama", "fixture", "offline")
+        error=ProviderUnavailable(
+            "ollama",
+            "fixture",
+            "offline",
+            reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        )
     )
     provider_services = build_services(migrated_database, failed_provider)
     _, stdout, stderr = run_chat(
@@ -770,7 +776,12 @@ def test_yandex_unavailable_error_never_blames_ollama(
 ) -> None:
     activate(migrated_database)
     failed_provider = FakeConversationProvider(
-        error=ProviderUnavailable("yandex_ai_studio", "yandexgpt/latest", "HTTP 503")
+        error=ProviderUnavailable(
+            "yandex_ai_studio",
+            "yandexgpt/latest",
+            "HTTP 503",
+            reason=ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE,
+        )
     )
     services = build_services(migrated_database, failed_provider)
 
@@ -794,6 +805,7 @@ def test_debug_provider_failure_reports_only_safe_output_budget_metadata(
             "openai",
             "gpt-5.6-terra",
             "OpenAI response ended with status incomplete; reason=max_output_tokens",
+            reason=ConversationProviderFailureReason.OUTPUT_TOKEN_LIMIT,
             metrics=ProviderExecutionMetrics(
                 requested_output_token_limit=48,
                 provider_output_token_limit=1072,
@@ -814,6 +826,11 @@ def test_debug_provider_failure_reports_only_safe_output_budget_metadata(
         "[provider-budget] requested_visible_output_tokens=48 "
         "wire_max_output_tokens=1072 reasoning_tokens=1024 visible_output_tokens=0"
     ) in stderr
+    assert (
+        "[provider] provider=openai model=gpt-5.6-terra "
+        "error_type=GenerationFailed failure_reason=output_token_limit"
+    ) in stderr
+    assert "OpenAI response ended with status incomplete" not in stderr
     assert "секретная реплика" not in stderr
     assert "секретная реплика" not in stdout
 
@@ -933,17 +950,12 @@ def test_near_duplicate_after_repetition_gets_at_most_one_precommit_retry(
     assert "Preserve the already selected final character realization" in (
         provider.requests[2].messages[-2].content
     )
-    assert "Финальная реализация характера Сатори" in provider.requests[2].messages[-2].content
+    marker = "Trusted current-turn presence Сатори"
+    assert marker in provider.requests[2].messages[-2].content
     assert provider.requests[2].messages[-2].content.index(
         "Bounded response-contract retry"
-    ) < provider.requests[2].messages[-2].content.index("Финальная реализация характера Сатори")
-    assert (
-        sum(
-            "Финальная реализация характера Сатори" in message.content
-            for message in provider.requests[2].messages
-        )
-        == 1
-    )
+    ) < provider.requests[2].messages[-2].content.index(marker)
+    assert sum(marker in message.content for message in provider.requests[2].messages) == 1
     assert "second consecutive identical message" in provider.requests[2].messages[-2].content
     assert "In one short fresh Russian sentence" in (provider.requests[2].messages[-2].content)
     assert "Do not use a prescribed stock sentence" in (provider.requests[2].messages[-2].content)
@@ -1076,10 +1088,11 @@ def test_creator_claim_retry_can_answer_only_an_actual_proposal(
 
     assert reply.context_manifest.regeneration_reason == "creator_claim_promoted_to_fact"
     assert reply.context_manifest.response_regenerated is True
-    assert reply.context_manifest.character_expression_plan_schema_version == 3
-    assert reply.context_manifest.character_contribution_mode is not None
-    assert reply.context_manifest.character_motivational_posture is not None
-    assert reply.context_manifest.character_pressure_level is not None
+    assert reply.context_manifest.character_expression_plan_schema_version is None
+    assert reply.context_manifest.character_delivery_decision_schema_version == 4
+    assert reply.context_manifest.character_presence_projection_schema_version == 2
+    assert reply.context_manifest.character_delivery_goal == "advance_topic"
+    assert reply.context_manifest.character_delivery_position_stance == "collaborate"
     assert len(provider.requests) == 2
     assert "If and only if the current user message actually contains a proposal" in (
         provider.requests[1].messages[-2].content
@@ -1266,7 +1279,7 @@ def test_masculine_retry_forbids_gendered_gladness_from_production_failure(
     assert "do not use either Russian word 'рад' or 'рада'" in retry_guidance
     assert "Preserve the current semantic move, concrete news" in retry_guidance
     assert "Preserve the already selected final character realization" in retry_guidance
-    assert "Финальная реализация характера Сатори" in provider.requests[-1].messages[-2].content
+    assert "Trusted current-turn presence Сатори" in (provider.requests[-1].messages[-2].content)
     assert "instead of falling back to a generic congratulation" in retry_guidance
     assert "Start the substantive response with 'Это'" not in retry_guidance
 
@@ -1300,18 +1313,20 @@ def test_retry_reuses_one_tentative_affect_and_exact_original_evidence_context(
     assert provider.requests[1].messages[:-2] == provider.requests[0].messages[:-2]
     assert provider.requests[1].messages[-1] == provider.requests[0].messages[-1]
     assert "Bounded response-contract retry" in provider.requests[1].messages[-2].content
-    assert "Финальная реализация характера Сатори" in provider.requests[1].messages[-2].content
+    realization_marker = "Trusted current-turn presence Сатори"
+    assert realization_marker in provider.requests[1].messages[-2].content
     assert provider.requests[1].messages[-2].content.index(
         "Bounded response-contract retry"
-    ) < provider.requests[1].messages[-2].content.index("Финальная реализация характера Сатори")
-    realization_marker = "Финальная реализация характера Сатори"
+    ) < provider.requests[1].messages[-2].content.index(realization_marker)
     original_realization = (
         provider.requests[0].messages[-2].content.partition(realization_marker)[2]
     )
     retry_realization = provider.requests[1].messages[-2].content.partition(realization_marker)[2]
     assert original_realization
     assert retry_realization == original_realization
-    assert "motivational posture and pressure ceiling" in provider.requests[1].messages[-2].content
+    assert "pressure ceiling, cognition stance and uncertainty" in (
+        provider.requests[1].messages[-2].content
+    )
     assert provider.requests[1].trace_id == provider.requests[0].trace_id
     assert len(appraisal.requests) == 1
     assert len(services.emotion_history.execute()) == 1
@@ -1322,7 +1337,12 @@ def test_retry_reuses_one_tentative_affect_and_exact_original_evidence_context(
 @pytest.mark.parametrize(
     "retry_outcome",
     [
-        ProviderUnavailable("fake-conversation", "fixture", "retry offline"),
+        ProviderUnavailable(
+            "fake-conversation",
+            "fixture",
+            "retry offline",
+            reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        ),
         " ",
         "x" * 101,
     ],

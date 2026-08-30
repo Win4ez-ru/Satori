@@ -11,6 +11,7 @@ from satori.core.conversation import (
     ConversationGenerationParameters,
     ConversationMessage,
     ConversationMessageRole,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     ConversationProviderResponse,
     ConversationUsage,
@@ -136,6 +137,7 @@ def test_one_call_probe_preserves_safe_metrics_on_provider_failure() -> None:
             "openai",
             "gpt-5.6-terra",
             "safe failure",
+            reason=ConversationProviderFailureReason.OUTPUT_TOKEN_LIMIT,
             metrics=ProviderExecutionMetrics(
                 requested_output_token_limit=48,
                 provider_output_token_limit=1072,

@@ -14,3 +14,5 @@ dist/
 var/*.db
 var/*.db-*
 var/*.jsonl
+var/evaluation-authorizations/
+var/evaluations/

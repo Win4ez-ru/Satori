@@ -11,7 +11,11 @@ from satori.application.conversation.contracts import SatoriReply, TalkInput
 from satori.application.conversation.errors import ConversationError
 from satori.application.conversation.post_processing import PostResponseReport
 from satori.composition import ConversationServices
-from satori.core.conversation import ConversationProviderError, ProviderUnavailable
+from satori.core.conversation import (
+    ConversationProviderError,
+    ConversationProviderFailureReason,
+    ProviderUnavailable,
+)
 from satori.core.ids import IdGenerator
 from satori.core.provider_metrics import ProviderExecutionMetrics
 from satori.domain.conversation_history import SessionStatus
@@ -228,8 +232,14 @@ class InteractiveChat:
                 queue.task_done()
 
     def _print_provider_error(self, error: ConversationProviderError) -> None:
-        if "HTTP 404" in str(error):
-            message = "Настроенная модель не найдена."
+        if error.reason is ConversationProviderFailureReason.RESOURCE_NOT_FOUND:
+            message = "Провайдер не нашёл настроенную модель."
+        elif error.reason is ConversationProviderFailureReason.CREDENTIALS_REJECTED:
+            message = "Провайдер ответа отклонил доступ. Проверьте API-ключ и права."
+        elif error.reason is ConversationProviderFailureReason.RATE_OR_QUOTA_LIMITED:
+            message = "Провайдер ответа отклонил запрос из-за лимита или баланса."
+        elif error.reason is ConversationProviderFailureReason.OUTPUT_TOKEN_LIMIT:
+            message = "Сатори не успела сформировать полный ответ."
         elif isinstance(error, ProviderUnavailable):
             message = "Провайдер ответа временно недоступен."
         else:
@@ -237,7 +247,11 @@ class InteractiveChat:
         print(message, file=self.stderr)
         if self.debug:
             print(
-                f"[provider] {error.provider}/{error.model}: {type(error).__name__}: {error}",
+                "[provider] "
+                f"provider={error.provider} "
+                f"model={error.model} "
+                f"error_type={type(error).__name__} "
+                f"failure_reason={error.reason.value}",
                 file=self.stderr,
             )
             self._print_provider_budget(error.metrics)
@@ -282,6 +296,7 @@ class InteractiveChat:
             "[context] "
             f"mode={manifest.disclosure_primary_mode} "
             f"facets={','.join(manifest.disclosure_facets) or 'none'} "
+            f"request_kind={manifest.disclosure_request_kind} "
             f"same_user_count={manifest.consecutive_same_user_message_count} "
             f"assistant_high_similarity={manifest.recent_assistant_high_similarity} "
             f"generic_question_count={manifest.recent_generic_question_count} "

@@ -1,0 +1,59 @@
+{
+  "schema_version": 6,
+  "corpus_id": "satori.checkpoint142.character-expression.ru.v6",
+  "invariants": [
+    "historical_v19_v22_plans_remain_reproducible",
+    "ordinary_explicit_depletion_selects_practical_care",
+    "high_distress_or_listen_request_selects_quiet_presence",
+    "brief_deictic_acknowledgement_is_not_substantive_recap",
+    "provider_projection_contains_only_action_evidence_voice_and_stop",
+    "no_required_desired_golden_or_template_reply"
+  ],
+  "scenarios": [
+    {
+      "id": "achievement_uses_owned_verdict_and_deictic_acknowledgement",
+      "setup": {"stance": "answer", "affect_profile": "positive_light", "completed_achievement": true},
+      "expected": {"response_act": "owned_verdict", "grounding_mode": "reaction_only", "acknowledgement_mode": "implicit", "continuation_mode": "complete"}
+    },
+    {
+      "id": "ordinary_completion_depletion_uses_practical_care",
+      "setup": {"stance": "listen", "affect_profile": "soft_negative_non_hostile", "completion_depletion_contrast": true, "explicit_depletion": true},
+      "expected": {"response_act": "practical_move", "grounding_mode": "explicit_input_only", "acknowledgement_mode": "omit", "continuation_mode": "complete"}
+    },
+    {
+      "id": "plain_ordinary_depletion_uses_practical_care",
+      "setup": {"stance": "listen", "affect_profile": "soft_negative_non_hostile", "explicit_depletion": true},
+      "expected": {"response_act": "practical_move", "grounding_mode": "explicit_input_only", "acknowledgement_mode": "contextual", "continuation_mode": "complete"}
+    },
+    {
+      "id": "high_distress_keeps_quiet_presence",
+      "setup": {"stance": "listen", "affect_profile": "soft_negative_non_hostile", "completion_depletion_contrast": true, "explicit_depletion": true, "high_distress": true},
+      "expected": {"response_act": "quiet_presence", "grounding_mode": "reaction_only", "acknowledgement_mode": "omit", "continuation_mode": "complete"}
+    },
+    {
+      "id": "explicit_listen_request_keeps_quiet_presence",
+      "setup": {"stance": "listen", "affect_profile": "soft_negative_non_hostile", "completion_depletion_contrast": true, "explicit_depletion": true, "explicit_listen_request": true},
+      "expected": {"response_act": "quiet_presence", "grounding_mode": "reaction_only", "acknowledgement_mode": "omit", "continuation_mode": "complete"}
+    },
+    {
+      "id": "ordinary_disagreement_reframes_only_explicit_claim",
+      "setup": {"stance": "challenge", "affect_profile": "tense_non_hostile"},
+      "expected": {"response_act": "situation_reframe", "grounding_mode": "explicit_input_only", "acknowledgement_mode": "contextual", "continuation_mode": "complete"}
+    },
+    {
+      "id": "guarded_criticism_does_not_trigger_supportive_push",
+      "setup": {"stance": "answer", "affect_profile": "tense_non_hostile", "explicit_depletion": true, "repeated_critical_pressure": true},
+      "expected": {"response_act": "quiet_presence", "grounding_mode": "reaction_only", "acknowledgement_mode": "omit", "continuation_mode": "guarded"}
+    },
+    {
+      "id": "active_collaboration_advances_the_explicit_topic",
+      "setup": {"stance": "answer", "affect_profile": "positive_light", "point_codes": ["collaborate_creatively"]},
+      "expected": {"response_act": "substantive_advance", "grounding_mode": "explicit_input_only", "acknowledgement_mode": "contextual", "continuation_mode": "open"}
+    },
+    {
+      "id": "technical_answer_may_use_supplied_trusted_context",
+      "setup": {"stance": "answer", "affect_profile": "calm_even", "technical_identity": true},
+      "expected": {"response_act": "substantive_advance", "grounding_mode": "trusted_context", "acknowledgement_mode": "contextual", "continuation_mode": "complete"}
+    }
+  ]
+}

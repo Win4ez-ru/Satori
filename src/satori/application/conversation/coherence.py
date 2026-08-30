@@ -381,7 +381,11 @@ def _routine_question_correction_state(text: str) -> bool | None:
     if not question_related:
         return None
     negative_action_directive = any(
-        token.startswith(("задава", "спрашив")) and _is_negated(tokens, index)
+        token.startswith(("задава", "спрашив"))
+        and _is_negated(tokens, index)
+        and not (
+            token.startswith(("задаю", "спрашиваю")) and "я" in tokens[max(0, index - 2) : index]
+        )
         for index, token in enumerate(tokens)
     )
     negative_question_directive = any(
@@ -510,20 +514,32 @@ def brevity_relevance_feedback(text: str) -> bool:
 
 def _relevance_feedback(text: str) -> bool:
     normalized = _normalize_text(text)
-    return re.search(r"\bне\s+(?:очень\s+)?связан", normalized) is not None or any(
-        phrase in normalized
-        for phrase in (
-            "мимо вопроса",
-            "не ответила",
-            "ничего не понял",
-            "не понял ответ",
-            "тебе не интересно",
-            "не относится",
-            "не по теме",
-            "не связано",
-            "ни при чем тут",
-            "при чем тут",
-            "это нерелевантно",
+    indirect_interest_correction = (
+        re.search(
+            r"\bтебе(?:\s+(?:вообще|совсем|совершенно))?\s+не\s+интересно"
+            r"\s*[,—–-]?\s*"
+            r"(?:что|кто|где|когда|зачем|почему|как|како(?:й|е|го|му|м|ю)|чем)\b",
+            normalized,
+        )
+        is not None
+    )
+    return (
+        re.search(r"\bне\s+(?:очень\s+)?связан", normalized) is not None
+        or indirect_interest_correction
+        or any(
+            phrase in normalized
+            for phrase in (
+                "мимо вопроса",
+                "не ответила",
+                "ничего не понял",
+                "не понял ответ",
+                "не относится",
+                "не по теме",
+                "не связано",
+                "ни при чем тут",
+                "при чем тут",
+                "это нерелевантно",
+            )
         )
     )
 

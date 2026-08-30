@@ -560,6 +560,7 @@ def _position_context(positions: tuple[SatoriPosition, ...]) -> SatoriPositionsC
 _EXPLICIT_INCLINATION_QUERY = re.compile(
     r"(?:какие\s+у\s+тебя\s+(?:интересы|предпочтения)|"
     r"что\s+тебе\s+(?:нравится|интересно)|чем\s+ты\s+интересуешься|"
+    r"чем\s+(?:ты\s+)?увлекаешься|"
     r"что\s+ты\s+предпочитаешь|"
     r"your\s+(?:interests|preferences)|what\s+do\s+you\s+(?:like|prefer))",
     re.IGNORECASE,

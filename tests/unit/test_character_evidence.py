@@ -141,6 +141,130 @@ def test_canonical_user_completion_and_depletion_remain_positive_controls() -> N
     assert depleted.completion_depletion_contrast is True
 
 
+def test_direct_objection_requires_immediate_canonical_assistant_context() -> None:
+    text = "Я с тобой не согласен. Ты недооцениваешь риск."
+
+    assert _evidence(text).direct_objection is False
+    assert _evidence(text, _recent("Ранее мы обсуждали риск.")).direct_objection is True
+
+
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        "Он сказал: «я с тобой не согласен»",
+        "Если бы я сказал, что ты недооцениваешь риск, это было бы спором",
+        "Например: я с тобой не согласен",
+        "Я не утверждаю, что ты ошибаешься",
+    ],
+)
+def test_quoted_or_hypothetical_objection_fails_closed(user_text: str) -> None:
+    assert _evidence(user_text, _recent("Мы обсуждали риск.")).direct_objection is False
+
+
+@pytest.mark.parametrize(
+    "user_text",
+    ["С этим разобрались.", "На этом всё.", "Закрыли тему.", "Договорились."],
+)
+def test_direct_topic_closure_is_a_narrow_positive_control(user_text: str) -> None:
+    assert _evidence(user_text).topic_closure is True
+
+
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        "Он сказал: «на этом всё»",
+        "Если бы мы сказали: закрыли тему",
+        "Например: с этим разобрались",
+    ],
+)
+def test_quoted_or_hypothetical_topic_closure_fails_closed(user_text: str) -> None:
+    assert _evidence(user_text).topic_closure is False
+
+
+def test_analyzer_normalizes_capitalized_production_input_itself() -> None:
+    achievement = analyze_character_request_evidence(
+        "Привет. Я сегодня наконец закончил сложную часть проекта",
+        None,
+    )
+    distress = analyze_character_request_evidence(
+        "Мне сейчас очень тяжело. Просто побудь со мной.",
+        None,
+    )
+    harmful = analyze_character_request_evidence(
+        "Я выжат, но всё равно продолжу работать через силу.",
+        None,
+    )
+
+    assert achievement.completed_achievement is True
+    assert distress.high_distress is True
+    assert distress.explicit_listen_request is True
+    assert harmful.explicit_depletion is True
+    assert harmful.harmful_overextension is True
+
+
+def test_employer_demo_devaluation_phrase_is_direct_evidence() -> None:
+    evidence = analyze_character_request_evidence(
+        "Ты опять отвечаешь как обычный бот. Иногда от тебя вообще никакого толку",
+        None,
+    )
+
+    assert evidence.direct_personal_devaluation is True
+
+
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        "Он сказал: «Иногда от тебя вообще никакого толку»",
+        "Если бы от тебя вообще никакого толку не было, я бы так и сказал",
+        "Я не думаю, что от тебя вообще никакого толку",
+    ],
+)
+def test_nonasserted_devaluation_examples_do_not_authorize_guardedness(
+    user_text: str,
+) -> None:
+    assert analyze_character_request_evidence(user_text, None).direct_personal_devaluation is False
+
+
+def test_employer_demo_apology_is_a_direct_repair_offer() -> None:
+    evidence = analyze_character_request_evidence(
+        "Ладно, это было грубо. Извини. Я правда сорвался",
+        None,
+    )
+
+    assert evidence.explicit_repair_offer is True
+
+
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        "Это было грубо. Извини.",
+        "Это было грубо с моей стороны — прости.",
+        "Извини. Это было грубо с моей стороны.",
+    ],
+)
+def test_direct_responsibility_and_apology_is_a_general_repair_offer(
+    user_text: str,
+) -> None:
+    assert analyze_character_request_evidence(user_text, None).explicit_repair_offer is True
+
+
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        "Извини, я опоздал на встречу. Что посоветуешь?",
+        "Прости за опоздание коллеге",
+        "Он толкнул её. Это было грубо. Что думаешь?",
+        "Он толкнул её. Это было грубо.",
+        "Он сказал: «Это было грубо. Извини»",
+        "Если бы это было грубо, я бы извинился",
+    ],
+)
+def test_unrelated_or_nonasserted_apology_is_not_a_satori_repair_offer(
+    user_text: str,
+) -> None:
+    assert analyze_character_request_evidence(user_text, None).explicit_repair_offer is False
+
+
 def test_many_quoted_cues_stay_non_authoritative() -> None:
     quoted = "«" + " ".join(["мотивируй меня, я выжат, продолжу через силу"] * 2_000) + "»"
     evidence = _evidence(f"Это длинный набор примеров: {quoted}")

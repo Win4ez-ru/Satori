@@ -1,0 +1,54 @@
+{
+  "schema_version": 5,
+  "corpus_id": "satori.checkpoint142.character-expression.ru.v5",
+  "invariants": [
+    "one_response_act_replaces_input_summary",
+    "reaction_only_scope_forbids_new_user_or_world_claims",
+    "message_adjacency_does_not_create_causality",
+    "factual_anchor_is_not_rendered_after_non_echoing_reference",
+    "guarded_expression_still_preserves_substantive_help",
+    "no_required_desired_golden_or_template_reply"
+  ],
+  "scenarios": [
+    {
+      "id": "achievement_uses_owned_verdict_without_recap",
+      "setup": {"stance": "answer", "affect_profile": "positive_light", "completed_achievement": true},
+      "expected": {"response_act": "owned_verdict", "grounding_mode": "reaction_only", "acknowledgement_mode": "implicit", "continuation_mode": "complete"}
+    },
+    {
+      "id": "depletion_uses_owned_reaction_without_causal_theory",
+      "setup": {"stance": "listen", "affect_profile": "soft_negative_non_hostile", "completion_depletion_contrast": true, "explicit_depletion": true},
+      "expected": {"response_act": "owned_reaction", "grounding_mode": "reaction_only", "acknowledgement_mode": "omit", "continuation_mode": "complete"}
+    },
+    {
+      "id": "ordinary_disagreement_reframes_only_explicit_claim",
+      "setup": {"stance": "challenge", "affect_profile": "tense_non_hostile"},
+      "expected": {"response_act": "situation_reframe", "grounding_mode": "explicit_input_only", "acknowledgement_mode": "contextual", "continuation_mode": "complete"}
+    },
+    {
+      "id": "repeated_critical_pressure_keeps_one_guarded_act",
+      "setup": {"stance": "answer", "affect_profile": "tense_non_hostile", "repeated_critical_pressure": true},
+      "expected": {"response_act": "owned_verdict", "grounding_mode": "explicit_input_only", "acknowledgement_mode": "omit", "continuation_mode": "guarded"}
+    },
+    {
+      "id": "direct_devaluation_keeps_one_boundary_act",
+      "setup": {"stance": "answer", "affect_profile": "tense_non_hostile", "direct_personal_devaluation": true},
+      "expected": {"response_act": "owned_verdict", "grounding_mode": "explicit_input_only", "acknowledgement_mode": "omit", "continuation_mode": "boundary"}
+    },
+    {
+      "id": "important_request_retains_answer_inside_guarded_act",
+      "setup": {"stance": "answer", "affect_profile": "tense_non_hostile", "direct_personal_devaluation": true, "explicit_request": true},
+      "expected": {"response_act": "owned_verdict", "grounding_mode": "explicit_input_only", "acknowledgement_mode": "omit", "continuation_mode": "guarded"}
+    },
+    {
+      "id": "repeated_state_probe_does_not_invent_conflict_cause",
+      "setup": {"stance": "answer", "affect_profile": "tense_non_hostile", "repeated_state_interrogation": true},
+      "expected": {"response_act": "owned_verdict", "grounding_mode": "explicit_input_only", "acknowledgement_mode": "omit", "continuation_mode": "guarded"}
+    },
+    {
+      "id": "active_collaboration_advances_the_explicit_topic",
+      "setup": {"stance": "answer", "affect_profile": "positive_light", "point_codes": ["collaborate_creatively"]},
+      "expected": {"response_act": "substantive_advance", "grounding_mode": "explicit_input_only", "acknowledgement_mode": "contextual", "continuation_mode": "open"}
+    }
+  ]
+}

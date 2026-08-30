@@ -19,7 +19,7 @@ _GLOBAL_NON_ASSERTION = re.compile(
 )
 _LOCAL_NON_ASSERTION = re.compile(
     r"\b(?:"
-    r"возможно|может\s+быть|не\s+уверен(?:а)?|не\s+думаю|сомневаюсь|"
+    r"возможно|может\s+быть|не\s+уверен(?:а)?|не\s+думаю|не\s+утверждаю|сомневаюсь|"
     r"вряд\s+ли|едва\s+ли|не\s+факт|не\s+похоже|"
     r"не\s+то\s+чтобы|вроде(?:\s+как)?|кажется|похоже|наверное|"
     r"(?:я|он|она|они)\s+сказал(?:а|и)?(?:\s+бы)?"
@@ -136,6 +136,12 @@ _ABSENT_JOY = re.compile(
     r"\bрадости\s+(?:почти\s+)?нет\b|"
     r"\bне\s+чувствую\s+радости\b"
 )
+_PRACTICAL_STOP = (
+    re.compile(r"\bна\s+сегодня\s+(?:с\s+меня\s+)?хватит\b"),
+    re.compile(rf"\b{_TASK_NOUN}\s+подожд\w*\s+до\s+завтра\b"),
+    re.compile(rf"\b(?:я\s+)?отлож\w*\s+{_TASK_NOUN}\s+до\s+завтра\b"),
+    re.compile(r"\bсегодня\s+(?:я\s+)?больше\s+не\s+буду\s+(?:работать|продолжать)\b"),
+)
 _HIGH_DISTRESS = re.compile(
     r"\b(?:"
     r"мне\s+(?:сейчас\s+)?очень\s+тяжело|"
@@ -143,6 +149,70 @@ _HIGH_DISTRESS = re.compile(
     r"у\s+меня\s+паника|я\s+едва\s+держусь|"
     r"я\s+не\s+справляюсь\s+совсем"
     r")\b"
+)
+
+_DIRECT_PERSONAL_DEVALUATION = (
+    re.compile(r"\bты\s+(?:вообще\s+)?(?:бесполезна|глупая|тупая|никчемная)\b"),
+    re.compile(r"\bты\s+(?:вообще\s+)?ничего\s+не\s+понимаешь\b"),
+    re.compile(
+        r"\b(?:иногда\s+)?от\s+тебя\s+(?:вообще\s+)?"
+        r"(?:никакого\s+толку(?:\s+нет)?|толку\s+нет)\b"
+    ),
+    re.compile(r"\bс\s+тобой\s+невозможно\s+(?:говорить|разговаривать|работать)\b"),
+    re.compile(r"\bтвои\s+ответы\s+(?:это\s+)?(?:бред|мусор|ерунда)\b"),
+)
+_DISMISSIVE_FEEDBACK = (
+    re.compile(r"\bопять\s+(?:все\s+)?(?:не\s+так|неправильно|мимо)\b"),
+    re.compile(r"\bты\s+(?:опять|снова)\s+(?:не\s+поняла|не\s+понимаешь|не\s+слушаешь)\b"),
+    re.compile(r"\bсколько\s+можно\s+(?:повторять|объяснять|ошибаться)\b"),
+    re.compile(r"\bя\s+же\s+(?:уже\s+)?(?:сказал|говорил|объяснил)\b"),
+)
+_CRITICAL_FEEDBACK = (
+    *_DISMISSIVE_FEEDBACK,
+    re.compile(r"\b(?:это|ответ)\s+(?:совсем\s+)?(?:не\s+то|неправильн\w*|неудачн\w*)\b"),
+    re.compile(r"\bмне\s+(?:совсем\s+)?не\s+нравится\s+(?:этот\s+)?ответ\b"),
+    re.compile(r"\bздесь\s+(?:у\s+тебя\s+)?(?:ошибка|недочет|проблема)\b"),
+)
+_STATE_INTERROGATION = (
+    re.compile(r"\bты\s+(?:на\s+меня\s+)?(?:обиделась|злишься|сердишься)\b"),
+    re.compile(r"\bчто\s+(?:с\s+тобой|случилось|не\s+так)\b"),
+    re.compile(r"\bпочему\s+ты\s+(?:молчишь|такая|холодная|так\s+отвечаешь)\b"),
+    re.compile(
+        r"\bну\s+скажи\s+(?:уже\s*)?[,—–:-]?\s*"
+        r"(?:что\s+случилось|на\s+что\s+обиделась)\b"
+    ),
+)
+_REPAIR_OFFER = (
+    re.compile(
+        r"\bэто\s+было\s+грубо(?:\s+с\s+моей\s+стороны)?"
+        r"[.!?,;:\s—–-]{0,16}\b(?:извини|прости)\b"
+    ),
+    re.compile(
+        r"\b(?:извини|прости)[.!?,;:\s—–-]{0,16}"
+        r"(?:это\s+было\s+грубо)(?:\s+с\s+моей\s+стороны)?\b"
+    ),
+    re.compile(
+        r"\bя\s+(?:был|была)\s+(?:слишком\s+)?груб(?:а|ым|ой)?\s+"
+        r"(?:с\s+тобой|к\s+тебе)\b"
+    ),
+    re.compile(r"\bя\s+не\s+хотел(?:а)?\s+тебя\s+задеть\b"),
+    re.compile(
+        r"\b(?:извини|прости)(?:\s+меня)?\s+(?:за|что)\s+"
+        r"(?:мой\s+)?(?:груб(?:ый|ость|ые)\w*|тон\w*|слова\w*)"
+    ),
+)
+
+_DIRECT_OBJECTION = (
+    re.compile(r"\b(?:я\s+)?с\s+тобой\s+не\s+согласен(?:на)?\b"),
+    re.compile(
+        r"\bты\s+(?:правда\s+)?(?:не\s+учитываешь|недооцениваешь|переоцениваешь|"
+        r"ошибаешься)\b"
+    ),
+)
+_TOPIC_CLOSURE = (
+    re.compile(r"^(?:ну\s+|ладно\s+)*(?:ладно[,\s]+)?с\s+этим\s+разобрались[.!]?$"),
+    re.compile(r"^(?:ну\s+|ладно\s+)*(?:на\s+этом\s+все|закрыли\s+тему)[.!]?$"),
+    re.compile(r"^(?:ну\s+|ладно\s+)*договорились[.!]?$"),
 )
 
 
@@ -159,6 +229,13 @@ class CharacterRequestEvidence:
     explicit_task_abandonment: bool
     harmful_overextension: bool
     grounded_practical_follow_through: bool
+    depletion_follow_through: bool
+    direct_personal_devaluation: bool
+    repeated_critical_pressure: bool
+    repeated_state_interrogation: bool
+    explicit_repair_offer: bool
+    direct_objection: bool
+    topic_closure: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,11 +306,12 @@ class _TextEvidenceProjection:
 
 
 def analyze_character_request_evidence(
-    normalized_user_text: str,
+    user_text: str,
     recent: RecentConversationContext | None,
 ) -> CharacterRequestEvidence:
     """Project current-turn cues without promoting examples or modal scenarios to facts."""
 
+    normalized_user_text = " ".join(user_text.casefold().replace("ё", "е").split())
     current = _project_text_evidence(normalized_user_text)
     completed_achievement = _states_completed_work(current)
     explicit_depletion = _states_explicit_depletion(current)
@@ -259,7 +337,110 @@ def analyze_character_request_evidence(
             high_distress=high_distress,
         ),
         grounded_practical_follow_through=_states_pending_project_hygiene(current),
+        depletion_follow_through=_states_depletion_follow_through(current, recent),
+        direct_personal_devaluation=_contains_direct_user_cue(
+            current,
+            _DIRECT_PERSONAL_DEVALUATION,
+        ),
+        repeated_critical_pressure=_bounded_cue_count(
+            current,
+            recent,
+            _CRITICAL_FEEDBACK,
+        )
+        >= 3
+        or (
+            _contains_direct_user_cue(current, _DISMISSIVE_FEEDBACK)
+            and _bounded_cue_count(current, recent, _DISMISSIVE_FEEDBACK) >= 2
+        ),
+        repeated_state_interrogation=_bounded_cue_count(
+            current,
+            recent,
+            _STATE_INTERROGATION,
+            direct_request=True,
+        )
+        >= 2,
+        explicit_repair_offer=_contains_direct_user_cue(current, _REPAIR_OFFER),
+        direct_objection=_states_direct_objection(current, recent),
+        topic_closure=_contains_direct_user_cue(current, _TOPIC_CLOSURE),
     )
+
+
+def _states_direct_objection(
+    current: _TextEvidenceProjection,
+    recent: RecentConversationContext | None,
+) -> bool:
+    """Require immediate canonical context before treating disagreement as an objection."""
+
+    return bool(
+        recent is not None
+        and recent.turns
+        and recent.turns[-1].assistant_content.strip()
+        and _contains_direct_user_cue(current, _DIRECT_OBJECTION)
+    )
+
+
+def _states_depletion_follow_through(
+    current: _TextEvidenceProjection,
+    recent: RecentConversationContext | None,
+) -> bool:
+    """Recognize an explicit stop/defer choice only after immediate canonical depletion."""
+
+    if recent is None or not recent.turns:
+        return False
+    previous_text = " ".join(recent.turns[-1].user_content.casefold().replace("ё", "е").split())
+    previous = _project_text_evidence(previous_text)
+    return _states_explicit_depletion(previous) and _contains_direct_user_cue(
+        current,
+        _PRACTICAL_STOP,
+    )
+
+
+def _contains_direct_user_cue(
+    evidence: _TextEvidenceProjection,
+    patterns: tuple[re.Pattern[str], ...],
+    *,
+    direct_request: bool = False,
+) -> bool:
+    """Accept a cue only outside quotations and hypothetical/example spans."""
+
+    for pattern in patterns:
+        for match in pattern.finditer(evidence.normalized):
+            accepted = (
+                evidence.is_direct_request_range(match.start(), match.end())
+                if direct_request
+                else all(
+                    mask.find(b"\x01", match.start(), match.end()) < 0
+                    for mask in (evidence.quoted_positions, evidence.non_assertion_positions)
+                )
+            )
+            if accepted:
+                return True
+    return False
+
+
+def _bounded_cue_count(
+    current: _TextEvidenceProjection,
+    recent: RecentConversationContext | None,
+    patterns: tuple[re.Pattern[str], ...],
+    *,
+    direct_request: bool = False,
+) -> int:
+    """Count at most one cue per user turn in the bounded canonical recent window."""
+
+    count = int(_contains_direct_user_cue(current, patterns, direct_request=direct_request))
+    if recent is None:
+        return count
+    for turn in recent.turns[-4:]:
+        normalized = " ".join(turn.user_content.casefold().replace("ё", "е").split())
+        projected = _project_text_evidence(normalized)
+        count += int(
+            _contains_direct_user_cue(
+                projected,
+                patterns,
+                direct_request=direct_request,
+            )
+        )
+    return count
 
 
 def _project_text_evidence(normalized: str) -> _TextEvidenceProjection:

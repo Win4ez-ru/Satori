@@ -7,7 +7,11 @@ import pytest
 
 from satori.__main__ import main
 from satori.config import Environment, LogLevel, Settings
-from satori.core.conversation import ConversationProviderResponse, ProviderUnavailable
+from satori.core.conversation import (
+    ConversationProviderFailureReason,
+    ConversationProviderResponse,
+    ProviderUnavailable,
+)
 from satori.core.episode import EpisodeFormationProposal, EpisodeFormationProviderResponse
 from tests.fakes import (
     FakeConversationProvider,
@@ -104,7 +108,14 @@ def test_cli_provider_failure_has_no_traceback(
     settings = cli_settings(sqlite_url)
     assert main(["activate"], settings=settings, alembic_config=project_root / "alembic.ini") == 0
     capsys.readouterr()
-    provider = FakeConversationProvider(error=ProviderUnavailable("ollama", "fixture", "offline"))
+    provider = FakeConversationProvider(
+        error=ProviderUnavailable(
+            "ollama",
+            "fixture",
+            "offline",
+            reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        )
+    )
 
     result = main(
         ["talk", "Привет"],

@@ -37,7 +37,7 @@ from satori.__main__ import (
     _open_services,
 )
 from satori.application.conversation.contracts import BehaviorPolicy, SatoriReply, TalkInput
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V20
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V26
 from satori.application.conversation.post_processing import PostResponseReport
 from satori.application.conversation.response_validation import ResponseRegenerationReason
 from satori.application.conversation.use_cases import ConversationProvider
@@ -138,6 +138,9 @@ NEGATIVE_RELATIONSHIP_CATEGORIES = (
     "reliability_negative",
     "boundary_pressure",
 )
+
+# Keep this explicit so the generic real regression cannot silently lag production composition.
+EVALUATOR_BEHAVIOR_POLICY = BEHAVIOR_POLICY_V26
 
 
 @dataclass(frozen=True, slots=True)
@@ -459,7 +462,7 @@ async def _build_runtime(
     *,
     alembic_config: Path,
     conditioning: dict[str, int] | None = None,
-    behavior_policy: BehaviorPolicy = BEHAVIOR_POLICY_V20,
+    behavior_policy: BehaviorPolicy = EVALUATOR_BEHAVIOR_POLICY,
 ) -> tuple[EvaluationRuntime, dict[str, Any] | None]:
     settings = base_settings.model_copy(
         update={
@@ -607,6 +610,17 @@ def _sanitized_manifest(reply: SatoriReply) -> dict[str, Any]:
         "policy_id": manifest.policy_id,
         "policy_schema_version": manifest.policy_schema_version,
         "character_context_schema_version": manifest.character_context_schema_version,
+        "cognition_position_stance": manifest.cognition_position_stance,
+        "cognition_preserve_uncertainty": manifest.cognition_preserve_uncertainty,
+        "cognition_intent_registry_version": manifest.cognition_intent_registry_version,
+        "cognition_primary_intent": manifest.cognition_primary_intent,
+        "cognition_intent_tags": list(manifest.cognition_intent_tags),
+        "cognition_required_point_codes": list(manifest.cognition_required_point_codes),
+        "cognition_forbidden_claim_codes": list(manifest.cognition_forbidden_claim_codes),
+        "cognition_response_verbosity": manifest.cognition_response_verbosity,
+        "cognition_template_registry_version": manifest.cognition_template_registry_version,
+        "cognition_template_id": manifest.cognition_template_id,
+        "cognition_template_schema_version": manifest.cognition_template_schema_version,
         "character_expression_plan_schema_version": (
             manifest.character_expression_plan_schema_version
         ),
@@ -619,8 +633,33 @@ def _sanitized_manifest(reply: SatoriReply) -> dict[str, Any]:
         "character_initiative": manifest.character_initiative,
         "character_relational_ease": manifest.character_relational_ease,
         "character_contribution_mode": manifest.character_contribution_mode,
+        "character_delivery_decision_schema_version": (
+            manifest.character_delivery_decision_schema_version
+        ),
+        "character_delivery_goal": manifest.character_delivery_goal,
+        "character_delivery_voice": manifest.character_delivery_voice,
+        "character_delivery_grounding": manifest.character_delivery_grounding,
+        "character_delivery_continuation": manifest.character_delivery_continuation,
+        "character_delivery_pressure": manifest.character_delivery_pressure,
+        "character_delivery_position_stance": manifest.character_delivery_position_stance,
+        "character_delivery_preserve_uncertainty": (
+            manifest.character_delivery_preserve_uncertainty
+        ),
+        "character_presence_projection_schema_version": (
+            manifest.character_presence_projection_schema_version
+        ),
+        "character_presence_personality_signals": list(
+            manifest.character_presence_personality_signals
+        ),
+        "character_presence_value_signals": list(manifest.character_presence_value_signals),
+        "character_presence_affect_signals": list(manifest.character_presence_affect_signals),
+        "character_presence_relationship_signals": list(
+            manifest.character_presence_relationship_signals
+        ),
         "character_motivational_posture": manifest.character_motivational_posture,
         "character_pressure_level": manifest.character_pressure_level,
+        "character_acknowledgement_mode": manifest.character_acknowledgement_mode,
+        "character_continuation_mode": manifest.character_continuation_mode,
         "included_sections": list(manifest.included_sections),
         "user_content_chars": manifest.user_content_chars,
         "retrieval_status": manifest.retrieval_status,
@@ -632,11 +671,13 @@ def _sanitized_manifest(reply: SatoriReply) -> dict[str, Any]:
         "mood_state_version": manifest.mood_state_version,
         "relationship_state_version": manifest.relationship_state_version,
         "relationship_expression_profile": manifest.relationship_expression_profile,
+        "relationship_recent_strain": manifest.relationship_recent_strain,
         "affect_expression_profile": manifest.affect_expression_profile,
         "recent_conversation_turn_count": manifest.recent_conversation_turn_count,
         "recent_conversation_chars": manifest.recent_conversation_chars,
         "disclosure_primary_mode": manifest.disclosure_primary_mode,
         "disclosure_facets": list(manifest.disclosure_facets),
+        "disclosure_request_kind": manifest.disclosure_request_kind,
         "dialogue_coherence_schema_version": manifest.dialogue_coherence_schema_version,
         "consecutive_same_user_message_count": (manifest.consecutive_same_user_message_count),
         "recent_assistant_high_similarity": manifest.recent_assistant_high_similarity,

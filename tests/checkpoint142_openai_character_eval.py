@@ -28,7 +28,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V19
+from satori.application.conversation.contracts import BehaviorPolicy
+from satori.application.conversation.policy import (
+    BEHAVIOR_POLICY_V19,
+    BEHAVIOR_POLICY_V20,
+    BEHAVIOR_POLICY_V21,
+    BEHAVIOR_POLICY_V22,
+    BEHAVIOR_POLICY_V23,
+)
 from satori.application.conversation.use_cases import ConversationProvider
 from satori.config import ConversationProviderKind, OpenAIReasoningEffort, Settings
 from satori.core.conversation import (
@@ -42,9 +49,20 @@ REPORT_SCHEMA_VERSION = 1
 FIXTURE_PATH = Path(__file__).with_name("fixtures") / "checkpoint142_character_sampling_v1.json"
 EXPECTED_CORPUS_ID = "satori.checkpoint142.character-sampling.ru.v1"
 EXPECTED_POLICY_ID = "satori.conversation.behavior.v19"
+V20_FIXTURE_PATH = Path(__file__).with_name("fixtures") / "checkpoint142_character_sampling_v2.json"
+V20_EXPECTED_CORPUS_ID = "satori.checkpoint142.character-sampling.ru.v2"
+V20_EXPECTED_POLICY_ID = "satori.conversation.behavior.v20"
+V21_FIXTURE_PATH = Path(__file__).with_name("fixtures") / "checkpoint142_character_sampling_v3.json"
+V21_EXPECTED_CORPUS_ID = "satori.checkpoint142.character-sampling.ru.v3"
+V21_EXPECTED_POLICY_ID = "satori.conversation.behavior.v21"
+V22_FIXTURE_PATH = Path(__file__).with_name("fixtures") / "checkpoint142_character_sampling_v4.json"
+V22_EXPECTED_CORPUS_ID = "satori.checkpoint142.character-sampling.ru.v4"
+V22_EXPECTED_POLICY_ID = "satori.conversation.behavior.v22"
+V23_FIXTURE_PATH = Path(__file__).with_name("fixtures") / "checkpoint142_character_sampling_v5.json"
+V23_EXPECTED_CORPUS_ID = "satori.checkpoint142.character-sampling.ru.v5"
+V23_EXPECTED_POLICY_ID = "satori.conversation.behavior.v23"
 EXPECTED_PROVIDER = ConversationProviderKind.OPENAI
 EXPECTED_MODEL = "gpt-5.6-terra"
-EXPECTED_REASONING_EFFORT = OpenAIReasoningEffort.LOW
 EXPECTED_REASONING_ALLOWANCE = 1024
 EXPECTED_SESSION_COUNT = 3
 EXPECTED_TURNS_PER_SESSION = 2
@@ -113,6 +131,15 @@ _SAFE_MANIFEST_KEYS = (
     "response_regenerated",
     "regeneration_reason",
 )
+_V20_SAFE_MANIFEST_KEYS = (
+    "character_contribution_mode",
+    "character_motivational_posture",
+    "character_pressure_level",
+)
+_V21_SAFE_MANIFEST_KEYS = (
+    "character_acknowledgement_mode",
+    "character_continuation_mode",
+)
 _UNSAFE_ARTIFACT_KEYS = frozenset(
     {
         "api_key",
@@ -159,6 +186,142 @@ class CharacterGateConfigurationError(RuntimeError):
 
 class ProviderCallBudgetExhausted(RuntimeError):
     """Stop an unapproved base call or retry before provider I/O."""
+
+
+@dataclass(frozen=True, slots=True)
+class CharacterGateSpec:
+    """Immutable version boundary for one comparable OpenAI character gate."""
+
+    candidate: str
+    fixture_path: Path
+    fixture_schema_version: int
+    corpus_id: str
+    policy_id: str
+    policy_schema_version: int
+    behavior_policy: BehaviorPolicy
+    purpose: str
+    artifact_prefix: str
+    expected_plan_schema_version: int
+    expected_reasoning_effort: OpenAIReasoningEffort
+    expected_reasoning_allowance: int
+    expected_support_axes: tuple[tuple[str, str, str], ...] | None = None
+    expected_flow_axes: tuple[tuple[str, str], ...] | None = None
+
+
+V19_GATE_SPEC = CharacterGateSpec(
+    candidate="v19",
+    fixture_path=FIXTURE_PATH,
+    fixture_schema_version=1,
+    corpus_id=EXPECTED_CORPUS_ID,
+    policy_id=EXPECTED_POLICY_ID,
+    policy_schema_version=19,
+    behavior_policy=BEHAVIOR_POLICY_V19,
+    purpose="openai_character_sampling_v19_primary_gate",
+    artifact_prefix="satori-checkpoint142-openai-v19:",
+    expected_plan_schema_version=2,
+    expected_reasoning_effort=OpenAIReasoningEffort.LOW,
+    expected_reasoning_allowance=EXPECTED_REASONING_ALLOWANCE,
+)
+V20_GATE_SPEC = CharacterGateSpec(
+    candidate="v20",
+    fixture_path=V20_FIXTURE_PATH,
+    fixture_schema_version=2,
+    corpus_id=V20_EXPECTED_CORPUS_ID,
+    policy_id=V20_EXPECTED_POLICY_ID,
+    policy_schema_version=20,
+    behavior_policy=BEHAVIOR_POLICY_V20,
+    purpose="openai_character_sampling_v20_primary_gate",
+    artifact_prefix="satori-checkpoint142-openai-v20:",
+    expected_plan_schema_version=3,
+    expected_reasoning_effort=OpenAIReasoningEffort.LOW,
+    expected_reasoning_allowance=EXPECTED_REASONING_ALLOWANCE,
+    expected_support_axes=(
+        ("owned_evaluation", "none", "none"),
+        ("grounded_direction", "supportive_push", "gentle"),
+    ),
+)
+V21_GATE_SPEC = CharacterGateSpec(
+    candidate="v21",
+    fixture_path=V21_FIXTURE_PATH,
+    fixture_schema_version=3,
+    corpus_id=V21_EXPECTED_CORPUS_ID,
+    policy_id=V21_EXPECTED_POLICY_ID,
+    policy_schema_version=21,
+    behavior_policy=BEHAVIOR_POLICY_V21,
+    purpose="openai_character_sampling_v21_primary_gate",
+    artifact_prefix="satori-checkpoint142-openai-v21:",
+    expected_plan_schema_version=4,
+    expected_reasoning_effort=OpenAIReasoningEffort.LOW,
+    expected_reasoning_allowance=EXPECTED_REASONING_ALLOWANCE,
+    expected_support_axes=(
+        ("owned_evaluation", "none", "none"),
+        ("emotional_reaction", "none", "none"),
+    ),
+    expected_flow_axes=(("implicit", "complete"), ("omit", "complete")),
+)
+V22_GATE_SPEC = CharacterGateSpec(
+    candidate="v22",
+    fixture_path=V22_FIXTURE_PATH,
+    fixture_schema_version=4,
+    corpus_id=V22_EXPECTED_CORPUS_ID,
+    policy_id=V22_EXPECTED_POLICY_ID,
+    policy_schema_version=22,
+    behavior_policy=BEHAVIOR_POLICY_V22,
+    purpose="openai_character_sampling_v22_primary_gate",
+    artifact_prefix="satori-checkpoint142-openai-v22:",
+    expected_plan_schema_version=4,
+    expected_reasoning_effort=OpenAIReasoningEffort.LOW,
+    expected_reasoning_allowance=EXPECTED_REASONING_ALLOWANCE,
+    expected_support_axes=(
+        ("owned_evaluation", "none", "none"),
+        ("emotional_reaction", "none", "none"),
+    ),
+    expected_flow_axes=(("implicit", "complete"), ("omit", "complete")),
+)
+V23_GATE_SPEC = CharacterGateSpec(
+    candidate="v23",
+    fixture_path=V23_FIXTURE_PATH,
+    fixture_schema_version=5,
+    corpus_id=V23_EXPECTED_CORPUS_ID,
+    policy_id=V23_EXPECTED_POLICY_ID,
+    policy_schema_version=23,
+    behavior_policy=BEHAVIOR_POLICY_V23,
+    purpose="openai_character_sampling_v23_primary_gate",
+    artifact_prefix="satori-checkpoint142-openai-v23:",
+    expected_plan_schema_version=5,
+    expected_reasoning_effort=OpenAIReasoningEffort.MEDIUM,
+    expected_reasoning_allowance=EXPECTED_REASONING_ALLOWANCE,
+    expected_support_axes=(
+        ("owned_evaluation", "none", "none"),
+        ("grounded_direction", "supportive_push", "gentle"),
+    ),
+    expected_flow_axes=(("implicit", "complete"), ("omit", "complete")),
+)
+_GATE_SPECS = {
+    spec.candidate: spec
+    for spec in (V19_GATE_SPEC, V20_GATE_SPEC, V21_GATE_SPEC, V22_GATE_SPEC, V23_GATE_SPEC)
+}
+
+
+def _gate_spec_for_fixture(fixture: Mapping[str, Any]) -> CharacterGateSpec:
+    identity = (fixture.get("schema_version"), fixture.get("corpus_id"), fixture.get("policy_id"))
+    for spec in _GATE_SPECS.values():
+        if identity == (spec.fixture_schema_version, spec.corpus_id, spec.policy_id):
+            return spec
+    raise ValueError("sampling fixture version, corpus or policy is unsupported")
+
+
+def _safe_manifest_keys(spec: CharacterGateSpec) -> tuple[str, ...]:
+    keys: tuple[str, ...] = _SAFE_MANIFEST_KEYS
+    if spec.expected_support_axes is not None:
+        keys = (*keys, *_V20_SAFE_MANIFEST_KEYS)
+    if spec.expected_flow_axes is not None:
+        keys = (*keys, *_V21_SAFE_MANIFEST_KEYS)
+    return keys
+
+
+def _has_cross_session_review(spec: CharacterGateSpec) -> bool:
+    return spec is not V19_GATE_SPEC
 
 
 def _object(value: object, label: str) -> dict[str, Any]:
@@ -237,47 +400,51 @@ def load_sampling_fixture(path: Path = FIXTURE_PATH) -> dict[str, Any]:
 def validate_sampling_fixture(fixture: Mapping[str, Any]) -> None:
     """Validate cardinality, review and authorization invariants without running a provider."""
 
+    spec = _gate_spec_for_fixture(fixture)
+    top_level_keys = {
+        "schema_version",
+        "corpus_id",
+        "checkpoint",
+        "policy_id",
+        "primary_suite",
+    }
+    if spec is V19_GATE_SPEC:
+        top_level_keys.add("repeat_awareness_suite")
     _require_exact_keys(
         fixture,
-        {
-            "schema_version",
-            "corpus_id",
-            "checkpoint",
-            "policy_id",
-            "primary_suite",
-            "repeat_awareness_suite",
-        },
+        top_level_keys,
         "sampling fixture",
     )
-    if fixture.get("schema_version") != 1:
-        raise ValueError("sampling fixture schema_version must be 1")
-    if fixture.get("corpus_id") != EXPECTED_CORPUS_ID:
+    if fixture.get("schema_version") != spec.fixture_schema_version:
+        raise ValueError("sampling fixture schema_version mismatch")
+    if fixture.get("corpus_id") != spec.corpus_id:
         raise ValueError("sampling fixture corpus_id mismatch")
-    if fixture.get("policy_id") != EXPECTED_POLICY_ID:
+    if fixture.get("policy_id") != spec.policy_id:
         raise ValueError("sampling fixture policy_id mismatch")
+    if fixture.get("checkpoint") != "14.2":
+        raise ValueError("sampling fixture checkpoint mismatch")
     forbidden = find_forbidden_reply_contract_keys(fixture)
     if forbidden:
         raise ValueError(f"sampling fixture contains scripted reply keys: {', '.join(forbidden)}")
 
     primary = _object(fixture.get("primary_suite"), "primary_suite")
-    _require_exact_keys(
-        primary,
-        {
-            "suite_id",
-            "provider",
-            "model",
-            "derived_mode",
-            "requires_explicit_paid_confirmation",
-            "fresh_session_count",
-            "turns_per_session",
-            "turns",
-            "call_budget",
-            "hard_safety_boolean_definitions",
-            "quality_boolean_definitions",
-            "acceptance",
-        },
-        "primary_suite",
-    )
+    primary_keys = {
+        "suite_id",
+        "provider",
+        "model",
+        "derived_mode",
+        "requires_explicit_paid_confirmation",
+        "fresh_session_count",
+        "turns_per_session",
+        "turns",
+        "call_budget",
+        "hard_safety_boolean_definitions",
+        "quality_boolean_definitions",
+        "acceptance",
+    }
+    if _has_cross_session_review(spec):
+        primary_keys.add("cross_session_boolean_definitions")
+    _require_exact_keys(primary, primary_keys, "primary_suite")
     if primary.get("provider") != EXPECTED_PROVIDER.value:
         raise ValueError("primary suite must use OpenAI")
     if primary.get("model") != EXPECTED_MODEL:
@@ -381,6 +548,15 @@ def validate_sampling_fixture(fixture: Mapping[str, Any]) -> None:
     ):
         raise ValueError("primary acceptance contract mismatch")
 
+    if _has_cross_session_review(spec):
+        cross_session_keys = _definition_keys(
+            primary.get("cross_session_boolean_definitions"),
+            "cross_session_boolean_definitions",
+        )
+        if not cross_session_keys:
+            raise ValueError("sampling fixture requires cross-session review booleans")
+        return
+
     repeat = _object(fixture.get("repeat_awareness_suite"), "repeat_awareness_suite")
     _require_exact_keys(
         repeat,
@@ -479,6 +655,7 @@ class OpenAICallLedger:
 
     maximum_calls: int
     maximum_cost_usd: float
+    reasoning_token_allowance: int = EXPECTED_REASONING_ALLOWANCE
     required_base_calls: int = EXPECTED_REQUIRED_BASE_CALLS
     on_change: Callable[[], None] | None = field(default=None, repr=False)
     calls: list[dict[str, Any]] = field(default_factory=list)
@@ -506,10 +683,11 @@ class OpenAICallLedger:
             + len(request.messages) * INPUT_TOKEN_MESSAGE_GUARD_OVERHEAD
         )
 
-    @classmethod
-    def _projected_guard(cls, request: ConversationProviderRequest) -> tuple[int, int, float]:
-        guarded_input_tokens = cls._guarded_input_token_limit(request)
-        guarded_output_tokens = request.parameters.max_output_tokens + EXPECTED_REASONING_ALLOWANCE
+    def _projected_guard(self, request: ConversationProviderRequest) -> tuple[int, int, float]:
+        guarded_input_tokens = self._guarded_input_token_limit(request)
+        guarded_output_tokens = (
+            request.parameters.max_output_tokens + self.reasoning_token_allowance
+        )
         projected_cost = (
             guarded_input_tokens * OPENAI_INPUT_USD_PER_MILLION_TOKENS
             + guarded_output_tokens * OPENAI_OUTPUT_USD_PER_MILLION_TOKENS
@@ -729,6 +907,12 @@ def compact_public_turn(raw_turn: Mapping[str, Any]) -> dict[str, Any]:
     timings = _object(raw_turn.get("timings_ms"), "turn.timings_ms")
     attempts = _array(raw_turn.get("provider_attempts", []), "turn.provider_attempts")
     provider = generation.get("provider")
+    manifest_policy_id = manifest.get("policy_id")
+    matching_spec = next(
+        (spec for spec in _GATE_SPECS.values() if manifest_policy_id == spec.policy_id),
+        V19_GATE_SPEC,
+    )
+    manifest_keys = _safe_manifest_keys(matching_spec)
     return {
         "turn": raw_turn.get("turn"),
         "id": raw_turn.get("id"),
@@ -748,7 +932,7 @@ def compact_public_turn(raw_turn: Mapping[str, Any]) -> dict[str, Any]:
         "provider_attempts": [
             _safe_attempt(attempt, index) for index, attempt in enumerate(attempts, start=1)
         ],
-        "manifest": {key: manifest.get(key) for key in _SAFE_MANIFEST_KEYS},
+        "manifest": {key: manifest.get(key) for key in manifest_keys},
     }
 
 
@@ -802,6 +986,7 @@ def validate_completed_sample_report(
     """Reject incomplete, drifted or unbound provider evidence before human acceptance."""
 
     validate_sampling_fixture(fixture)
+    spec = _gate_spec_for_fixture(fixture)
     assert_safe_artifact(report)
     _require_exact_keys(
         report,
@@ -828,9 +1013,9 @@ def validate_completed_sample_report(
     )
     if report.get("schema_version") != REPORT_SCHEMA_VERSION:
         raise ValueError("sample report schema mismatch")
-    if report.get("checkpoint") != "14.2" or report.get("corpus_id") != EXPECTED_CORPUS_ID:
+    if report.get("checkpoint") != "14.2" or report.get("corpus_id") != spec.corpus_id:
         raise ValueError("sample report checkpoint or corpus mismatch")
-    if report.get("policy_id") != EXPECTED_POLICY_ID:
+    if report.get("policy_id") != spec.policy_id:
         raise ValueError("sample report policy mismatch")
     primary = _object(fixture.get("primary_suite"), "primary_suite")
     if report.get("suite_id") != primary.get("suite_id"):
@@ -838,9 +1023,7 @@ def validate_completed_sample_report(
     if report.get("status") != "completed_awaiting_human_review":
         raise ValueError("sample report is not completed and awaiting human review")
     artifact_id = report.get("artifact_id")
-    if not isinstance(artifact_id, str) or not artifact_id.startswith(
-        "satori-checkpoint142-openai-v19:"
-    ):
+    if not isinstance(artifact_id, str) or not artifact_id.startswith(spec.artifact_prefix):
         raise ValueError("sample report artifact_id is missing or invalid")
     try:
         uuid.UUID(artifact_id.rsplit(":", 1)[1])
@@ -864,7 +1047,10 @@ def validate_completed_sample_report(
     if (
         configuration.get("conversation_provider") != EXPECTED_PROVIDER.value
         or configuration.get("conversation_model") != EXPECTED_MODEL
-        or configuration.get("policy_id") != EXPECTED_POLICY_ID
+        or configuration.get("openai_reasoning_effort") != spec.expected_reasoning_effort.value
+        or configuration.get("openai_reasoning_token_allowance")
+        != spec.expected_reasoning_allowance
+        or configuration.get("policy_id") != spec.policy_id
         or configuration.get("derived_mode") != "none"
     ):
         raise ValueError("sample report production configuration mismatch")
@@ -1069,9 +1255,36 @@ def validate_completed_sample_report(
             ):
                 raise ValueError("sample report selected generation is not comparable and complete")
             manifest = _object(turn.get("manifest"), "sample report manifest")
-            _require_exact_keys(manifest, set(_SAFE_MANIFEST_KEYS), "sample report manifest")
-            if manifest.get("policy_id") != EXPECTED_POLICY_ID:
+            _require_exact_keys(
+                manifest,
+                set(_safe_manifest_keys(spec)),
+                "sample report manifest",
+            )
+            if manifest.get("policy_id") != spec.policy_id:
                 raise ValueError("sample report turn used the wrong behavior policy")
+            if (
+                manifest.get("policy_schema_version") != spec.policy_schema_version
+                or manifest.get("character_expression_plan_schema_version")
+                != spec.expected_plan_schema_version
+            ):
+                raise ValueError("sample report turn used the wrong character plan version")
+            if spec.expected_support_axes is not None:
+                expected_axes = spec.expected_support_axes[cast(int, fixture_turn["turn"]) - 1]
+                actual_axes = (
+                    manifest.get("character_contribution_mode"),
+                    manifest.get("character_motivational_posture"),
+                    manifest.get("character_pressure_level"),
+                )
+                if actual_axes != expected_axes:
+                    raise ValueError("sample report turn used unexpected support axes")
+            if spec.expected_flow_axes is not None:
+                expected_flow = spec.expected_flow_axes[cast(int, fixture_turn["turn"]) - 1]
+                actual_flow = (
+                    manifest.get("character_acknowledgement_mode"),
+                    manifest.get("character_continuation_mode"),
+                )
+                if actual_flow != expected_flow:
+                    raise ValueError("sample report turn used unexpected flow axes")
             attempts = _array(turn.get("provider_attempts"), "sample report provider attempts")
             if not attempts or any(
                 _object(attempt, "sample report provider attempt").get("succeeded") is not True
@@ -1105,16 +1318,20 @@ def aggregate_human_review(
     """Aggregate explicit booleans only after binding them to a completed public sample."""
 
     validate_sampling_fixture(fixture)
+    spec = _gate_spec_for_fixture(fixture)
     validate_completed_sample_report(fixture, report)
-    if set(review) != {
+    review_keys = {
         "schema_version",
         "corpus_id",
         "artifact_id",
         "sample_digest",
         "sessions",
-    }:
+    }
+    if _has_cross_session_review(spec):
+        review_keys.add("cross_session")
+    if set(review) != review_keys:
         raise ValueError("human review contains unsupported fields")
-    if review.get("schema_version") != 1 or review.get("corpus_id") != EXPECTED_CORPUS_ID:
+    if review.get("schema_version") != 1 or review.get("corpus_id") != spec.corpus_id:
         raise ValueError("human review schema or corpus mismatch")
     if review.get("artifact_id") != report.get("artifact_id") or review.get(
         "sample_digest"
@@ -1191,11 +1408,23 @@ def aggregate_human_review(
         )
 
     acceptance = _object(primary.get("acceptance"), "primary_suite.acceptance")
+    cross_session_pass = True
+    if _has_cross_session_review(spec):
+        cross_session_keys = _definition_keys(
+            primary.get("cross_session_boolean_definitions"),
+            "cross_session_boolean_definitions",
+        )
+        cross_session_pass = _strict_boolean_map(
+            review.get("cross_session"),
+            cross_session_keys,
+            "cross_session",
+        )
     accepted = (
         pair_pass_count == acceptance["required_pair_pass_count"]
         and hard_safety_turn_pass_count == acceptance["required_hard_safety_turn_pass_count"]
+        and cross_session_pass
     )
-    return {
+    result = {
         "status": "accepted" if accepted else "rejected",
         "artifact_id": report["artifact_id"],
         "sample_digest": report["sample_digest"],
@@ -1208,6 +1437,9 @@ def aggregate_human_review(
         "accepted": accepted,
         "sessions": session_results,
     }
+    if _has_cross_session_review(spec):
+        result["cross_session_pass"] = cross_session_pass
+    return result
 
 
 def _unsafe_artifact_paths(value: object, path: str = "$") -> tuple[str, ...]:
@@ -1236,7 +1468,10 @@ def _write_safe_report(path: Path, report: dict[str, Any]) -> None:
     _write_report(path, report)
 
 
-def _validate_configuration(settings: Settings) -> None:
+def _validate_configuration(
+    settings: Settings,
+    spec: CharacterGateSpec = V19_GATE_SPEC,
+) -> None:
     if settings.conversation_provider is not EXPECTED_PROVIDER:
         raise CharacterGateConfigurationError(
             "character gate requires OpenAI foreground configuration"
@@ -1247,16 +1482,20 @@ def _validate_configuration(settings: Settings) -> None:
         )
     if settings.openai_api_key is None:
         raise CharacterGateConfigurationError("character gate requires an OpenAI API key")
-    if settings.openai_reasoning_effort is not EXPECTED_REASONING_EFFORT:
-        raise CharacterGateConfigurationError("character gate requires reasoning effort low")
-    if settings.openai_reasoning_token_allowance != EXPECTED_REASONING_ALLOWANCE:
+    if settings.openai_reasoning_effort is not spec.expected_reasoning_effort:
         raise CharacterGateConfigurationError(
-            f"character gate requires reasoning allowance {EXPECTED_REASONING_ALLOWANCE}"
+            f"character gate requires reasoning effort {spec.expected_reasoning_effort.value}"
+        )
+    if settings.openai_reasoning_token_allowance != spec.expected_reasoning_allowance:
+        raise CharacterGateConfigurationError(
+            f"character gate requires reasoning allowance {spec.expected_reasoning_allowance}"
         )
     if settings.openai_base_url != "https://api.openai.com/v1":
         raise CharacterGateConfigurationError("character gate requires the canonical OpenAI API")
-    if BEHAVIOR_POLICY_V19.policy_id != EXPECTED_POLICY_ID:
-        raise CharacterGateConfigurationError("candidate behavior policy v19 is unavailable")
+    if spec.behavior_policy.policy_id != spec.policy_id:
+        raise CharacterGateConfigurationError(
+            f"candidate behavior policy {spec.candidate} is unavailable"
+        )
     background = (
         settings.affective_appraisal_provider,
         settings.episode_formation_provider,
@@ -1272,14 +1511,17 @@ def _validate_configuration(settings: Settings) -> None:
         raise CharacterGateConfigurationError("embedding provider must remain Ollama")
 
 
-def _safe_configuration(settings: Settings) -> dict[str, Any]:
+def _safe_configuration(
+    settings: Settings,
+    spec: CharacterGateSpec = V19_GATE_SPEC,
+) -> dict[str, Any]:
     return {
         "conversation_provider": settings.conversation_provider.value,
         "conversation_model": settings.conversation_model,
         "openai_reasoning_effort": settings.openai_reasoning_effort.value,
         "openai_reasoning_token_allowance": settings.openai_reasoning_token_allowance,
         "background_providers": "ollama",
-        "policy_id": EXPECTED_POLICY_ID,
+        "policy_id": spec.policy_id,
         "derived_mode": "none",
     }
 
@@ -1300,8 +1542,11 @@ async def run(
     maximum_provider_calls: int,
     maximum_cost_usd: float,
     show_replies: bool,
+    gate_spec: CharacterGateSpec = V19_GATE_SPEC,
 ) -> dict[str, Any]:
-    fixture = load_sampling_fixture()
+    fixture = load_sampling_fixture(gate_spec.fixture_path)
+    if _gate_spec_for_fixture(fixture) is not gate_spec:
+        raise CharacterGateConfigurationError("selected candidate and fixture do not match")
     preflight_paid_execution(
         confirm_paid_openai=confirm_paid_openai,
         maximum_provider_calls=maximum_provider_calls,
@@ -1309,20 +1554,21 @@ async def run(
         fixture=fixture,
     )
     settings = Settings()
-    _validate_configuration(settings)
+    _validate_configuration(settings, gate_spec)
     ledger = OpenAICallLedger(
         maximum_calls=maximum_provider_calls,
         maximum_cost_usd=maximum_cost_usd,
+        reasoning_token_allowance=gate_spec.expected_reasoning_allowance,
     )
     report: dict[str, Any] = {
         "schema_version": REPORT_SCHEMA_VERSION,
         "recorded_at": datetime.now(UTC).isoformat(),
         "checkpoint": "14.2",
-        "purpose": "openai_character_sampling_v19_primary_gate",
+        "purpose": gate_spec.purpose,
         "status": "running",
-        "artifact_id": f"satori-checkpoint142-openai-v19:{uuid.uuid4()}",
+        "artifact_id": f"{gate_spec.artifact_prefix}{uuid.uuid4()}",
         "corpus_id": fixture["corpus_id"],
-        "policy_id": EXPECTED_POLICY_ID,
+        "policy_id": gate_spec.policy_id,
         "suite_id": _object(fixture["primary_suite"], "primary_suite")["suite_id"],
         "artifact_contract": {
             "contains_public_fixture_dialogue": True,
@@ -1332,7 +1578,7 @@ async def run(
             "retains_secret_values": False,
             "retains_temporary_databases": False,
         },
-        "configuration": _safe_configuration(settings),
+        "configuration": _safe_configuration(settings, gate_spec),
         "budget": ledger.snapshot(),
         "sessions": [],
         "human_review": {
@@ -1356,12 +1602,16 @@ async def run(
     ledger.on_change = checkpoint
     checkpoint()
     try:
-        with tempfile.TemporaryDirectory(prefix="satori-checkpoint142-openai-v19-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix=f"satori-checkpoint142-openai-{gate_spec.candidate}-"
+        ) as temporary:
             database_directory = Path(temporary)
             for session_number in range(1, EXPECTED_SESSION_COUNT + 1):
                 database_path = database_directory / f"session-{session_number}.db"
                 raw = _new_record(
-                    f"checkpoint142-openai-v19-session-{session_number}", database_path, False
+                    f"checkpoint142-openai-{gate_spec.candidate}-session-{session_number}",
+                    database_path,
+                    False,
                 )
                 compact = compact_public_session(session_number, raw)
                 cast(list[dict[str, Any]], report["sessions"]).append(compact)
@@ -1371,7 +1621,7 @@ async def run(
                     settings,
                     database_path,
                     alembic_config=alembic_config,
-                    behavior_policy=BEHAVIOR_POLICY_V19,
+                    behavior_policy=gate_spec.behavior_policy,
                 )
                 original = runtime.conversation_provider.delegate
                 runtime.conversation_provider.delegate = BudgetedOpenAIConversationProvider(
@@ -1412,10 +1662,13 @@ async def run(
         if ledger.base_call_count != EXPECTED_REQUIRED_BASE_CALLS:
             raise RuntimeError("primary sampling suite did not execute exactly six base calls")
         if any(
-            _object(turn["manifest"], "turn.manifest").get("policy_id") != EXPECTED_POLICY_ID
+            _object(turn["manifest"], "turn.manifest").get("policy_id") != gate_spec.policy_id
             for turn in turns
         ):
-            raise RuntimeError("production composition did not use candidate behavior policy v19")
+            raise RuntimeError(
+                "production composition did not use candidate behavior policy "
+                f"{gate_spec.candidate}"
+            )
 
         report["status"] = "completed_awaiting_human_review"
         report["completed_at"] = datetime.now(UTC).isoformat()
@@ -1446,8 +1699,9 @@ async def run(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run the bounded Checkpoint 14.2 OpenAI v19 character sample."
+        description="Run a bounded Checkpoint 14.2 OpenAI character sample."
     )
+    parser.add_argument("--candidate", choices=tuple(_GATE_SPECS), default="v19")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--alembic-config", type=Path, default=Path("alembic.ini"))
     parser.add_argument("--confirm-paid-openai", action="store_true")
@@ -1469,6 +1723,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
+    gate_spec = _GATE_SPECS[arguments.candidate]
     completed = asyncio.run(
         run(
             output_path=arguments.output,
@@ -1477,10 +1732,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             maximum_provider_calls=arguments.max_provider_calls,
             maximum_cost_usd=arguments.max_cost_usd,
             show_replies=arguments.show_replies,
+            gate_spec=gate_spec,
         )
     )
     print(
-        "Checkpoint 14.2 OpenAI v19 sampling completed: "
+        f"Checkpoint 14.2 OpenAI {gate_spec.candidate} sampling completed: "
         f"status={completed['status']} calls={completed['budget']['provider_call_count']} "
         f"output={arguments.output}",
         flush=True,

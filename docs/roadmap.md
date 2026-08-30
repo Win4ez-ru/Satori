@@ -435,59 +435,200 @@ does not authorize Stage 9.
   absent-memory confabulation, one generic project reply and an expression layer that can sound
   more technical than lived.
 - **Prerequisites:** accepted checkpoint 14.1; exact A/B evidence; Stage 15 remains locked.
-- **Scope:** versioned behavior calibration (v10 grounded accepted baseline; rejected v11-v19;
-  candidate v20 owned-contribution and motivational-posture follow-up under ADR-0036), stronger
+- **Scope:** versioned behavior calibration (v10 grounded accepted baseline; rejected v11-v24;
+  historical unaccepted v25 social/self-disclosure correction; rejected sampled v26 unified causal
+  presence; current offline v27 live-state-selected movement under ADR-0043), stronger
   `no_relevant_memory`
   generation guidance,
   concrete current-turn specificity, natural first-person expression of the existing qualitative
   affect/mood projection, separate request-local factual anchor, owned contribution, motivational
   posture and pressure ceiling, positive ordinary-turn relationship modulation, transient
-  expression observability, deterministic negation-safe cue refinements, narrow grounded
-  current-reply practical initiative, versioned corpus and provider sampling.
+  expression observability, deterministic negation-safe cue refinements, historical narrow grounded
+  current-reply practical initiative, explicit acknowledgement/continuation choice, bounded
+  request-local guarded tone, historical v23-v26 ordinary-depletion optional practical moves and
+  current v27 pressure-free ordinary-depletion with no default advice, one direct cognition-
+  preserving delivery decision, a cohesive canonical-character
+  baseline, cognition intent V2 with historical V1 compatibility, template V2 for v24 and V3 for
+  v25-v27, typed social/current-affect/reciprocal/self-disclosure routing with explicit facets, one
+  late provider director historically, unified live-state presence for v26 and one compact
+  cognition-complete operational movement for v27, historical v25-v26 pressure-free adjacent
+  depletion follow-through, a closed owner-derived
+  relationship `recent_strain` expression projection, privacy-safe provider failure diagnostics,
+  explicit bounded relationship backlog recovery, versioned broad corpus and provider sampling.
 - **Out of scope:** Stage 15, new memory/emotion state or owner, human physiology/subjective-
   consciousness claims, an eleventh Stage 8.1 validator reason, output rewriting, judge LLM,
-  unbounded retry, numeric initiative distribution or out-of-band contact, structured cloud
-  routing, voice or avatar.
-- **Deliverables:** policy/projection changes, typed transient character-expression plan v3 with
-  separate anchor/contribution/posture/pressure, one final provider realization after
-  invariant/mode contracts, deterministic no-memory/specificity/affect/character fixtures,
-  offline OpenAI wire coverage, versioned 3 × 2 human-review contract and local runner,
-  metadata-only provider evidence and refreshed Stage 8.1 real-Ollama evidence.
+  unbounded or automatic provider retry/fallback, automatic relationship backfill, numeric
+  initiative distribution or out-of-band contact, structured cloud routing, voice or avatar.
+- **Deliverables:** historical v19-v23 plan/response-act, v24 direct-delivery and v25 social/self-
+  disclosure reproducibility;
+  policy v25 with closed `DisclosureRequestKind`, `SELF_DISCLOSURE_REQUEST` only for
+  `SATORI_SELF`, exact plan/signal/transient-manifest parity, `interests` facet and schema-2
+  `CharacterDeliveryDecision`; policy v26 with schema-3 `CharacterDeliveryDecision`, schema-1
+  `CharacterPresenceProjection`, bounded qualitative personality/value/affect/relationship signals
+  from existing owners, an exact memory-use license derived from retrieval plus trusted-context
+  grounding, bounded position/inclination support availability and exactly one late provider-facing
+  presence layer; policy v27 with schema-4 `CharacterDeliveryDecision`, schema-2
+  `CharacterPresenceProjection`, state-before-prose selection, exactly one contextual value guard,
+  typed direct-objection/topic-closure goals and one compact operational-move block; exact V2
+  intent registry, primary intent, ordered tags, required
+  points, complete forbidden claims, verbosity, stance and uncertainty preservation; mutually
+  exclusive manifest metadata; one cohesive character projection; the exact embedded
+  v24 template-registry-V2 and v25 template-registry-V3
+  `satori.cognition.response-substance` historical templates plus v26 lean response-purpose and
+  v27 complete compact support rendering from the same V3 registry; deterministic
+  no-memory/specificity/affect/character fixtures, the historical 32-scenario v24 corpus, the v25
+  social/self-disclosure corpus, the v26 public-input v9 corpus with 40 scenarios/16 groups/32
+  semantic properties/five controlled contrasts/two committed `Talk` flows totalling seven turns,
+  the SHA-pinned V27 exact-eight fixture and 28-scenario breadth corpus covering all 27 requested
+  situation types, relationship contrasts, memory boundaries and sequential affect continuity,
+  four-module
+  employer-demo contract, offline OpenAI wire coverage, bounded human-review runner, digest-bound
+  four-module readiness aggregation, metadata-only provider evidence and refreshed Stage 8.1
+  evidence where applicable; migration `0013_conversation_failure_reason` with a closed
+  privacy-safe reason vocabulary; and explicit oldest-first
+  `satori relationship process --limit N`. `RelationshipExpressionContext` v2 contributes only its transient
+  `recent_strain` boolean/effective profile and never raw transition evidence. V10/v19–v23 retain
+  cognition/template V1.
 - **Acceptance criteria:** no-memory scenarios explicitly preserve uncertainty and propose no
   value; specific prompts receive a concrete response rather than a generic offer; qualitative
   affect profiles produce natural bounded first-person expression without internal labels or
   physiology; human review finds a recognizable independent Satori reaction across wit, care,
   initiative and reflective registers; canonical state and the closed ten-reason validator remain
-  unchanged.
+  unchanged. Live personality strengths/cues and owner-derived affect/relationship signals must
+  causally change the same unified presence or V27 movement before rendering without changing
+  truth scope. V27 must select exactly one contextual guard from the currently equal immutable
+  values; only a counterfactual contract, not current runtime evidence, may test future unequal
+  strengths. No generated prose
+  may become deterministic authority. The real relationship backlog is not part of migration or
+  acceptance execution.
 - **Automated tests:** prompt composition/status boundaries, policy version, no-memory injection,
-  affect-profile expression contract, contribution-first/two-sentence v20 topology, Ollama
-  length-limit fail-closed behavior, generic-assistant diagnostics and existing identity,
-  relationship, grounding, replay and provider-portability regressions.
-- **Manual verification:** separately authorized credentialed OpenAI main gate with the same public
-  achievement/depletion pair in three independent clean production sessions, followed by direct
-  written human review; then the applicable Stage 8.1 three fresh exact dialogues, 30-turn
-  coherence, activity and relationship-expression samples. Preserve every public sampled reply
-  and record tokens/timings without durable private prompt or retrieved-context logging. The paid
+  affect-profile expression contract, non-echoing/two-sentence v21 topology, v22 historical
+  single-act topology, historical v23 practical-care/deictic-acknowledgement/evidence topology,
+  v24 direct-selector enum closure, v25-v27 schema isolation, v26 live strength/value/evolution-
+  cue causality, centralized trait/value presence semantics, hardened runtime-character boundary,
+  bounded affect/relationship signals, exact memory-use-license truth-scope parity, one-presence-
+  layer composition and manifest observability, prompt sensitivity, exact V2/V3
+  cognition/template propagation, social/current-affect and reciprocal-warmth routing, broad
+  identity/interests/affect disclosure, user-vs-Satori subject controls across subject-negating
+  contrasts, dismissed, quoted, hypothetical and reported references while preserving direct
+  negative-predicate questions and active inverted memory questions such as `помнишь ли ты…?`,
+  relationship question-vs-declaration isolation,
+  direct personal-interest vs current-activity relevance feedback, order-independent compound
+  facets, historical v25-v26 adjacent depletion follow-through,
+  safety > repetition > clean-repair precedence, repair false-positive boundaries,
+  cognition/delivery goal/stance/topology consistency, guarded-with-help, transient replay and
+  byte-identical retry invariants, owner-derived recent-strain lifetime and post-response ordering,
+  Ollama
+  length-limit fail-closed behavior, closed provider-failure mapping/persistence/migration privacy,
+  oldest-first relationship recovery ordering/idempotency/failure stop, generic-assistant
+  diagnostics and existing identity, relationship, grounding, replay and provider-portability
+  regressions. V27 additionally requires state-before-prose voice counterfactuals, exactly one value
+  guard, complete cognition support, objection/closure precedence, ordinary-depletion no-advice,
+  exact stateless OpenAI wire, one-or-two-call/no-third-call retry behavior, eight-turn default
+  composition and the 28-scenario breadth/relationship/affect suite. Public corpora must forbid
+  fixture assistant history and desired/golden replies, and committed flows must use the real
+  `Talk` lifecycle.
+- **Manual verification:** separately authorized credentialed OpenAI module gates with three
+  independent clean production replicas per module: core emotional response, intellectual
+  partnership, hurt/repair and identity/memory. Preserve every public sampled reply and record
+  tokens/timings without durable private prompt or retrieved-context logging; bind direct boolean
+  human review to the immutable safe report. Bind the final readiness decision to four distinct
+  module reports and their exact reviews under one shared production configuration; one module
+  cannot accept readiness. Applicable longer coherence and relationship samples follow only after
+  the four-module gate. The paid
   v19 OpenAI primary gate completed 6/6 first-attempt turns within 6/9 calls and USD 0.025194 of the
   USD 0.15 ceiling, but direct review rejected it at 0/3 complete pairs and 2/6 fully hard-safe
-  turns. The v20 provider gate requires separate authorization; deterministic/offline success is
-  not provider acceptance. The free local v20 3 × 2 gate completed technically in six first calls
-  but failed direct human review at 0/3 pairs, rejecting Qwen provider fit without changing the
-  typed v20 architecture.
+  turns. The separately authorized v20 OpenAI gate then completed 6/6 first-attempt turns for
+  USD 0.027900, but direct user review rejected all six replies. The separately authorized v21
+  execution completed 6/6 first-attempt turns for USD 0.027692; its local report failed because
+  the sanitizer omitted new flow axes, and the preserved prose still fails non-echoing and
+  grounding criteria. The exporter defect is fixed without another paid call or alteration of the
+  original artifact. The separately authorized v22 execution completed 6/6 first-attempt calls for
+  USD 0.025758, but direct review rejected all three pairs and accepted only 2/6 turns as fully
+  hard-safe; recap, generic normalization and unsupported internal explanations remain. The later
+  separately authorized v23 `gpt-5.6-terra`, `reasoning=medium` execution completed 6/6
+  first-attempt calls for USD 0.024860. Direct review again rejected all three pairs and accepted
+  3/6 turns as fully hard-safe: echoing decreased, but repeated abstract achievement wording,
+  weak character, multi-action advice and unsupported inference remain. The free
+  local v20 3 × 2 run remains technical evidence only; Qwen is already rejected and is no longer
+  used as a humanity criterion. The separately authorized v24 `core_emotional` module completed
+  three clean sessions × three turns on 9/9 first-attempt calls for 12,517 input tokens, 502 output
+  tokens and a repository standard-rate estimate of USD 0.031058, with no retry, incomplete
+  response or provider error. Cache-detail usage was not retained, so the estimate is not an exact
+  invoice. It is rejected for
+  repeated ordered scaffolding, current-input/state echo and unsupported causal psychology, and it
+  cannot accept the other modules or four-module aggregate. The later separately authorized v25
+  exact-manual gate completed three clean sessions × three turns on 9/9 first-attempt calls for
+  13,748 input tokens, 733 output tokens and a repository standard-rate estimate of USD 0.036292;
+  cache-detail usage was not retained. It fixed the historical missing-reply
+  route but remains unaccepted for repeated calm/level wording, interest disclaimers and polished
+  assistant-like observations. The first authorized v26 plan consumed its one-shot claim and then
+  failed closed on local `low` versus planned `medium` reasoning before ledger/runtime/provider
+  construction; it therefore made zero calls at zero cost, and its claim remains immutable. The
+  explicitly authorized attempt-2 plan
+  `sha256:906f250d62d0fbf6087c0ba293808e98b35617fc226a67dccfa5b7c3d10f067d`
+  retained its private claim but failed closed on the first neutral greeting before the first
+  OpenAI foreground call: the old evaluator rejected correct provider-success
+  `SKIPPED`/`neutral_appraisal_no_delta` because it demanded `APPLIED`. Its safe report records zero
+  provider/base calls, zero tokens and USD 0; no review exists. The separately authorized
+  attempt-3 plan
+  `sha256:1db817bba4bd751126a470e59802fa3554807063b6a8f81ecd6b218ce49d7734`
+  consumed its one-shot ID and completed exactly one paid call after a valid neutral
+  `SKIPPED`/no-transition Ollama appraisal: 1,063 input, 32 output, cache `0/0`, exact USD 0.002510.
+  The canonical reply committed, then evaluation failed `NonComparableProviderReply` because
+  durable reply usage lacks cache-detail parity with the atomic ledger. Its `0600` claim/report are
+  immutable; no review or sample digest exists. Human-only review of the one reply is 5/7, failing
+  recognizable presence and natural non-checklist delivery; overall is
+  `INCONCLUSIVE / NOT ACCEPTED`.
+  The evaluator-only report-schema-4 correction freezes per-attempt ledger evidence, totals parity,
+  selected-retry identity and explicit usage provenance without production state/owner/migration
+  changes. The separately authorized attempt 4 at
+  `sha256:e26f2c4a9f86d3ec40006af2ea3ff3c6624cc04fc94829d61ceb8cef3fe474e4`
+  completed two first-attempt base calls: 2,110 input/44 output tokens, cache `0/0` and exact
+  USD 0.004748. Both replies committed, then the evaluator incorrectly required absent
+  `self_consistency_facets` even when production correctly omitted them with empty
+  `disclosure_facets`. Its immutable `0600` claim/report remain; no completed sample digest,
+  review/template or official human rubric exists, so attempt 4 is `INCONCLUSIVE / NOT ACCEPTED`.
+  The evaluator now enforces the production iff rule, and all eight fixed turns pass a fresh
+  production `Talk`/composition stub regression offline. The scoped audit's minor issue is resolved,
+  and the final rebuilt-wheel gate is clean: focused evaluator 82 passed, full pytest
+  `1751 passed, 4 skipped`, and every required static, migration, bootstrap, repository and parity
+  check passes. The separately authorized attempt 5 under ID
+  `satori.checkpoint142.openai.v26.phase1.attempt5.2026-08-29.one-shot` and frozen digest
+  `sha256:8f191667e539296266aa4bb8eacbb837559d432d3b623d6f6b5896d250369107`
+  completed all three fresh sessions × eight turns on 24/24 base calls with zero retry: 31,836
+  input tokens, 2,076 output tokens (454 reasoning and 1,622 visible), cache `0/0` and exact
+  USD 0.088584. Its sample digest is
+  `sha256:29b2e14acabc3b9422b410a44a6fa8c00c4780e449e9639157da73b44b62a840`.
+  Direct human-only review rejected the frozen V26/Terra configuration at 107/168 true per-turn
+  decisions (`G23 O22 S11 N10 L15 C2 Q24`), cross-session `TFTFTF` and attestations `TTT`.
+  This does not prove a Terra model ceiling; it rejects only this configuration and sample. Total
+  V26 paid usage through attempt 5 is USD 0.095842. V27 offline implementation and verification
+  made no provider or paid call. Its nearest provider gate is frozen at plan digest
+  `sha256:5e6bcc1fc53100e66990feb25d9448465a1a6bb1364e7b98eb6f14ddb4d94feb` and one-shot ID
+  `satori.checkpoint142.openai.v27.phase1.2026-08-30.one-shot`: OpenAI `gpt-5.6-terra`, reasoning
+  `medium`, allowance 1024, three clean sessions × eight fixed turns, 24 required/30 maximum calls,
+  at most two attempts per turn and USD 0.15. It uses direct human-only per-turn/cross-session review
+  and does not replace the later four-module exit gate. Execution awaits exact explicit
+  authorization. Stage 15 remains locked.
 - **Risks:** prompt overconstraint, scripted emotion, false certainty from a polished tone,
   motivational overreach, shame or productivity-worth coupling, regressions in brevity, paid retry
-  cost and treating a small sample as a hallucination proof.
-- **Exit condition:** deterministic and sampled gates improve the reproduced failures together,
-  all three complete v20 OpenAI session pairs pass the versioned human rubric, persistent
-  state/owners remain unchanged and the residual impossibility of guaranteeing zero open-domain
-  hallucinations is documented before Stage 15 is reconsidered. Until then Stage 15 remains
-  locked.
+  cost, collapsing live state into generic labels, opening Stage 15 to conceal an expression-bridge
+  defect and treating a small sample as a hallucination proof.
+- **Exit condition:** deterministic and sampled gates improve the reproduced failures together;
+  all declared replicas of every current-candidate OpenAI employer-demo module pass their turn,
+  dialogue and cross-replica human rubrics; the digest-bound four-module aggregate accepts one
+  shared production configuration; persistent state/owners remain unchanged; and the residual
+  impossibility of guaranteeing zero open-domain hallucinations is documented before Stage 15 is
+  reconsidered. Until then Stage 15 remains locked.
 
 ## Stage 15 — Autobiographical Self
 
 - **Goal:** construct a source-grounded self model and narrative of significant change/events.
 - **Why it matters:** continuity becomes a lived history, not only a collection of traits and memories.
-- **Prerequisites:** Stage 14; significance policy evaluated.
+- **Prerequisites:** Stage 14; accepted Checkpoint 14.2 character/provider gate; significance policy
+  evaluated; separate explicit user authorization to open the stage. The v26/v27 audits found no reason
+  to open it early because autobiographical facts do not repair the live state-to-expression bridge.
 - **Scope:** activation event, SelfModel projection, SelfNarrativeEvents for milestones/turning points/belief changes/shared achievements, narrative context summary and revision lineage.
 - **Out of scope:** invented childhood/backstory, free-form regeneration of self each turn, emotional concepts.
 - **Deliverables:** owner/schema/projections, significance policy, autobiographical retrieval and narrative evals.

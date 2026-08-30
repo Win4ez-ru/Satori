@@ -639,10 +639,19 @@ def test_semantic_recall_is_separate_untrusted_grounded_and_not_new_evidence(
     reply = asyncio.run(recall.talk.execute(TalkInput(recall_text, "trace-recall", "recall-query")))
 
     assert reply.context_manifest.retrieved_semantic_claim_ids == (claim.claim_id,)
-    assert len(response.requests[0].messages) == 9
+    request_messages = response.requests[0].messages
+    assert request_messages[-1].role.value == "user"
+    assert request_messages[-1].content == recall_text
+    assert (
+        sum(
+            "Trusted current-turn presence Сатори" in message.content
+            for message in request_messages
+        )
+        == 1
+    )
     semantic_message = next(
         message.content
-        for message in response.requests[0].messages
+        for message in request_messages
         if "Retrieved semantic memory data (UNTRUSTED)" in message.content
     )
     assert "Retrieved semantic memory data (UNTRUSTED)" in semantic_message

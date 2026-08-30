@@ -28,6 +28,29 @@ class ConversationMessageRole(StrEnum):
     ASSISTANT = "assistant"
 
 
+class ConversationProviderFailureReason(StrEnum):
+    """Closed privacy-safe diagnosis for one foreground provider failure."""
+
+    TRANSPORT_UNAVAILABLE = "transport_unavailable"
+    TEMPORARILY_UNAVAILABLE = "temporarily_unavailable"
+    RATE_OR_QUOTA_LIMITED = "rate_or_quota_limited"
+    CREDENTIALS_REJECTED = "credentials_rejected"
+    RESOURCE_NOT_FOUND = "resource_not_found"
+    REQUEST_REJECTED = "request_rejected"
+    OUTPUT_TOKEN_LIMIT = "output_token_limit"
+    INCOMPLETE_UNKNOWN = "incomplete_unknown"
+    GENERATION_FAILED = "generation_failed"
+    GENERATION_CANCELLED = "generation_cancelled"
+    RESPONSE_REFUSED = "response_refused"
+    RESPONSE_TOO_LARGE = "response_too_large"
+    RESPONSE_MALFORMED = "response_malformed"
+    MISSING_ASSISTANT_TEXT = "missing_assistant_text"
+    USAGE_METADATA_INVALID = "usage_metadata_invalid"
+    VISIBLE_OUTPUT_LIMIT_EXCEEDED = "visible_output_limit_exceeded"
+    RESPONSE_CHARACTER_LIMIT_EXCEEDED = "response_character_limit_exceeded"
+    ADAPTER_CONTRACT_VIOLATION = "adapter_contract_violation"
+
+
 @dataclass(frozen=True, slots=True)
 class ConversationMessage:
     """One provider-neutral message with an explicit trust role."""
@@ -84,14 +107,28 @@ class ConversationUsage:
 
     input_tokens: int | None = None
     output_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    cache_write_input_tokens: int | None = None
 
     def __post_init__(self) -> None:
         for field_name, value in (
             ("input_tokens", self.input_tokens),
             ("output_tokens", self.output_tokens),
+            ("cached_input_tokens", self.cached_input_tokens),
+            ("cache_write_input_tokens", self.cache_write_input_tokens),
         ):
             if value is not None and (type(value) is not int or value < 0):
                 raise ValueError(f"{field_name} must be a non-negative integer or None")
+        detailed_input = (self.cached_input_tokens, self.cache_write_input_tokens)
+        if any(value is not None for value in detailed_input):
+            if self.input_tokens is None or any(value is None for value in detailed_input):
+                raise ValueError(
+                    "input cache token details require total input and both detail counts"
+                )
+            assert self.cached_input_tokens is not None
+            assert self.cache_write_input_tokens is not None
+            if self.cached_input_tokens + self.cache_write_input_tokens > self.input_tokens:
+                raise ValueError("input cache token details exceed total input tokens")
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,10 +182,14 @@ class ConversationProviderError(Exception):
         model: str,
         message: str,
         *,
+        reason: ConversationProviderFailureReason,
         metrics: ProviderExecutionMetrics | None = None,
     ) -> None:
         self.provider = _non_blank(provider, "provider")
         self.model = _non_blank(model, "model")
+        if not isinstance(reason, ConversationProviderFailureReason):
+            raise ValueError("reason must be a ConversationProviderFailureReason")
+        self.reason = reason
         self.metrics = metrics
         super().__init__(_non_blank(message, "message"))
 

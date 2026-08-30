@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import traceback
 
 import pytest
 
@@ -9,6 +10,7 @@ from satori.core.conversation import (
     ConversationGenerationParameters,
     ConversationMessage,
     ConversationMessageRole,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     GenerationFailed,
     InvalidProviderResponse,
@@ -72,6 +74,7 @@ def response_body(
         {
             "model": "gpt-5.6-terra-2026-08-01",
             "status": status,
+            "service_tier": "default",
             "output": [
                 {"type": "reasoning", "summary": []},
                 {
@@ -82,6 +85,10 @@ def response_body(
             ],
             "usage": {
                 "input_tokens": 111,
+                "input_tokens_details": {
+                    "cached_tokens": 0,
+                    "cache_write_tokens": 0,
+                },
                 "output_tokens": output_tokens,
                 "output_tokens_details": {"reasoning_tokens": reasoning_tokens},
                 "total_tokens": 111 + output_tokens,
@@ -119,6 +126,8 @@ def test_openai_maps_roles_parameters_privacy_reasoning_and_usage() -> None:
                 ],
                 "max_output_tokens": 1345,
                 "reasoning": {"effort": "low"},
+                "service_tier": "default",
+                "prompt_cache_options": {"mode": "explicit"},
                 "store": False,
             },
             30.0,
@@ -132,6 +141,8 @@ def test_openai_maps_roles_parameters_privacy_reasoning_and_usage() -> None:
     assert result.usage is not None
     assert result.usage.input_tokens == 111
     assert result.usage.output_tokens == 17
+    assert result.usage.cached_input_tokens == 0
+    assert result.usage.cache_write_input_tokens == 0
     assert result.metrics is not None
     assert result.metrics.requested_output_token_limit == 321
     assert result.metrics.provider_output_token_limit == 1345
@@ -176,6 +187,37 @@ def test_openai_preserves_partial_usage_without_inventing_missing_counts() -> No
     assert result.usage is not None
     assert result.usage.input_tokens == 111
     assert result.usage.output_tokens is None
+    assert result.usage.cached_input_tokens is None
+    assert result.usage.cache_write_input_tokens is None
+
+
+def test_openai_rejects_cache_token_details_above_total_input() -> None:
+    raw = json.loads(response_body())
+    raw["usage"]["input_tokens_details"] = {
+        "cached_tokens": 80,
+        "cache_write_tokens": 40,
+    }
+
+    with pytest.raises(InvalidProviderResponse, match="usage metadata") as failure:
+        asyncio.run(
+            adapter(FakeOpenAITransport(json.dumps(raw).encode())).generate(provider_request())
+        )
+
+    assert failure.value.reason is ConversationProviderFailureReason.USAGE_METADATA_INVALID
+
+
+def test_openai_parse_failure_traceback_never_contains_private_provider_body() -> None:
+    private_marker = "PRIVATE_PROVIDER_SENTINEL_7f4d"
+    raw = json.loads(response_body())
+    raw["usage"]["input_tokens"] = {"private": private_marker}
+
+    with pytest.raises(InvalidProviderResponse) as failure:
+        asyncio.run(
+            adapter(FakeOpenAITransport(json.dumps(raw).encode())).generate(provider_request())
+        )
+
+    rendered_traceback = "".join(traceback.format_exception(failure.value))
+    assert private_marker not in rendered_traceback
 
 
 def test_openai_reasoning_fails_closed_without_usage_breakdown() -> None:
@@ -191,6 +233,7 @@ def test_openai_reasoning_fails_closed_without_usage_breakdown() -> None:
     assert failure.value.metrics.requested_output_token_limit == 321
     assert failure.value.metrics.provider_output_token_limit == 1345
     assert failure.value.metrics.visible_output_tokens is None
+    assert failure.value.reason is ConversationProviderFailureReason.USAGE_METADATA_INVALID
 
 
 def test_openai_rejects_visible_output_above_application_limit() -> None:
@@ -202,14 +245,17 @@ def test_openai_rejects_visible_output_above_application_limit() -> None:
     assert failure.value.metrics is not None
     assert failure.value.metrics.reasoning_output_tokens == 50
     assert failure.value.metrics.visible_output_tokens == 350
+    assert failure.value.reason is ConversationProviderFailureReason.VISIBLE_OUTPUT_LIMIT_EXCEEDED
     assert "private oversized output" not in str(failure.value)
 
 
 def test_openai_rejects_reasoning_count_above_total_output_count() -> None:
     body = response_body(output_tokens=17, reasoning_tokens=18)
 
-    with pytest.raises(InvalidProviderResponse, match="malformed"):
+    with pytest.raises(InvalidProviderResponse, match="usage metadata") as failure:
         asyncio.run(adapter(FakeOpenAITransport(body)).generate(provider_request()))
+
+    assert failure.value.reason is ConversationProviderFailureReason.USAGE_METADATA_INVALID
 
 
 def test_openai_rejects_incomplete_text_instead_of_committing_partial_reply() -> None:
@@ -221,6 +267,7 @@ def test_openai_rejects_incomplete_text_instead_of_committing_partial_reply() ->
         asyncio.run(adapter(transport).generate(provider_request()))
 
     assert len(transport.calls) == 1
+    assert failure.value.reason is ConversationProviderFailureReason.OUTPUT_TOKEN_LIMIT
     assert "reason=max_output_tokens" in str(failure.value)
     assert "private partial text" not in str(failure.value)
     assert failure.value.metrics is not None
@@ -247,26 +294,64 @@ def test_openai_maps_unrecognized_incomplete_reason_to_safe_unknown(
         )
 
     assert "Private vendor detail!" not in str(failure.value)
+    assert failure.value.reason is ConversationProviderFailureReason.INCOMPLETE_UNKNOWN
 
 
 @pytest.mark.parametrize(
-    ("error", "expected"),
+    ("error", "expected", "reason"),
     [
-        (OpenAITransportError("timeout"), ProviderUnavailable),
-        (OpenAIHttpStatusError(401), GenerationFailed),
-        (OpenAIHttpStatusError(403), GenerationFailed),
-        (OpenAIHttpStatusError(429), ProviderUnavailable),
-        (OpenAIHttpStatusError(500), ProviderUnavailable),
-        (OpenAIHttpStatusError(502), ProviderUnavailable),
-        (OpenAIHttpStatusError(503), ProviderUnavailable),
+        (
+            OpenAITransportError("timeout"),
+            ProviderUnavailable,
+            ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        ),
+        (
+            OpenAIHttpStatusError(401),
+            GenerationFailed,
+            ConversationProviderFailureReason.CREDENTIALS_REJECTED,
+        ),
+        (
+            OpenAIHttpStatusError(403),
+            GenerationFailed,
+            ConversationProviderFailureReason.CREDENTIALS_REJECTED,
+        ),
+        (
+            OpenAIHttpStatusError(404),
+            GenerationFailed,
+            ConversationProviderFailureReason.RESOURCE_NOT_FOUND,
+        ),
+        (
+            OpenAIHttpStatusError(429),
+            ProviderUnavailable,
+            ConversationProviderFailureReason.RATE_OR_QUOTA_LIMITED,
+        ),
+        (
+            OpenAIHttpStatusError(500),
+            ProviderUnavailable,
+            ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE,
+        ),
+        (
+            OpenAIHttpStatusError(502),
+            ProviderUnavailable,
+            ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE,
+        ),
+        (
+            OpenAIHttpStatusError(503),
+            ProviderUnavailable,
+            ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE,
+        ),
     ],
 )
 def test_openai_maps_transport_and_http_failures(
     error: Exception,
     expected: type[Exception],
+    reason: ConversationProviderFailureReason,
 ) -> None:
-    with pytest.raises(expected):
+    with pytest.raises(expected) as failure:
         asyncio.run(adapter(FakeOpenAITransport(error=error)).generate(provider_request()))
+
+    assert isinstance(failure.value, (ProviderUnavailable, GenerationFailed))
+    assert failure.value.reason is reason
 
 
 @pytest.mark.parametrize(
@@ -279,17 +364,34 @@ def test_openai_maps_transport_and_http_failures(
     ],
 )
 def test_openai_rejects_malformed_results(body: bytes) -> None:
-    with pytest.raises(InvalidProviderResponse):
+    with pytest.raises(InvalidProviderResponse) as failure:
         asyncio.run(adapter(FakeOpenAITransport(body)).generate(provider_request()))
 
+    assert failure.value.reason in {
+        ConversationProviderFailureReason.MISSING_ASSISTANT_TEXT,
+        ConversationProviderFailureReason.RESPONSE_MALFORMED,
+    }
 
-def test_openai_rejects_successful_failed_response() -> None:
-    with pytest.raises(GenerationFailed, match="status failed"):
+
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        ("failed", ConversationProviderFailureReason.GENERATION_FAILED),
+        ("cancelled", ConversationProviderFailureReason.GENERATION_CANCELLED),
+        ("queued", ConversationProviderFailureReason.GENERATION_FAILED),
+        ("in_progress", ConversationProviderFailureReason.GENERATION_FAILED),
+    ],
+)
+def test_openai_rejects_non_completed_response_status(
+    status: str,
+    reason: ConversationProviderFailureReason,
+) -> None:
+    with pytest.raises(GenerationFailed, match=f"status {status}") as failure:
         asyncio.run(
-            adapter(FakeOpenAITransport(response_body(status="failed"))).generate(
-                provider_request()
-            )
+            adapter(FakeOpenAITransport(response_body(status=status))).generate(provider_request())
         )
+
+    assert failure.value.reason is reason
 
 
 def test_openai_maps_refusal_without_exposing_refusal_body() -> None:
@@ -302,14 +404,37 @@ def test_openai_maps_refusal_without_exposing_refusal_body() -> None:
         )
 
     assert "private refusal body" not in str(failure.value)
+    assert failure.value.reason is ConversationProviderFailureReason.RESPONSE_REFUSED
+
+
+def test_openai_fails_closed_when_malformed_message_precedes_valid_text() -> None:
+    raw = json.loads(response_body())
+    raw["output"].insert(
+        1,
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "unknown_private_content", "value": "secret"}],
+        },
+    )
+
+    with pytest.raises(InvalidProviderResponse) as failure:
+        asyncio.run(
+            adapter(FakeOpenAITransport(json.dumps(raw).encode())).generate(provider_request())
+        )
+
+    assert failure.value.reason is ConversationProviderFailureReason.RESPONSE_MALFORMED
+    assert "secret" not in str(failure.value)
 
 
 def test_openai_adapter_hides_key_from_repr_and_enforces_byte_limit() -> None:
     configured = adapter(FakeOpenAITransport(b"x" * 1_000_001))
 
     assert "private-test-key" not in repr(configured)
-    with pytest.raises(InvalidProviderResponse, match="byte limit"):
+    with pytest.raises(InvalidProviderResponse, match="byte limit") as failure:
         asyncio.run(configured.generate(provider_request()))
+
+    assert failure.value.reason is ConversationProviderFailureReason.RESPONSE_TOO_LARGE
 
 
 @pytest.mark.parametrize("allowance", [-1, 4097, True])

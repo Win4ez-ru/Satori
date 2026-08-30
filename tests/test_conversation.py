@@ -13,6 +13,7 @@ from satori.application.conversation.errors import ConversationInputError
 from satori.composition import build_conversation_services, build_initial_self_services
 from satori.config import Environment, LogLevel, Settings
 from satori.core.conversation import (
+    ConversationProviderFailureReason,
     ConversationProviderResponse,
     ConversationUsage,
     GenerationFailed,
@@ -162,11 +163,19 @@ def test_conversation_returns_validated_reply_without_mutating_self(
     assert reply.context_manifest.character_context_schema_version == 16
     assert reply.cognition_trace is not None
     assert reply.context_manifest.cognition_pipeline_status == "applied"
-    assert reply.context_manifest.cognition_template_id == "satori.cognition.response-strategy"
-    assert reply.context_manifest.cognition_template_schema_version == 1
-    assert "cognition_response_strategy" in reply.context_manifest.included_sections
+    assert reply.context_manifest.cognition_intent_registry_version == 2
+    assert reply.context_manifest.cognition_template_id == "satori.cognition.response-substance"
+    assert reply.context_manifest.cognition_template_schema_version == 3
+    assert "cognition_response_strategy" not in reply.context_manifest.included_sections
+    assert "character_delivery_decision" in reply.context_manifest.included_sections
+    assert reply.context_manifest.character_delivery_decision_schema_version == 4
+    assert reply.context_manifest.character_presence_projection_schema_version == 2
     assert any(
-        "Transient cognition response strategy" in message.content
+        "Trusted current-turn presence Сатори" in message.content
+        for message in provider.requests[0].messages
+    )
+    assert all(
+        "Единая request-local режиссура реплики Сатори" not in message.content
         for message in provider.requests[0].messages
     )
     assert actual == expected
@@ -234,7 +243,12 @@ def test_provider_failure_is_typed_logged_and_does_not_mutate_or_leak_text(
     stream = StringIO()
     configure_logging(LogLevel.INFO, stream=stream)
     provider = FakeConversationProvider(
-        error=ProviderUnavailable("fake-offline", "fixture", "provider unavailable")
+        error=ProviderUnavailable(
+            "fake-offline",
+            "fixture",
+            "provider unavailable",
+            reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        )
     )
     private_text = "мой приватный текст"
 
@@ -253,7 +267,22 @@ def test_provider_failure_is_typed_logged_and_does_not_mutate_or_leak_text(
     ]
     assert records[-1]["fields"]["provider"] == "fake-offline"
     assert records[-1]["fields"]["error_type"] == "ProviderUnavailable"
+    assert records[-1]["fields"]["failure_reason"] == "transport_unavailable"
     assert private_text not in stream.getvalue()
+    with migrated_database.engine.connect() as connection:
+        failed = connection.execute(
+            text(
+                "SELECT status, failure_kind, failure_reason, provider, model "
+                "FROM conversation_interactions"
+            )
+        ).one()
+    assert tuple(failed) == (
+        "failed",
+        "ProviderUnavailable",
+        "transport_unavailable",
+        "fake-offline",
+        "fixture",
+    )
     assert after == before
 
 
@@ -313,7 +342,31 @@ def test_untyped_provider_exception_is_wrapped_without_leaking_error_text(
         talk(migrated_database, provider)
 
     assert isinstance(error.value.__cause__, RuntimeError)
+    assert error.value.reason is ConversationProviderFailureReason.ADAPTER_CONTRACT_VIOLATION
     assert private_error_text not in stream.getvalue()
+    with migrated_database.engine.connect() as connection:
+        failed = connection.execute(
+            text(
+                "SELECT failure_kind, failure_reason, provider, model "
+                "FROM conversation_interactions"
+            )
+        ).one()
+    assert tuple(failed) == (
+        "GenerationFailed",
+        "adapter_contract_violation",
+        "unknown",
+        "unknown",
+    )
+
+
+def test_provider_error_requires_closed_failure_reason() -> None:
+    with pytest.raises(ValueError, match="ConversationProviderFailureReason"):
+        GenerationFailed(
+            "fixture-provider",
+            "fixture-model",
+            "safe detail",
+            reason="free-form-reason",  # type: ignore[arg-type]
+        )
 
 
 @pytest.mark.parametrize("text", ["", "   "])

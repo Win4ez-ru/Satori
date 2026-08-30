@@ -27,6 +27,15 @@ from tests.checkpoint142_openai_character_eval import (
     EXPECTED_PRIMARY_TEXTS,
     EXPECTED_REQUIRED_BASE_CALLS,
     EXPECTED_SESSION_COUNT,
+    V20_EXPECTED_CORPUS_ID,
+    V20_EXPECTED_POLICY_ID,
+    V20_FIXTURE_PATH,
+    V22_EXPECTED_CORPUS_ID,
+    V22_EXPECTED_POLICY_ID,
+    V22_FIXTURE_PATH,
+    V23_EXPECTED_CORPUS_ID,
+    V23_EXPECTED_POLICY_ID,
+    V23_FIXTURE_PATH,
     BudgetedOpenAIConversationProvider,
     CharacterGateConfigurationError,
     OpenAICallLedger,
@@ -269,13 +278,129 @@ def _all_true_review(fixture: dict[str, Any], report: dict[str, Any]) -> dict[st
                 }
             )
         sessions.append({"session_number": session_number, "turns": turns})
-    return {
+    review = {
         "schema_version": 1,
-        "corpus_id": EXPECTED_CORPUS_ID,
+        "corpus_id": fixture["corpus_id"],
         "artifact_id": report["artifact_id"],
         "sample_digest": report["sample_digest"],
         "sessions": sessions,
     }
+    if "cross_session_boolean_definitions" in primary:
+        cross_session_definitions = cast(
+            list[dict[str, str]], primary["cross_session_boolean_definitions"]
+        )
+        review["cross_session"] = {
+            definition["key"]: True for definition in cross_session_definitions
+        }
+    return review
+
+
+def _completed_v20_report() -> tuple[dict[str, Any], dict[str, Any]]:
+    fixture = load_sampling_fixture(V20_FIXTURE_PATH)
+    report = _completed_report(load_sampling_fixture())
+    report.update(
+        {
+            "purpose": "openai_character_sampling_v20_primary_gate",
+            "artifact_id": ("satori-checkpoint142-openai-v20:00000000-0000-4000-8000-000000000020"),
+            "corpus_id": V20_EXPECTED_CORPUS_ID,
+            "policy_id": V20_EXPECTED_POLICY_ID,
+            "suite_id": cast(dict[str, Any], fixture["primary_suite"])["suite_id"],
+        }
+    )
+    cast(dict[str, Any], report["configuration"])["policy_id"] = V20_EXPECTED_POLICY_ID
+    sessions = cast(list[dict[str, Any]], report["sessions"])
+    expected_axes = (
+        ("owned_evaluation", "none", "none"),
+        ("grounded_direction", "supportive_push", "gentle"),
+    )
+    for session in sessions:
+        for turn in cast(list[dict[str, Any]], session["turns"]):
+            manifest = cast(dict[str, Any], turn["manifest"])
+            manifest["policy_id"] = V20_EXPECTED_POLICY_ID
+            manifest["policy_schema_version"] = 20
+            manifest["character_expression_plan_schema_version"] = 3
+            axes = expected_axes[cast(int, turn["turn"]) - 1]
+            manifest["character_contribution_mode"] = axes[0]
+            manifest["character_motivational_posture"] = axes[1]
+            manifest["character_pressure_level"] = axes[2]
+    report["sample_digest"] = sample_content_digest(report)
+    return fixture, report
+
+
+def _completed_v22_report() -> tuple[dict[str, Any], dict[str, Any]]:
+    fixture = load_sampling_fixture(V22_FIXTURE_PATH)
+    report = _completed_report(load_sampling_fixture())
+    report.update(
+        {
+            "purpose": "openai_character_sampling_v22_primary_gate",
+            "artifact_id": ("satori-checkpoint142-openai-v22:00000000-0000-4000-8000-000000000022"),
+            "corpus_id": V22_EXPECTED_CORPUS_ID,
+            "policy_id": V22_EXPECTED_POLICY_ID,
+            "suite_id": cast(dict[str, Any], fixture["primary_suite"])["suite_id"],
+        }
+    )
+    cast(dict[str, Any], report["configuration"])["policy_id"] = V22_EXPECTED_POLICY_ID
+    sessions = cast(list[dict[str, Any]], report["sessions"])
+    expected_support_axes = (
+        ("owned_evaluation", "none", "none"),
+        ("emotional_reaction", "none", "none"),
+    )
+    expected_flow_axes = (("implicit", "complete"), ("omit", "complete"))
+    for session in sessions:
+        for turn in cast(list[dict[str, Any]], session["turns"]):
+            manifest = cast(dict[str, Any], turn["manifest"])
+            manifest["policy_id"] = V22_EXPECTED_POLICY_ID
+            manifest["policy_schema_version"] = 22
+            manifest["character_expression_plan_schema_version"] = 4
+            turn_index = cast(int, turn["turn"]) - 1
+            support_axes = expected_support_axes[turn_index]
+            manifest["character_contribution_mode"] = support_axes[0]
+            manifest["character_motivational_posture"] = support_axes[1]
+            manifest["character_pressure_level"] = support_axes[2]
+            flow_axes = expected_flow_axes[turn_index]
+            manifest["character_acknowledgement_mode"] = flow_axes[0]
+            manifest["character_continuation_mode"] = flow_axes[1]
+    report["sample_digest"] = sample_content_digest(report)
+    return fixture, report
+
+
+def _completed_v23_report() -> tuple[dict[str, Any], dict[str, Any]]:
+    fixture = load_sampling_fixture(V23_FIXTURE_PATH)
+    report = _completed_report(load_sampling_fixture())
+    report.update(
+        {
+            "purpose": "openai_character_sampling_v23_primary_gate",
+            "artifact_id": ("satori-checkpoint142-openai-v23:00000000-0000-4000-8000-000000000023"),
+            "corpus_id": V23_EXPECTED_CORPUS_ID,
+            "policy_id": V23_EXPECTED_POLICY_ID,
+            "suite_id": cast(dict[str, Any], fixture["primary_suite"])["suite_id"],
+        }
+    )
+    configuration = cast(dict[str, Any], report["configuration"])
+    configuration["policy_id"] = V23_EXPECTED_POLICY_ID
+    configuration["openai_reasoning_effort"] = "medium"
+    sessions = cast(list[dict[str, Any]], report["sessions"])
+    expected_support_axes = (
+        ("owned_evaluation", "none", "none"),
+        ("grounded_direction", "supportive_push", "gentle"),
+    )
+    expected_flow_axes = (("implicit", "complete"), ("omit", "complete"))
+    for session in sessions:
+        for turn in cast(list[dict[str, Any]], session["turns"]):
+            manifest = cast(dict[str, Any], turn["manifest"])
+            manifest["policy_id"] = V23_EXPECTED_POLICY_ID
+            manifest["policy_schema_version"] = 23
+            manifest["character_expression_plan_schema_version"] = 5
+            turn_index = cast(int, turn["turn"]) - 1
+            support_axes = expected_support_axes[turn_index]
+            manifest["character_contribution_mode"] = support_axes[0]
+            manifest["character_motivational_posture"] = support_axes[1]
+            manifest["character_pressure_level"] = support_axes[2]
+            flow_axes = expected_flow_axes[turn_index]
+            manifest["character_acknowledgement_mode"] = flow_axes[0]
+            manifest["character_continuation_mode"] = flow_axes[1]
+    report["sample_digest"] = sample_content_digest(report)
+    return fixture, report
 
 
 def test_sampling_fixture_has_exact_primary_cardinality_and_separate_repeat_suite() -> None:
@@ -304,6 +429,40 @@ def test_sampling_fixture_has_exact_primary_cardinality_and_separate_repeat_suit
     assert not (
         {turn["id"] for turn in _primary_turns(fixture)} & {turn["id"] for turn in repeat_turns}
     )
+
+
+def test_v20_sampling_fixture_and_completed_report_use_schema_v3_axes() -> None:
+    fixture, report = _completed_v20_report()
+
+    validate_sampling_fixture(fixture)
+    validate_completed_sample_report(fixture, report)
+    accepted = aggregate_human_review(fixture, report, _all_true_review(fixture, report))
+
+    assert accepted["accepted"] is True
+    assert accepted["cross_session_pass"] is True
+
+
+def test_v22_sampling_fixture_and_completed_report_use_response_act_policy() -> None:
+    fixture, report = _completed_v22_report()
+
+    validate_sampling_fixture(fixture)
+    validate_completed_sample_report(fixture, report)
+    accepted = aggregate_human_review(fixture, report, _all_true_review(fixture, report))
+
+    assert accepted["accepted"] is True
+    assert accepted["cross_session_pass"] is True
+
+
+def test_v23_sampling_fixture_and_completed_report_use_medium_reasoning_and_plan_v5() -> None:
+    fixture, report = _completed_v23_report()
+
+    validate_sampling_fixture(fixture)
+    validate_completed_sample_report(fixture, report)
+    accepted = aggregate_human_review(fixture, report, _all_true_review(fixture, report))
+
+    assert cast(dict[str, Any], report["configuration"])["openai_reasoning_effort"] == "medium"
+    assert accepted["accepted"] is True
+    assert accepted["cross_session_pass"] is True
 
 
 def test_sampling_fixture_recursively_forbids_golden_or_desired_reply_contracts() -> None:

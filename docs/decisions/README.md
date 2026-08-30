@@ -1,6 +1,9 @@
 # Architecture Decision Records
 
-Accepted ADRs are immutable history. To change a decision, add a new ADR with `Supersedes: ADR-XXXX`; do not rewrite the old rationale. Status values: Proposed, Accepted, Superseded, Rejected.
+Accepted ADRs are immutable history. To change a decision, add a new ADR with
+`Supersedes: ADR-XXXX`; do not rewrite the old rationale. Status values: Proposed, Accepted,
+Superseded in part, Superseded, Rejected. A partial supersession in this index leaves the historical
+ADR file unchanged and identifies that only the scope named by the newer ADR was replaced.
 
 | ADR | Status | Decision |
 |---|---|---|
@@ -39,6 +42,13 @@ Accepted ADRs are immutable history. To change a decision, add a new ADR with `S
 | [0033](0033-late-compact-character-delivery.md) | Superseded in part | Late compact realization of the typed character-expression plan without enum labels or scripts |
 | [0034](0034-relevance-scoped-memory-and-literal-delivery.md) | Superseded in part | Relevance-scoped no-recall wording and shorter literal realization of the same typed character plan |
 | [0035](0035-single-late-character-realization.md) | Superseded in part | Single late realization of the complete typed character plan with grounded practical initiative |
-| [0036](0036-owned-contribution-and-motivational-posture.md) | Accepted | Separate factual anchor, owned contribution and bounded motivational posture in request-local plan v3 |
+| [0036](0036-owned-contribution-and-motivational-posture.md) | Superseded in part | Separate factual anchor, owned contribution and bounded motivational posture in request-local plan v3 |
+| [0037](0037-non-echoing-flow-and-guarded-expression.md) | Superseded in part | Non-echoing acknowledgement, natural closure and request-local guarded expression in plan v4 |
+| [0038](0038-response-act-and-evidence-envelope.md) | Superseded in part | One derived response act plus an explicit request-local evidence envelope without factual recap |
+| [0039](0039-practical-care-and-lean-provider-projection.md) | Superseded in part | Practical care for ordinary depletion and one lean action/evidence/voice/stop provider projection |
+| [0040](0040-direct-character-delivery-decision.md) | Superseded in part | Direct v24 character-delivery decision with one cohesive baseline and one late provider director |
+| [0041](0041-v25-social-disclosure-and-failure-observability.md) | Superseded in part | Historical v25 social/self-disclosure delivery; accepted privacy-safe provider failure reasons and explicit relationship recovery |
+| [0042](0042-unified-causal-character-presence.md) | Superseded in part | Historical v26 causal presence and accepted owner bridge; current selection/rendering replaced by ADR-0043 |
+| [0043](0043-live-state-selected-character-movement.md) | Accepted | V27 live-state-selected operational character movement with compact cognition-preserving rendering |
 
 Open implementation choices are tracked in `../open-questions.md`; do not create a fictional ADR where evidence is not yet available.

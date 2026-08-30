@@ -10,6 +10,7 @@ import pytest
 
 from satori.application.conversation.context import plan_conversational_disclosure
 from satori.application.conversation.contracts import ConversationContextManifest, SatoriReply
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V26
 from satori.application.conversation.response_validation import (
     ResponseRegenerationReason,
     has_affect_blanket_denial,
@@ -27,6 +28,7 @@ from satori.dialogue_evaluation import (
 )
 from tests.stage81_real_eval import (
     DERIVED_MODES,
+    EVALUATOR_BEHAVIOR_POLICY,
     REPORT_SCHEMA_VERSION,
     SUITES,
     _aggregate_generation_attempts,
@@ -73,6 +75,14 @@ EXACT_PRODUCTION_USER_TURNS = (
     "ты злая",
     "что ты думаешь о любви?",
 )
+
+
+def test_real_dialogue_evaluator_uses_current_production_policy() -> None:
+    """The generic sampled regression must track the production composition default."""
+
+    assert EVALUATOR_BEHAVIOR_POLICY is BEHAVIOR_POLICY_V26
+    assert EVALUATOR_BEHAVIOR_POLICY.policy_id == "satori.conversation.behavior.v26"
+    assert EVALUATOR_BEHAVIOR_POLICY.schema_version == 26
 
 
 def _load_corpus() -> dict[str, Any]:
@@ -272,11 +282,19 @@ def test_manual_real_eval_exports_v16_character_metadata_without_private_context
         policy_id="satori.conversation.behavior.v16",
         policy_schema_version=16,
         character_context_schema_version=16,
-        included_sections=("character",),
+        included_sections=(
+            "behavior_policy",
+            "self_model",
+            "personality_expression",
+            "values",
+            "retrieved_episodic_memory",
+            "current_user_input",
+        ),
         user_content_chars=42,
         personality_aggregate_version=1,
         personality_expression_schema_version=2,
-        available_past_evidence_ids=("private-evidence-id",),
+        available_past_evidence_ids=("private-memory-id",),
+        retrieval_status="retrieved",
         retrieved_memory_ids=("private-memory-id",),
         character_expression_plan_schema_version=2,
         character_expression_register="guarded_concern",
@@ -308,19 +326,27 @@ def test_manual_real_eval_exports_v16_character_metadata_without_private_context
     assert "available_past_evidence_ids" not in sanitized
 
 
-def test_manual_real_eval_exports_v20_support_axes_without_private_context() -> None:
+def test_manual_real_eval_exports_v22_flow_axes_without_private_context() -> None:
     manifest = ConversationContextManifest(
         schema_version=16,
-        policy_id="satori.conversation.behavior.v20",
-        policy_schema_version=20,
+        policy_id="satori.conversation.behavior.v22",
+        policy_schema_version=22,
         character_context_schema_version=16,
-        included_sections=("character",),
+        included_sections=(
+            "behavior_policy",
+            "self_model",
+            "personality_expression",
+            "values",
+            "retrieved_episodic_memory",
+            "current_user_input",
+        ),
         user_content_chars=68,
         personality_aggregate_version=1,
         personality_expression_schema_version=2,
-        available_past_evidence_ids=("private-evidence-id",),
+        available_past_evidence_ids=("private-memory-id",),
+        retrieval_status="retrieved",
         retrieved_memory_ids=("private-memory-id",),
-        character_expression_plan_schema_version=3,
+        character_expression_plan_schema_version=4,
         character_expression_register="guarded_concern",
         character_owned_reaction="sober_concern",
         character_semantic_move="connect_explicit_contrast",
@@ -332,6 +358,8 @@ def test_manual_real_eval_exports_v20_support_axes_without_private_context() -> 
         character_contribution_mode="grounded_direction",
         character_motivational_posture="supportive_push",
         character_pressure_level="gentle",
+        character_acknowledgement_mode="omit",
+        character_continuation_mode="complete",
     )
     reply = SatoriReply(
         text="Публичный тестовый ответ.",
@@ -347,10 +375,12 @@ def test_manual_real_eval_exports_v20_support_axes_without_private_context() -> 
 
     sanitized = _sanitized_manifest(reply)
 
-    assert sanitized["character_expression_plan_schema_version"] == 3
+    assert sanitized["character_expression_plan_schema_version"] == 4
     assert sanitized["character_contribution_mode"] == "grounded_direction"
     assert sanitized["character_motivational_posture"] == "supportive_push"
     assert sanitized["character_pressure_level"] == "gentle"
+    assert sanitized["character_acknowledgement_mode"] == "omit"
+    assert sanitized["character_continuation_mode"] == "complete"
     assert "retrieved_memory_ids" not in sanitized
     assert "available_past_evidence_ids" not in sanitized
 
@@ -368,7 +398,13 @@ def test_manual_real_eval_retains_public_sampled_reply_verbatim() -> None:
             policy_id="satori.conversation.behavior.v16",
             policy_schema_version=16,
             character_context_schema_version=16,
-            included_sections=("character",),
+            included_sections=(
+                "behavior_policy",
+                "self_model",
+                "personality_expression",
+                "values",
+                "current_user_input",
+            ),
             user_content_chars=12,
             personality_aggregate_version=1,
             personality_expression_schema_version=2,

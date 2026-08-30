@@ -6,13 +6,14 @@
 import math
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from satori.application.affect.contracts import EmotionAppraisalStatus, PreparedAffectiveContext
 from satori.application.cognition.contracts import (
     APPRAISAL_ARTIFACT_SCHEMA_VERSION,
     COGNITION_PIPELINE_SCHEMA_VERSION,
-    INTENT_REGISTRY_VERSION,
+    INTENT_REGISTRY_VERSION_V1,
+    INTENT_REGISTRY_VERSION_V2,
     INTENT_SCHEMA_VERSION,
     INTERNAL_POSITION_SCHEMA_VERSION,
     NEED_MIX_SCHEMA_VERSION,
@@ -68,6 +69,7 @@ _TOPIC_CUES: dict[PerceivedTopic, tuple[str, ...]] = {
         "не рад",
         "тяжело",
         "эмоц",
+        "что-то случилось",
     ),
     PerceivedTopic.RELATIONSHIP: ("отношен", "между нами", "довер", "близ", "люб"),
     PerceivedTopic.MEMORY: ("помни", "вспомни", "обсуждали", "раньше", "прошл"),
@@ -103,9 +105,17 @@ def _unique(values: list[str]) -> tuple[str, ...]:
 
 @dataclass(slots=True)
 class DeterministicCognitionPlanner:
-    """Conservative V1 planner with no model, repository or state-write capability."""
+    """Versioned conservative planner with no model, repository or state-write capability."""
 
     monotonic: Callable[[], float] = time.perf_counter
+    intent_registry_version: int = INTENT_REGISTRY_VERSION_V1
+
+    def __post_init__(self) -> None:
+        if self.intent_registry_version not in {
+            INTENT_REGISTRY_VERSION_V1,
+            INTENT_REGISTRY_VERSION_V2,
+        }:
+            raise ValueError("cognition intent_registry_version is not supported")
 
     def prepare_intake(
         self,
@@ -145,6 +155,21 @@ class DeterministicCognitionPlanner:
             signals.append(PerceptionSignal.CHALLENGE_REQUEST)
         if dialogue.repeated_turn:
             signals.append(PerceptionSignal.REPEATED_TURN)
+        if self.intent_registry_version >= INTENT_REGISTRY_VERSION_V2:
+            if dialogue.explicit_listen_request:
+                signals.append(PerceptionSignal.EXPLICIT_LISTEN_REQUEST)
+            if dialogue.high_distress:
+                signals.append(PerceptionSignal.HIGH_DISTRESS)
+            if dialogue.harmful_overextension:
+                signals.append(PerceptionSignal.HARMFUL_OVEREXTENSION)
+            if dialogue.explicit_motivation_request:
+                signals.append(PerceptionSignal.EXPLICIT_MOTIVATION_REQUEST)
+            if dialogue.explicit_task_abandonment:
+                signals.append(PerceptionSignal.EXPLICIT_TASK_ABANDONMENT)
+            if dialogue.explicit_repair_offer:
+                signals.append(PerceptionSignal.EXPLICIT_REPAIR_OFFER)
+            if dialogue.self_disclosure_request:
+                signals.append(PerceptionSignal.SELF_DISCLOSURE_REQUEST)
         perception = Perception(
             schema_version=PERCEPTION_SCHEMA_VERSION,
             status=status,
@@ -226,6 +251,21 @@ class DeterministicCognitionPlanner:
             if fallback_reasons
             else CognitionArtifactStatus.APPLIED
         )
+        if any(
+            artifact.status is not status
+            for artifact in (
+                intake.perception,
+                intake.need_mix,
+                intake.retrieval_plan,
+            )
+        ):
+            intake = replace(
+                intake,
+                perception=replace(intake.perception, status=status),
+                need_mix=replace(intake.need_mix, status=status),
+                retrieval_plan=replace(intake.retrieval_plan, status=status),
+                fallback_reasons=fallback_reasons,
+            )
 
         started = self.monotonic()
         appraisal = self._appraisal_artifact(interaction_id, prepared_affect)
@@ -292,10 +332,23 @@ class DeterministicCognitionPlanner:
         signals = set(perception.signals)
         if PerceivedTopic.TECHNICAL in topics:
             weights.update({NeedDimension.INFORMATION: 0.72, NeedDimension.ANALYSIS: 0.84})
-        if PerceivedTopic.EMOTIONAL in topics or PerceptionSignal.DISTRESS_LANGUAGE in signals:
+        self_disclosure_request = PerceptionSignal.SELF_DISCLOSURE_REQUEST in signals
+        if (
+            PerceivedTopic.EMOTIONAL in topics or PerceptionSignal.DISTRESS_LANGUAGE in signals
+        ) and not self_disclosure_request:
             weights[NeedDimension.EMOTIONAL_PRESENCE] = 0.86
             weights[NeedDimension.REASSURANCE] = 0.62
             weights[NeedDimension.INFORMATION] = min(weights[NeedDimension.INFORMATION], 0.28)
+        if signals.intersection(
+            {
+                PerceptionSignal.EXPLICIT_LISTEN_REQUEST,
+                PerceptionSignal.HIGH_DISTRESS,
+            }
+        ):
+            weights[NeedDimension.EMOTIONAL_PRESENCE] = 0.95
+            weights[NeedDimension.INFORMATION] = min(weights[NeedDimension.INFORMATION], 0.20)
+        if self_disclosure_request:
+            weights[NeedDimension.INFORMATION] = max(weights[NeedDimension.INFORMATION], 0.76)
         if PerceivedTopic.DECISION in topics:
             weights[NeedDimension.DECISION_SUPPORT] = 0.82
             weights[NeedDimension.ANALYSIS] = max(weights.get(NeedDimension.ANALYSIS, 0.0), 0.58)
@@ -353,8 +406,8 @@ class DeterministicCognitionPlanner:
             mood_state_version=prepared_affect.expression.mood_version,
         )
 
-    @staticmethod
     def _position(
+        self,
         intake: PreparedCognitionIntake,
         appraisal: AppraisalArtifact,
         *,
@@ -363,12 +416,42 @@ class DeterministicCognitionPlanner:
     ) -> InternalPosition:
         needs = intake.need_mix
         signals = set(intake.perception.signals)
-        if status is CognitionArtifactStatus.FALLBACK or needs.uncertainty >= 0.55:
+        explicit_presence = bool(
+            signals.intersection(
+                {
+                    PerceptionSignal.EXPLICIT_LISTEN_REQUEST,
+                    PerceptionSignal.HIGH_DISTRESS,
+                    PerceptionSignal.HARMFUL_OVEREXTENSION,
+                }
+            )
+        )
+        if self.intent_registry_version >= INTENT_REGISTRY_VERSION_V2 and explicit_presence:
+            stance = PositionStance.LISTEN
+            summary = "Prioritize explicitly requested or safety-relevant presence."
+        elif (
+            self.intent_registry_version >= INTENT_REGISTRY_VERSION_V2
+            and PerceptionSignal.SELF_DISCLOSURE_REQUEST in signals
+        ):
+            stance = PositionStance.ANSWER
+            summary = "Answer the explicit request about Satori from trusted self state."
+        elif status is CognitionArtifactStatus.FALLBACK or needs.uncertainty >= 0.55:
             stance = PositionStance.UNCERTAIN
             summary = "Respond conservatively and make material uncertainty explicit."
         elif PerceptionSignal.CORRECTION in signals:
             stance = PositionStance.ACKNOWLEDGE
             summary = "Acknowledge the correction before addressing the current request."
+        elif (
+            self.intent_registry_version >= INTENT_REGISTRY_VERSION_V2
+            and PerceptionSignal.EXPLICIT_TASK_ABANDONMENT in signals
+        ):
+            stance = PositionStance.CHALLENGE
+            summary = "Challenge the stated abandonment without attacking the person."
+        elif (
+            self.intent_registry_version >= INTENT_REGISTRY_VERSION_V2
+            and PerceptionSignal.EXPLICIT_MOTIVATION_REQUEST in signals
+        ):
+            stance = PositionStance.COLLABORATE
+            summary = "Provide the explicitly requested bounded motivational push."
         elif needs.weight(NeedDimension.EMOTIONAL_PRESENCE) >= 0.7:
             stance = PositionStance.LISTEN
             summary = "Prioritize attentive presence before analysis or advice."
@@ -406,8 +489,8 @@ class DeterministicCognitionPlanner:
             requires_uncertainty=(stance is PositionStance.UNCERTAIN or needs.uncertainty >= 0.5),
         )
 
-    @staticmethod
     def _intent(
+        self,
         intake: PreparedCognitionIntake,
         position: InternalPosition,
         *,
@@ -421,15 +504,43 @@ class DeterministicCognitionPlanner:
             PositionStance.COLLABORATE: "support_decision",
             PositionStance.ACKNOWLEDGE: "acknowledge_correction",
         }
-        primary = primary_by_stance[position.stance]
+        safety_boundary = (
+            self.intent_registry_version >= INTENT_REGISTRY_VERSION_V2
+            and PerceptionSignal.HARMFUL_OVEREXTENSION in intake.perception.signals
+        )
+        repeated = (
+            self.intent_registry_version >= INTENT_REGISTRY_VERSION_V2
+            and PerceptionSignal.REPEATED_TURN in intake.perception.signals
+        )
+        repair_offer = (
+            self.intent_registry_version >= INTENT_REGISTRY_VERSION_V2
+            and PerceptionSignal.EXPLICIT_REPAIR_OFFER in intake.perception.signals
+            and position.stance is PositionStance.ANSWER
+            and not {
+                PerceptionSignal.QUESTION,
+                PerceptionSignal.REQUEST,
+                PerceptionSignal.CORRECTION,
+                PerceptionSignal.CHALLENGE_REQUEST,
+            }.intersection(intake.perception.signals)
+        )
+        primary = (
+            "hold_safety_boundary"
+            if safety_boundary
+            else "notice_repetition"
+            if repeated
+            else "receive_repair"
+            if repair_offer
+            else primary_by_stance[position.stance]
+        )
         tags = [primary, "preserve_evidence_boundary"]
-        if intake.need_mix.weight(NeedDimension.ANALYSIS) >= 0.5:
+        meta_intent = safety_boundary or repeated or repair_offer
+        if not meta_intent and intake.need_mix.weight(NeedDimension.ANALYSIS) >= 0.5:
             tags.append("analyze")
-        if intake.need_mix.weight(NeedDimension.CREATIVE_COLLABORATION) >= 0.7:
+        if not meta_intent and intake.need_mix.weight(NeedDimension.CREATIVE_COLLABORATION) >= 0.7:
             tags.append("collaborate_creatively")
         return IntentSelection(
             schema_version=INTENT_SCHEMA_VERSION,
-            registry_version=INTENT_REGISTRY_VERSION,
+            registry_version=self.intent_registry_version,
             status=status,
             primary_tag=primary,
             tags=_unique(tags),
@@ -455,19 +566,29 @@ class DeterministicCognitionPlanner:
             PositionStance.ACKNOWLEDGE: ResponseTone.WARM_DIRECT,
         }
         verbosity = (
-            ResponseVerbosity.DETAILED
+            ResponseVerbosity.BRIEF
+            if intent.primary_tag in {"notice_repetition", "hold_safety_boundary", "receive_repair"}
+            else ResponseVerbosity.DETAILED
             if PerceivedTopic.TECHNICAL in intake.perception.topics
             else ResponseVerbosity.BRIEF
             if position.stance in {PositionStance.LISTEN, PositionStance.ACKNOWLEDGE}
             else ResponseVerbosity.MEDIUM
         )
-        points = [intent.primary_tag, "address_current_request"]
-        if position.requires_uncertainty:
+        meta_intent = intent.primary_tag in {
+            "notice_repetition",
+            "hold_safety_boundary",
+            "receive_repair",
+        }
+        points = (
+            [intent.primary_tag] if meta_intent else [intent.primary_tag, "address_current_request"]
+        )
+        if not meta_intent and position.requires_uncertainty:
             points.append("state_uncertainty")
-        if "distress_requires_care" in position.concern_codes:
+        if not meta_intent and "distress_requires_care" in position.concern_codes:
             points.append("presence_before_advice")
         inclination_allowed = (
             status is CognitionArtifactStatus.APPLIED
+            and not meta_intent
             and curiosity_influence > 0.0
             and position.stance
             not in {PositionStance.LISTEN, PositionStance.ACKNOWLEDGE, PositionStance.UNCERTAIN}
@@ -569,9 +690,13 @@ class SafeCognitionPipeline:
             )
             if not set(intake.fallback_reasons).issubset(result.fallback_reasons):
                 raise ValueError("cognition trace discarded an intake fallback reason")
+            self._validate_curiosity_projection(
+                result,
+                requested_influence=curiosity_influence,
+            )
             return result
         except Exception as error:
-            return self.fallback.complete(
+            fallback_result = self.fallback.complete(
                 intake,
                 interaction_id=interaction_id,
                 available_evidence_ids=available_evidence_ids,
@@ -579,6 +704,11 @@ class SafeCognitionPipeline:
                 curiosity_influence=curiosity_influence,
                 fallback_reason=self._reason(error, phase="completion"),
             )
+            self._validate_curiosity_projection(
+                fallback_result,
+                requested_influence=curiosity_influence,
+            )
+            return fallback_result
 
     @staticmethod
     def _reason(error: Exception, *, phase: str) -> str:
@@ -616,3 +746,26 @@ class SafeCognitionPipeline:
         ):
             if not set(artifact_refs).issubset(allowed_refs):
                 raise ValueError("cognition trace contains an unavailable source ref")
+
+    @staticmethod
+    def _validate_curiosity_projection(
+        trace: CognitionPipelineTrace,
+        *,
+        requested_influence: float,
+    ) -> None:
+        """Keep owner-approved curiosity bounded across an untrusted planner boundary."""
+
+        if (
+            isinstance(requested_influence, bool)
+            or not math.isfinite(requested_influence)
+            or not 0.0 <= requested_influence <= 0.20
+        ):
+            raise ValueError("curiosity_influence must be in [0, 0.20]")
+        projected_influence = trace.response_strategy.curiosity_influence
+        if projected_influence not in {0.0, requested_influence}:
+            raise ValueError("cognition planner changed owner-approved curiosity influence")
+        inclination_present = "topic_relevant_inclination" in trace.response_strategy.point_codes
+        if (projected_influence > 0.0) is not inclination_present:
+            raise ValueError("cognition planner curiosity point and influence disagree")
+        if projected_influence > 0.0 and trace.status is not CognitionArtifactStatus.APPLIED:
+            raise ValueError("fallback cognition cannot project curiosity influence")

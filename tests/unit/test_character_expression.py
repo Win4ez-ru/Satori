@@ -19,7 +19,11 @@ from satori.application.cognition.contracts import (
 from satori.application.conversation.character_expression import (
     BASELINE_CHARACTER_GUIDANCE_CODES,
     CHARACTER_EXPRESSION_PLAN_V3_SCHEMA_VERSION,
+    CHARACTER_EXPRESSION_PLAN_V4_SCHEMA_VERSION,
+    CHARACTER_EXPRESSION_PLAN_V5_SCHEMA_VERSION,
+    CharacterAcknowledgementMode,
     CharacterCareStyle,
+    CharacterContinuationMode,
     CharacterContributionMode,
     CharacterExpressionPlan,
     CharacterExpressionRegister,
@@ -34,10 +38,88 @@ from satori.application.conversation.character_expression import (
     plan_character_expression,
     render_character_delivery_brief,
     render_character_expression_plan,
+    render_compact_response_act_character_realization,
     render_literal_character_delivery_brief,
+    render_non_echoing_character_realization,
     render_owned_contribution_character_realization,
     render_single_late_character_realization,
 )
+
+
+def test_v23_ordinary_depletion_selects_practical_care_with_bounded_push() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.LISTEN, humor=0.0),
+        affect_profile="soft_negative_non_hostile",
+        relationship_profile="fresh_undeveloped_neutral",
+        completion_depletion_contrast=True,
+        explicit_depletion=True,
+        plan_schema_version=CHARACTER_EXPRESSION_PLAN_V5_SCHEMA_VERSION,
+    )
+
+    assert plan.schema_version == 5
+    assert plan.contribution_mode is CharacterContributionMode.GROUNDED_DIRECTION
+    assert plan.motivational_posture is CharacterMotivationalPosture.SUPPORTIVE_PUSH
+    assert plan.pressure_level is CharacterPressureLevel.GENTLE
+    assert plan.wit is CharacterWitStyle.RESTRAINED
+    assert plan.care is CharacterCareStyle.PRACTICAL
+    assert plan.initiative is CharacterInitiative.CONCRETE_NEXT_STEP
+    assert plan.acknowledgement_mode is CharacterAcknowledgementMode.OMIT
+    assert plan.continuation_mode is CharacterContinuationMode.COMPLETE
+
+    rendered = render_compact_response_act_character_realization(plan)
+    assert rendered.count("\n-") == 4
+    assert "- Действие:" in rendered
+    assert "- Опора:" in rendered
+    assert "- Голос:" in rendered
+    assert "- Стоп:" in rendered
+    assert "практический ход" in rendered
+    assert "психологическую нормализацию" in rendered
+    assert "сложная часть" not in rendered.casefold()
+    assert "выжатость" not in rendered.casefold()
+
+
+@pytest.mark.parametrize(
+    ("high_distress", "explicit_listen_request"),
+    [(True, False), (False, True), (True, True)],
+)
+def test_v23_serious_distress_or_listen_request_blocks_practical_push(
+    high_distress: bool,
+    explicit_listen_request: bool,
+) -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.LISTEN, humor=0.0),
+        affect_profile="soft_negative_non_hostile",
+        completion_depletion_contrast=True,
+        explicit_depletion=True,
+        high_distress=high_distress,
+        explicit_listen_request=explicit_listen_request,
+        plan_schema_version=CHARACTER_EXPRESSION_PLAN_V5_SCHEMA_VERSION,
+    )
+
+    assert plan.contribution_mode is CharacterContributionMode.QUIET_PRESENCE
+    assert plan.motivational_posture is CharacterMotivationalPosture.NONE
+    assert plan.pressure_level is CharacterPressureLevel.NONE
+    assert plan.care is CharacterCareStyle.OPEN
+    rendered = render_compact_response_act_character_realization(plan)
+    assert "забота важнее иронии" in rendered
+    assert "мягким толчком вперёд" not in rendered
+
+
+def test_v23_achievement_allows_only_non_semantic_acknowledgement_before_owned_verdict() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.ANSWER),
+        affect_profile="positive_light",
+        completed_achievement=True,
+        plan_schema_version=CHARACTER_EXPRESSION_PLAN_V5_SCHEMA_VERSION,
+    )
+
+    assert plan.contribution_mode is CharacterContributionMode.OWNED_EVALUATION
+    assert plan.acknowledgement_mode is CharacterAcknowledgementMode.IMPLICIT
+    assert plan.continuation_mode is CharacterContinuationMode.COMPLETE
+    rendered = render_compact_response_act_character_realization(plan)
+    assert "короткая контекстная частица" in rendered
+    assert "после него не нужны пересказ, обоснование или второй вывод" in rendered
+    assert "результат" not in rendered.casefold()
 
 
 def _strategy(
@@ -85,6 +167,110 @@ def _v3_plan_fields(plan: CharacterExpressionPlan) -> dict[str, int | str]:
         "motivational_posture": plan.motivational_posture.value,
         "pressure_level": plan.pressure_level.value,
     }
+
+
+def test_v21_achievement_uses_implicit_acknowledgement_and_natural_close() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.ANSWER),
+        affect_profile="positive_light",
+        completed_achievement=True,
+        plan_schema_version=CHARACTER_EXPRESSION_PLAN_V4_SCHEMA_VERSION,
+    )
+
+    assert plan.schema_version == 4
+    assert plan.acknowledgement_mode is CharacterAcknowledgementMode.IMPLICIT
+    assert plan.continuation_mode is CharacterContinuationMode.COMPLETE
+    assert plan.contribution_mode is CharacterContributionMode.OWNED_EVALUATION
+    rendered = render_non_echoing_character_realization(plan)
+    assert "не называй заново действие, объект, результат" in rendered
+    assert "Вопрос, совет, предложение помощи и новая тема не нужны" in rendered
+
+
+def test_v21_completion_depletion_does_not_force_advice_or_repeat_the_contrast() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.LISTEN, humor=0.0),
+        affect_profile="soft_negative_non_hostile",
+        completion_depletion_contrast=True,
+        explicit_depletion=True,
+        plan_schema_version=CHARACTER_EXPRESSION_PLAN_V4_SCHEMA_VERSION,
+    )
+
+    assert plan.acknowledgement_mode is CharacterAcknowledgementMode.OMIT
+    assert plan.continuation_mode is CharacterContinuationMode.COMPLETE
+    assert plan.contribution_mode is CharacterContributionMode.EMOTIONAL_REACTION
+    assert plan.motivational_posture is CharacterMotivationalPosture.NONE
+    assert plan.pressure_level is CharacterPressureLevel.NONE
+    assert plan.initiative is CharacterInitiative.RESPONSIVE
+
+
+def test_v21_serious_vulnerability_still_outranks_non_echoing_and_guarded_followups() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.LISTEN, humor=0.0),
+        affect_profile="soft_negative_non_hostile",
+        relationship_profile="guarded_only_when_relationally_relevant",
+        completion_depletion_contrast=True,
+        explicit_depletion=True,
+        high_distress=True,
+        direct_personal_devaluation=True,
+        plan_schema_version=CHARACTER_EXPRESSION_PLAN_V4_SCHEMA_VERSION,
+    )
+
+    assert plan.contribution_mode is CharacterContributionMode.QUIET_PRESENCE
+    assert plan.motivational_posture is CharacterMotivationalPosture.NONE
+    assert plan.register is CharacterExpressionRegister.QUIET_OPEN_CARE
+    assert plan.owned_reaction is CharacterOwnedReaction.OPEN_CONCERN
+    assert plan.continuation_mode is CharacterContinuationMode.COMPLETE
+
+
+def test_v21_existing_affect_and_relationship_owners_can_carry_guarded_tone() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.ANSWER),
+        affect_profile="soft_negative_non_hostile",
+        relationship_profile="guarded_only_when_relationally_relevant",
+        plan_schema_version=CHARACTER_EXPRESSION_PLAN_V4_SCHEMA_VERSION,
+    )
+
+    assert plan.register is CharacterExpressionRegister.COOL_RESERVE
+    assert plan.owned_reaction is CharacterOwnedReaction.RESTRAINED_HURT
+    assert plan.continuation_mode is CharacterContinuationMode.GUARDED
+
+
+def test_v21_repeated_criticism_can_be_guarded_without_persistent_offence_state() -> None:
+    plan = plan_character_expression(
+        _strategy(PositionStance.ANSWER),
+        affect_profile="tense_non_hostile",
+        repeated_critical_pressure=True,
+        explicit_request=True,
+        plan_schema_version=CHARACTER_EXPRESSION_PLAN_V4_SCHEMA_VERSION,
+    )
+
+    assert plan.register is CharacterExpressionRegister.COOL_RESERVE
+    assert plan.owned_reaction is CharacterOwnedReaction.RESTRAINED_HURT
+    assert plan.acknowledgement_mode is CharacterAcknowledgementMode.OMIT
+    assert plan.continuation_mode is CharacterContinuationMode.GUARDED
+    assert plan.contribution_mode is CharacterContributionMode.OWNED_EVALUATION
+    rendered = render_non_echoing_character_realization(plan)
+    assert "не отменяет точный ответ на важную или практическую просьбу" in rendered
+    assert "не раскрывай причину сдержанности" in rendered
+
+
+def test_v21_direct_devaluation_sets_boundary_but_ordinary_disagreement_does_not() -> None:
+    boundary = plan_character_expression(
+        _strategy(PositionStance.ANSWER),
+        affect_profile="tense_non_hostile",
+        direct_personal_devaluation=True,
+        plan_schema_version=CHARACTER_EXPRESSION_PLAN_V4_SCHEMA_VERSION,
+    )
+    disagreement = plan_character_expression(
+        _strategy(PositionStance.CHALLENGE),
+        affect_profile="tense_non_hostile",
+        plan_schema_version=CHARACTER_EXPRESSION_PLAN_V4_SCHEMA_VERSION,
+    )
+
+    assert boundary.continuation_mode is CharacterContinuationMode.BOUNDARY
+    assert boundary.openness is CharacterOpenness.DIRECT
+    assert disagreement.continuation_mode is CharacterContinuationMode.COMPLETE
+    assert disagreement.owned_reaction is CharacterOwnedReaction.ENGAGED_SKEPTICISM
 
 
 def test_v20_achievement_adds_owned_evaluation_without_motivational_pressure() -> None:

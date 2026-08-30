@@ -259,9 +259,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     relationship_history.add_argument("--limit", type=int, default=20)
     relationship_process = relationship_actions.add_parser(
-        "process", help="retry one eligible canonical interaction"
+        "process", help="retry one interaction or oldest eligible missing decisions"
     )
-    relationship_process.add_argument("--interaction", required=True)
+    relationship_process_target = relationship_process.add_mutually_exclusive_group(required=True)
+    relationship_process_target.add_argument("--interaction")
+    relationship_process_target.add_argument(
+        "--limit",
+        type=_positive_int_argument,
+        help="maximum oldest missing sources for the default counterparty",
+    )
     models_parser = subcommands.add_parser(
         "models", help="inspect, export, or process Stage 9 user/world models"
     )
@@ -2213,10 +2219,32 @@ def main(
                             )
                         )
                     return 0
-                if conversation.process_relationship is None:
+                if (
+                    conversation.process_relationship is None
+                    or conversation.backfill_relationship is None
+                ):
                     print("Relationship appraisal provider is not configured.", file=sys.stderr)
                     return 2
+                if arguments.limit is not None:
+                    relationship_backfill = asyncio.run(
+                        conversation.backfill_relationship.execute(
+                            identity_id,
+                            counterparty_id,
+                            limit=arguments.limit,
+                        )
+                    )
+                    print(
+                        f"considered={relationship_backfill.considered} "
+                        f"attempted={relationship_backfill.attempted} "
+                        f"applied={relationship_backfill.applied} "
+                        f"skipped={relationship_backfill.skipped} "
+                        f"rejected={relationship_backfill.rejected} "
+                        f"replayed={relationship_backfill.replayed} "
+                        f"failed={relationship_backfill.failed}"
+                    )
+                    return 1 if relationship_backfill.failed else 0
                 try:
+                    assert arguments.interaction is not None
                     relationship_report = asyncio.run(
                         conversation.process_relationship.execute(
                             arguments.interaction, trace_id=trace_id

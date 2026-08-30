@@ -10,6 +10,10 @@ from satori.application.affect.use_cases import (
     GetAffectiveStatus,
     PrepareAffectiveContext,
 )
+from satori.application.cognition.contracts import (
+    INTENT_REGISTRY_VERSION_V1,
+    INTENT_REGISTRY_VERSION_V2,
+)
 from satori.application.cognition.use_cases import (
     DeterministicCognitionPlanner,
     SafeCognitionPipeline,
@@ -28,7 +32,7 @@ from satori.application.conversation.history import (
     InteractionLog,
     StartConversationSession,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V20
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V27
 from satori.application.conversation.post_processing import ProcessPostResponse
 from satori.application.conversation.use_cases import ConversationProvider, TalkToSatori
 from satori.application.initial_self.use_cases import (
@@ -66,6 +70,7 @@ from satori.application.reflection.use_cases import (
     ProcessReflection,
 )
 from satori.application.relationship.use_cases import (
+    BackfillRelationships,
     EnsureRelationship,
     GetRelationshipForSession,
     GetRelationshipHistory,
@@ -161,6 +166,7 @@ class ConversationServices:
     relationship_status: GetRelationshipStatus
     relationship_history: GetRelationshipHistory
     process_relationship: ProcessRelationshipForInteraction | None
+    backfill_relationship: BackfillRelationships | None
     current_models: GetCurrentModels
     process_models: FormCurrentModels | None
     backfill_models: BackfillCurrentModels | None
@@ -215,7 +221,7 @@ def build_conversation_services(
     model_provider: ModelFormationProvider | None = None,
     position_provider: PositionFormationProvider | None = None,
     reflection_provider: ReflectionGenerationPort | None = None,
-    behavior_policy: BehaviorPolicy = BEHAVIOR_POLICY_V20,
+    behavior_policy: BehaviorPolicy = BEHAVIOR_POLICY_V27,
 ) -> ConversationServices:
     """Wire InteractionLog and MemoryManager to replaceable provider capabilities."""
 
@@ -436,6 +442,11 @@ def build_conversation_services(
         top_k=settings.position_context_top_k,
         max_context_chars=settings.position_context_max_chars,
     )
+    cognition_intent_registry_version = (
+        INTENT_REGISTRY_VERSION_V2
+        if behavior_policy.schema_version >= 24
+        else INTENT_REGISTRY_VERSION_V1
+    )
     talk = TalkToSatori(
         get_self=initial_self.get_self,
         context_composer=CharacterContextComposer(
@@ -475,8 +486,12 @@ def build_conversation_services(
         get_current_models=get_current_models,
         get_positions=get_positions,
         cognition_pipeline=SafeCognitionPipeline(
-            planner=DeterministicCognitionPlanner(),
-            fallback=DeterministicCognitionPlanner(),
+            planner=DeterministicCognitionPlanner(
+                intent_registry_version=cognition_intent_registry_version
+            ),
+            fallback=DeterministicCognitionPlanner(
+                intent_registry_version=cognition_intent_registry_version
+            ),
         ),
     )
     return ConversationServices(
@@ -533,6 +548,14 @@ def build_conversation_services(
             ensure=ensure_relationship,
         ),
         process_relationship=process_relationship,
+        backfill_relationship=(
+            BackfillRelationships(
+                unit_of_work_factory=relationship_uow_factory,
+                process_relationship=process_relationship,
+            )
+            if process_relationship is not None
+            else None
+        ),
         current_models=get_current_models,
         process_models=form_models,
         backfill_models=(

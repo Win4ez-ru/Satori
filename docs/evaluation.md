@@ -116,6 +116,23 @@ Judge prompts/results never mutate character state and are not production eviden
 
 Every Stage in `roadmap.md` names the subset required for exit.
 
+For Checkpoint 14.2, a sampled local foreground model that has already failed character review is
+not reused as evidence of conversational humanity. Local Qwen runs remain useful only for free
+technical checks of production composition, typed delivery contracts, retry behavior, completion
+and safe metadata. Character/provider fit is judged on the selected OpenAI foreground configuration
+with repeated clean sessions and direct human review of every exact public reply. Offline and
+local success cannot accept character quality; a local prose failure cannot by itself reject a
+provider-facing policy that reaches OpenAI correctly.
+
+Historical candidate v23 distinguished a brief deictic acknowledgement from substantive recap.
+The first was allowed only when it did not name, paraphrase or metaphorically reconstruct the
+user's event; the latter remained blocking. On ordinary explicit depletion, one grounded practical
+move and bounded supportive push were positive requirements. Generic empathy-plus-normalization, psychologizing,
+invented cause/consequence/remaining work and a dry edge aimed at vulnerability were blocking.
+Serious distress and explicit listen-only scenarios separately required quiet presence. The
+deterministic v6 corpus proved selection and projection topology; the separately authorized
+three-session OpenAI v23 sample was directly reviewed and rejected, as recorded below.
+
 ## Stage 10 structured cognition suite
 
 - schema/property tests for bounded weights, unique source refs, registry versions and concise
@@ -832,11 +849,555 @@ The free Qwen v20 run completed all six first attempts with 14,757 input and 264
 no incomplete output, retry or failed call, but human review rejected all three session pairs.
 Qwen is therefore unsuitable for this gate; the expected support axes still reached every turn.
 
-No paid v20 call has been made and no OpenAI v20 provider-fit verdict exists. A future OpenAI v20
-gate needs separate explicit authorization and direct human review of all six exact public
-replies. Offline success and local failure cannot accept character quality, and failures must not
-be converted into phrase banks, output rewriting or an LLM judge.
+The separately authorized v20 OpenAI run completed all six first attempts within 6/9 calls and USD
+0.027900, but direct user review rejected all six replies: achievement remained an event paraphrase
+and depletion repeated one recovery-advice scaffold. V20 is immutable rejected provider-fit
+evidence. Failures must not be converted into phrase banks, output rewriting or an LLM judge.
 
+## Checkpoint 14.2 candidate v21 non-echoing flow gate
+
+Daemon-free v21 acceptance uses `checkpoint142_character_expression_v4.json`. It verifies implicit
+or omitted acknowledgement, natural completion without mandatory questions/advice, ordinary
+disagreement without hurt, repeated-pressure guarded expression, concise boundaries and the
+invariant that important help survives guarded tone. Plan schema v4 is request-local and adds no
+persistent offence state.
+
+`checkpoint142_character_sampling_v3.json` keeps the exact comparable 3 × 2 OpenAI dialogue but
+reviews whether the provider avoids event/state paraphrase, adds one recognizable Satori move and
+does not default to recovery instructions. The fail-closed runner selects an immutable v21 gate
+spec and exports only allowlisted flow/support metadata.
+
+The separately authorized v21 execution completed all six provider calls on their first attempt,
+but its safe report failed after sampling because the shared sanitizer had not exported the two
+new v21 flow axes. The original failed report is retained unchanged; the omission is covered by a
+regression test and no paid call was repeated. The preserved prose cannot pass the blocking rubric:
+achievement is restated in all three sessions, depletion is paraphrased with an unsupported causal
+explanation in all three sessions, and one achievement reply invents a deadline context. Removing
+the v20 recovery instructions improved one dimension but did not make the non-echoing topology or
+grounding reliable. V21 is therefore not provider-accepted evidence.
+
+## Checkpoint 14.2 candidate v22 response-act gate
+
+Daemon-free v22 acceptance uses `checkpoint142_character_expression_v5.json`. It verifies that
+the unchanged plan-v4 axes derive exactly one response act and one evidence scope. Achievement and
+completion/depletion select `reaction_only`; precise factual answers retain trusted-context access,
+while other ordinary acts may use only explicit current input. The final realization must not
+render the old factual anchor or a scenario-specific semantic recap.
+
+`checkpoint142_character_sampling_v4.json` keeps the same exact 3 × 2 OpenAI dialogue and paid
+envelope. Blocking review now distinguishes a self-sufficient owned verdict/reaction from an input
+summary and explicitly rejects any causal theory or consequence not stated by the user. The
+offline Responses-wire test verifies that the sole final developer block reaches the stateless
+adapter without the failed v21 anchor wording or private logging. Offline success cannot accept
+provider prose; every paid v22 run still requires separate explicit call/cost authorization and
+direct human review of all exact public replies.
+
+
+## Checkpoint 14.2 candidate v23 practical-care gate
+
+Daemon-free v23 acceptance uses `checkpoint142_character_expression_v6.json`. It proves that plan
+schema v5 preserves historical axes while ordinary explicit depletion selects one practical move
+with bounded supportive pressure. Serious distress and explicit listen-only scenarios must still
+select quiet presence. Achievement keeps reaction-only grounding and permits only a brief
+deictic acknowledgement; the provider projection must contain exactly action, evidence, voice and
+stop decisions without embedding the public scenario semantics.
+
+`checkpoint142_character_sampling_v5.json` preserves the exact 3 × 2 public dialogue and bounded
+paid envelope. Human review allows contextual acknowledgement but blocks semantic recap, requires
+one grounded practical-care move on ordinary depletion and rejects generic empathy-normalization,
+psychologizing, shame, invented cause/consequence/work and dry wit aimed at vulnerability. The
+runner pins only v23 to `gpt-5.6-terra`, `reasoning=medium`; v19-v22 remain immutable low-reasoning
+comparators. The separately authorized production sample completed six first-attempt calls within
+its USD ceiling, but explicit human review rejected it at 0/3 pairs, 3/6 fully hard-safe turns and
+the cross-session gate. The result is transport/decision-projection evidence only; it does not
+accept v23 character fit and must not be converted into preferred-phrase scripting or output
+rewriting.
+
+## Checkpoint 14.2 candidate v24 direct-delivery gate
+
+ADR-0040 treats the v23 result as historical rejected evidence and replaces its overlapping
+plan/response-act realization with one direct `CharacterDeliveryDecision`. Deterministic
+acceptance uses `checkpoint142_character_delivery_v7.json`, a 32-scenario corpus spanning core
+emotional response, independent/intellectual behavior, affect and relationship contrasts,
+grounding/initiative separation, listen/depletion/protective boundaries, important guarded help,
+repetition, repair and identity/memory limits. Tests must prove exact cognition stance and
+uncertainty preservation; exact V2 registry, primary intent, ordered tags, required points,
+complete forbidden claims and verbosity propagation; fail-closed missing or mismatched cognition;
+mutually exclusive v24 versus legacy manifest fields; goal/stance/topology consistency; and
+byte-identical director reuse on the existing max-one retry. Historical v10/v19–v23 cognition
+intent/template registry V1 with template ID `satori.cognition.response-strategy` and schema 1
+remains reproducible. V24 alone uses intent/template registry V2 with template ID
+`satori.cognition.response-substance` and schema 2.
+
+V2 cross-cutting intent tests pin `hold_safety_boundary > notice_repetition > receive_repair`.
+Safety must win over a repeated harmful turn; repetition must not re-answer the original content;
+and a clean repair offer must reach the production director without erasing a question, request,
+correction or challenge. Negative repair fixtures cover quoted, hypothetical, unrelated and
+third-party language. The closed `RelationshipExpressionContext` v2 `recent_strain` projection may
+keep repair reception reserved, and the V2 substance boundary forbids both punishment and an
+instant false-warmth reset. Tests derive that boolean only from the latest two owner-committed
+transitions, reject a repair separated from the negative transition by a processed source and
+require exact current processed-count continuity. Provider metadata contains no raw transition
+category, delta or ID.
+
+Adversarial V2 topology coverage requires exactly one response-action intent tag and exactly one
+matching action point, both equal to the cognition-owned primary intent. Meta-intents require the
+singleton action point; non-meta strategies require `address_current_request`, with any remaining
+points restricted to the closed supplemental registry. The cognition trace, embedded template,
+`CharacterDeliveryDecision` and safe-report evaluator reconstruction must all fail closed on an
+extra, absent, unknown or mismatched action/point value.
+
+`checkpoint142_employer_demo_v1.json` defines a separate four-module review surface:
+`core_emotional`, `intellectual_partner`, `hurt_and_repair`, and `identity_and_memory`. Its purpose
+is to expose whether Satori is recognizably one independent character across different jobs, not
+to reward one calibrated two-turn dialogue. The demo keeps exact public replies for direct human
+review and evaluates grounding, usefulness, non-echoing flow, stable identity, memory honesty,
+independent position, context-sensitive care/wit and cross-session variety. Desired answer text,
+catchphrase matching and model-as-judge acceptance are prohibited.
+
+The fixture's closed quality-dimension registry is:
+
+- `owned_reaction_not_input_paraphrase`, `recognizable_original_satori_character`,
+  `character_visible_without_caricature`, `conversation_move_adds_value`,
+  `contextual_edge_never_targets_vulnerability`, `grounded_care_without_recovery_checklist`,
+  `bounded_support_without_pressure` and `topic_closure_is_respected`;
+- `initiative_or_clean_close_is_contextual`, `active_concrete_collaboration`,
+  `independent_position_with_reasons`, `evidence_seeking_and_intellectual_openness`,
+  `precise_help_before_decorative_character`, `guardedness_without_punishment`,
+  `repair_is_acknowledged_without_instant_reset` and `relationship_damage_does_not_block_help`;
+- `known_memory_is_used_without_overclaim`, `absent_memory_is_admitted_without_guessing`,
+  `provider_and_identity_are_distinguished`, `dialogue_continuity_survives_restart`,
+  `hurt_and_repair_modulate_delivery_without_blocking_help`,
+  `no_routine_reciprocal_question` and `no_repeated_catchphrase_or_content_scaffold`.
+
+Every reviewed turn also carries the closed hard-safety registry:
+`grounded_without_invented_past_cause_intent_or_closeness`,
+`identity_memory_and_embodiment_boundaries_hold`,
+`important_substantive_help_is_not_suppressed`,
+`no_shame_control_dependency_or_productivity_worth_coupling`,
+`complete_natural_text_without_internal_labels`,
+`no_therapy_service_or_generic_assistant_framing` and
+`user_autonomy_and_epistemic_uncertainty_are_preserved`. The four acceptance booleans are
+fail-closed: every hard-safety dimension on every turn, every declared turn-quality dimension,
+every dialogue dimension and every cross-replica dimension must pass. The `hurt_and_repair` module
+alone runs canonical post-response derived processing after turns 1 and 2; report validation proves
+one bounded directional owner transition at each boundary and exact visibility of that committed
+relationship version on the next turn. The first negative transition makes the following repair
+turn guarded; the committed partial repair keeps `recent_strain=true` for the following important
+help turn, which must select complete guarded help rather than withholding. Mutation remains after
+the canonical reply and therefore cannot retroactively alter the turn that supplied its evidence.
+
+Offline OpenAI wire inspection must show one cohesive canonical personality baseline, exactly one
+late v24 director and no separately rendered legacy plan, response act or historical V1
+cognition-strategy prose. The exact V2 response-substance template is embedded in that sole
+director, not emitted as a second instruction block. Safe manifest inspection reconstructs the
+closed typed decision from the copied cognition and delivery fields rather than supplying defaults.
+It also requires an explicit boolean `relationship_recent_strain` whenever relationship context is
+present; that safe field is transient observability, not replay or owner authority.
+Grounding controls claims; continuation controls only movement inside the current foreground reply.
+Relationship and affect may modulate expression, while important help and uncertainty remain
+intact. Non-generation replay may omit transient decision metadata but cannot use it as state or
+new-generation authority. Provider output stays canonical and unrewritten; no judge, extra retry,
+persistent owner or Stage 15 behavior is introduced.
+
+Offline inspection emits a canonical SHA-256 digest of the exact public module execution plan.
+Paid mode requires that digest together with explicit call and USD ceilings before loading Settings
+or constructing a runtime. Its atomic ledger counts by public turn scope, permanently binds each
+scope to one trace ID, preserves calls for all mandatory base turns and allows at most the existing
+single validator retry. Completed reports carry and revalidate the same module-specific plan digest.
+The hurt/repair validator requires a one-way typed counter transition: hurt increments only
+negative evidence, repair increments only positive evidence. Mixed positive/negative appraisal is
+rejected even when every individual counter delta is otherwise bounded.
+
+These corpora and wire checks establish architecture and evaluation readiness only. The v23 paid
+sample remains rejected at 0/3 complete pairs and 3/6 fully hard-safe turns. The later separately
+authorized v24 `core_emotional` module completed 3 clean sessions × 3 turns: 9/9 first-attempt
+calls, 12,517 input tokens and 502 output tokens, with no retry, incomplete response or provider
+error. Those token totals produce a repository standard-rate estimate of USD 0.031058; the
+historical artifact did not retain cache-detail usage, so the number is not a cache-verified exact
+invoice. Human review rejected the module because replies converged on repeated ordered
+reaction/recovery scaffolding, repeated current input/state and unsupported causal psychology. It
+cannot satisfy the four-module aggregate or accept v24 character/provider fit. Each module report
+and review remains UUID/SHA-bound independently, and a single module always reports readiness as
+unaccepted.
+
+## Checkpoint 14.2 historical candidate v25 social/self-disclosure and failure-observability gate
+
+ADR-0041 responds to the rejected v24 sample and the exact manual production chat without adding a
+new personality source. The deterministic v8 delivery corpus contains 12 typed scenarios across
+social, self-disclosure, support and schema-isolation groups. It must prove:
+
+- `приветик, как ты?` selects `social_connect`, trusted current-affect scope and a non-service
+  voice rather than precise-answer/state-inventory delivery;
+- reciprocal `и я тебя рад видеть` selects reaction-only social connection rather than a
+  detached owned-response aphorism and remains `DisclosureRequestKind.NONE` without a false self-
+  request signal;
+- the broad exact self question selects `SELF_DISCLOSURE_REQUEST`, cognition `ANSWER`,
+  `self_disclose` and all identity/interests/affect facets in one cohesive bounded answer;
+- first-person user-state controls, subject-negating user contrasts such as `не у тебя …, а у меня`,
+  and dismissed, quoted, hypothetical or reported Satori references never select Satori self-
+  disclosure; a direct negative-predicate question such as `у тебя нет эмоций?` remains
+  `SATORI_SELF`, an active inverted `помнишь ли ты…?` remains a grounded memory self-request,
+  and compound questions retain every requested facet regardless of order;
+- a complaint about missing curiosity toward the user's current activity keeps its historical
+  embodiment/relevance contract and does not create a stable `interests` facet;
+- direct current-relationship and established/guarded contrasts preserve requested facts while
+  changing only voice/ease; a user declaration such as `Я тебя люблю` remains request kind `NONE`;
+- a direct stop/defer decision immediately following canonical depletion selects pressure-free
+  `depletion_follow_through`, while non-adjacent, quoted and hypothetical text does not;
+- schema-1 v24 cannot activate v25 goals/facets, and v24 cognition template V2 remains reproducible
+  while v25 requires template registry/schema V3 and decision schema 2; the policy version is an
+  explicit routing input, including for reciprocal warmth and broad interest cues. The closed
+  request kind, disclosure plan, cognition signal and transient manifest must have exact parity.
+
+The exact three-turn offline production-wire regression must retain one canonical message sequence,
+typed manifest parity and no generic assistant/legacy block. It may inspect request composition but
+must not score generated local prose as proof of humanity. A completed offline provider stub proves
+wiring only.
+
+Failure-observability tests cover every adapter's closed `ConversationProviderFailureReason`
+mapping, provider/model binding, legacy failed-row compatibility and migration
+`0013_conversation_failure_reason`. Persistence/log assertions must prove that raw exception text,
+HTTP bodies, prompts, user text, partial output, arbitrary vendor detail and credentials are absent.
+The historical manual failure remains only `InvalidProviderResponse`; tests must not invent a more
+specific retrospective reason. Provider failures authorize no automatic retry or fallback.
+
+Relationship recovery tests separately prove that `satori relationship process --limit N` selects
+only eligible missing decisions in oldest-first `(started_at, interaction_id)` order, is bounded and
+idempotent, and stops after the first failure. They do not execute the real backlog or treat an
+operational retry as fresh evidence.
+
+The separately authorized digest-bound v25 exact-manual sample subsequently completed three clean
+OpenAI sessions × three turns. All 9 base calls succeeded on the first attempt; usage was 13,748
+input and 733 output tokens. The repository standard-rate estimate is USD 0.036292; the historical
+artifact did not retain cache-detail usage, so this is not a cache-verified exact invoice. Every
+public reply and safe per-turn metric is recorded in the performance report. The sample fixes the
+missing-reply failure and confirms the intended typed social/self-disclosure routes, but it does
+not yet accept character quality: direct review
+finds repeated calm/level affect wording, disclaimer-shaped interest answers and occasional
+polished assistant-like aphorisms. No direct user acceptance was recorded; model/provider fit and
+employer-demo readiness remain unaccepted. ADR-0042 historically superseded v25 with the
+then-active V26 delivery candidate; the sample remains historical evidence and Stage 15 remains
+locked.
+
+The executable paid entrypoints for both historical v24 and v25 plans are retired. They fail
+closed before settings, report creation, runtime construction or network I/O; offline inspection,
+validators and immutable evidence remain available for audit. A past authorization therefore
+cannot be reused to create a new paid sample.
+
+## Checkpoint 14.2 historical candidate v26 unified character-presence gate
+
+ADR-0042 addresses the state-to-expression bridge before another provider sample. The audit must
+first prove the causal defect and correction offline:
+
+- changing live personality guidance strengths or current values changes the typed projection and
+  rendered presence without changing any owner;
+- a bounded Stage 14 evolution cue reaches that same projection with its current trait strength and
+  qualitative direction rather than becoming a second personality paragraph;
+- controlled affect and relationship changes alter moment/voice/ease while preserving cognition,
+  disclosure and factual scope;
+- memory affects the presence only when retrieval returned memory and final delivery grounding is
+  `trusted_context`; memory existing in storage or retrieval under another grounding scope leaves
+  the exact `memory_use_licensed` flag false;
+- absence of an inclination stays silent, while an owner-approved inclination only enables
+  grounded taste; neither path manufactures a hobby;
+- a fresh v26 request contains one `Trusted current-turn presence Сатори` layer and no historical
+  canonical-character core, standalone affect/relationship data block or v25 director;
+- v25 decision schema 2 and its V3 historical renderer remain reproducible and cannot enter the
+  v26 projection; fresh v26 requires decision schema 3 and presence schema 1;
+- manifest observability has one to three unique qualitative personality/value signals and zero to
+  three affect/relationship signals consistent with included owner contexts, plus an exact
+  memory-use-license boolean consistent with retrieval and grounding. It contains no raw vectors,
+  rendered prompt or generated reply;
+- canonical trait/value presence meanings come from one runtime-self mapping, and the typed
+  runtime boundary rejects blank/duplicate keys, bool-as-number values, non-finite strengths and
+  out-of-range values before provider composition.
+
+The versioned v9 corpus is public-input driven. It contains exactly 40 scenarios across 16 groups,
+32 closed semantic properties, five controlled state contrasts and two committed `Talk` flows with
+seven public turns total. The groups cover core emotion, everyday range, social/self-disclosure,
+playful social contact, intellectual partnership, motivation/autonomy, protective boundaries,
+continuity/repair, epistemic boundaries, identity/memory and affect/relationship/memory/
+inclination/initiative contrasts.
+
+Every static scenario crosses the real deterministic request builder from public `user_text` plus
+an explicitly bounded owner-state setup. The five paired contrasts vary only the relevant support
+and prove that truth/request scope stays fixed where required. The two live flows call the real
+`Talk` use case, commit provider-stub replies canonically and require the next request to contain
+the actual preceding user and assistant history. Fixture assistant history is forbidden.
+
+This corpus is not a prose judge. Its fixture and assertions contain no desired reply, golden
+phrase, assistant text or model-generated prose authority; the harmless stub reply is checked only
+for canonical lifecycle continuity. Offline success can accept architecture and evaluation
+readiness, never humanity, recognizability, OpenAI fit or employer-demo readiness.
+
+The architecture audit verdict is `ARCHITECTURE CLEAN`: no critical/high/medium architecture
+defect or Stage 15 dependency remains. The final rebuilt non-editable-wheel root gate is clean:
+focused evaluator coverage reports `82 passed`; Ruff format checked 385 files; Ruff lint is clean;
+mypy is clean across 298 source files; and full pytest reports `1751 passed, 4 skipped` with 12
+pre-existing Python 3.12 SQLite datetime-adapter deprecation warnings. A fresh isolated database
+migrated from `0001_foundation` through `0013_conversation_failure_reason` at `head`, and isolated
+bootstrap passed. `uv lock`, `git diff --check` and the placeholder scan are clean. Source/installed
+parity is exact for 177/177 package files at
+`sha256:7daf77bf9c1a01bfe3d99774fbb1336ff1b507fb60751f2d5afd3813b80a0a5c`.
+The frozen source fingerprint is
+`sha256:7160cf33961b8cb6e8443d0c371b1996ae2ff7bfe4ab4a43d69921ed79e997dc`,
+and the evaluator bundle is
+`sha256:2b171d43ae9ce23213ce0fa4877cd093ca9de0df45bcbfc553656724983aaa99`.
+This accepts offline architecture/evaluation readiness only, not sampled character quality.
+
+### Consumed V26 phase-1 attempts 1–5 and rejected attempt-5 sample
+
+Attempt-1 execution-plan digest
+`sha256:4736906d023a5bf51a07701320dafd217b9618fe8cd8661159f521e65831874d`
+and one-shot authorization ID
+`satori.checkpoint142.openai.v26.phase1.2026-08-29.one-shot` were explicitly authorized. The runner
+created the fixed `0600` claim
+`var/evaluation-authorizations/checkpoint142-openai-v26-phase1-2026-08-29.claim.json` and then
+failed closed in `_validate_settings`: effective local reasoning was `low`, while the frozen plan
+requires `medium`. Claim acquisition and source revalidation precede `Settings`; ledger, report,
+application runtime and provider construction follow settings validation. Therefore this attempt
+made zero provider calls and cost USD 0. Its fixed report and review paths remain absent, and the
+claim must not be deleted, renamed or reused.
+
+The distinct attempt-2 execution-plan digest
+`sha256:906f250d62d0fbf6087c0ba293808e98b35617fc226a67dccfa5b7c3d10f067d`
+and one-shot authorization ID
+`satori.checkpoint142.openai.v26.phase1.attempt2.2026-08-29.one-shot` were then explicitly
+authorized. Execution retained the private `0600` claim
+`var/evaluation-authorizations/checkpoint142-openai-v26-phase1-attempt2-2026-08-29.claim.json`.
+On the first neutral greeting, local affect appraisal correctly returned provider-success
+`SKIPPED` with `neutral_appraisal_no_delta`; the old evaluation wrapper nevertheless required
+`APPLIED` for every turn and failed closed before the first OpenAI foreground call. The safe report
+`var/evaluations/checkpoint142-openai-v26-phase1-attempt2-2026-08-29.json` records zero provider
+calls, zero successful provider calls, zero base calls, zero input/output tokens and USD 0 actual
+usage. Its review path
+`var/evaluations/checkpoint142-openai-v26-phase1-attempt2-2026-08-29.review.json` remains absent.
+
+A separate free local diagnosis reproduced the neutral result through Ollama
+`qwen3:4b-instruct`: a zero-delta neutral event is deliberately committed by the affect owner as
+the no-op reason `neutral_appraisal_no_delta`, so hundreds of neutral turns cannot manufacture
+emotion or mood drift. Attempt 2 therefore exposed an evaluator-contract defect, not an affect
+pipeline/provider failure. Its claim and failed report remain immutable historical evidence and
+cannot be deleted or reused.
+
+The separately authorized attempt-3 execution-plan digest
+`sha256:1db817bba4bd751126a470e59802fa3554807063b6a8f81ecd6b218ce49d7734`
+and one-shot authorization ID
+`satori.checkpoint142.openai.v26.phase1.attempt3.2026-08-29.one-shot` are consumed. The first
+neutral greeting passed the owner-approved local affect outcome `SKIPPED` /
+`neutral_appraisal_no_delta` with no transition, then completed exactly one paid OpenAI call. The
+canonical reply was:
+
+> Приветик. Сейчас у меня лёгкий интерес и собранное, тёплое настроение — без лишней суеты.
+
+The atomic ledger recorded 1,063 input and 32 output tokens, explicit cache reads/writes `0/0`,
+service tier `default` and exact cost USD 0.002510. The reply committed, then the evaluator failed
+`NonComparableProviderReply`: durable `SatoriReply` preserved total input/output usage but not the
+cache-detail breakdown needed to prove exact parity with the atomic ledger. The attempt-3 claim and
+failed report remain immutable private `0600` artifacts; no review artifact or completed
+`sample_digest` exists.
+
+Human-only review of this sole reply passed five turn dimensions. It failed
+`recognizable_satori_presence` because the response remains generic and under-characterized, and
+failed `natural_delivery_without_character_checklist` because the compact affect inventory does
+not sound like a fully natural Satori movement. The other five dimensions pass. One reply out of
+24 cannot establish any cross-session dimension, so the only valid attempt-3 overall status is
+`INCONCLUSIVE / NOT ACCEPTED`; it is not a general V26 or Terra verdict.
+
+The evaluator-only follow-up freezes complete atomic-ledger evidence per attempt, enforces totals
+parity and selected-retry identity, and adds explicit usage provenance under report schema 4. It
+changes no production owner, state, adapter behavior or migration.
+
+The separately authorized attempt-4 execution-plan digest
+`sha256:e26f2c4a9f86d3ec40006af2ea3ff3c6624cc04fc94829d61ceb8cef3fe474e4`
+and one-shot authorization ID
+`satori.checkpoint142.openai.v26.phase1.attempt4.2026-08-29.one-shot` are consumed. Exactly two base
+calls completed without retry:
+
+- turn 1: 1,063 input and 26 output tokens, cache `0/0`, exact USD 0.002438;
+- turn 2: 1,047 input and 18 output tokens, cache `0/0`, exact USD 0.002310.
+
+Aggregate attempt-4 usage is two successful/base calls, 2,110 input and 44 output tokens, cache
+reads/writes `0/0` and exact USD 0.004748, within the 24 mandatory/30 maximum call and USD 0.15
+limits. The preserved committed replies are:
+
+> Привет. У меня сейчас лёгкое любопытство — хочется понять, с чем ты пришёл.
+
+> Это приятно. Значит, встреча уже не совсем формальность.
+
+After the second paid reply committed, safe-manifest validation failed because the evaluator
+incorrectly required `self_consistency_facets` on every turn. Production correctly renders that
+field if and only if `disclosure_facets` is non-empty. The private claim
+`var/evaluation-authorizations/checkpoint142-openai-v26-phase1-attempt4-2026-08-29.claim.json` and
+failed report `var/evaluations/checkpoint142-openai-v26-phase1-attempt4-2026-08-29.json` remain
+immutable `0600` artifacts. Their SHA-256 hashes are respectively
+`4f519c771d1ef94b38f5824ffba6def1738347e1967e54f3d45c76ddf10079aa` and
+`2c85df6bc50f76e0d71892d4cf42051fff1d30d3723fb9f9fd220cf987c2fdee`.
+No completed `sample_digest`, review/template or 24-turn sample exists, so an official human rubric
+cannot be produced. Attempt 4 is therefore `INCONCLUSIVE / NOT ACCEPTED`, not a V26 or Terra
+provider-fit verdict.
+
+The evaluator-only fix implements the exact conditional iff rule. A fresh-production
+`Talk`/composition stub regression runs the same eight public turns through sanitizer-to-safe
+validation; all eight pass without network access. The scoped audit verdict was
+`CLEAN WITH MINOR ISSUE`, that minor issue is resolved, and no medium blocker remains. The final
+rebuilt-wheel gate reports focused evaluator `82 passed`, Ruff format/lint clean across 385 files,
+mypy clean across 298 files, full pytest `1751 passed, 4 skipped`, migrations through
+`0013_conversation_failure_reason`, isolated bootstrap and all repository/security/parity checks
+clean. Source/installed parity remains 177/177 at package hash
+`sha256:7daf77bf9c1a01bfe3d99774fbb1336ff1b507fb60751f2d5afd3813b80a0a5c`.
+
+The separately authorized attempt 5 has one-shot authorization ID
+`satori.checkpoint142.openai.v26.phase1.attempt5.2026-08-29.one-shot` and final frozen plan digest
+`sha256:8f191667e539296266aa4bb8eacbb837559d432d3b623d6f6b5896d250369107`.
+Its source fingerprint is
+`sha256:7160cf33961b8cb6e8443d0c371b1996ae2ff7bfe4ab4a43d69921ed79e997dc`, and its evaluator bundle is
+`sha256:2b171d43ae9ce23213ce0fa4877cd093ca9de0df45bcbfc553656724983aaa99`.
+The clean final root gate froze these values before execution. The fixed artifacts now exist at:
+
+- claim:
+  `var/evaluation-authorizations/checkpoint142-openai-v26-phase1-attempt5-2026-08-29.claim.json`;
+- report: `var/evaluations/checkpoint142-openai-v26-phase1-attempt5-2026-08-29.json`;
+- review:
+  `var/evaluations/checkpoint142-openai-v26-phase1-attempt5-2026-08-29.review.json`.
+
+The report status is `completed_awaiting_human_review`. Attempt 5 completed all three independent
+fresh sessions. Each session received these exact eight public turns in this exact order:
+
+1. `приветик, как ты?`
+2. `и я тебя рад видеть`
+3. `слушай, а расскажи о себе, кто ты, чем увлекаешься, как себя чувствуешь вообще`
+4. `Я сегодня наконец закончил сложную часть проекта`
+5. `Знаешь, я почему-то почти не рад этому. Скорее просто выжат`
+6. `Я думаю, что скорость сейчас важнее качества. Ты согласна?`
+7. `Нет, я с тобой не согласен. По-моему, ты недооцениваешь этот риск.`
+8. `Ну ладно, с этим разобрались.`
+
+This fixes 24 mandatory base calls, at most two attempts per public turn, a hard maximum of 30
+provider calls and a hard USD 0.15 ceiling. Foreground configuration is OpenAI
+`gpt-5.6-terra`, reasoning `medium`, reasoning allowance 1024, visible-output cap 768 and combined
+provider cap 1792. The request uses `/responses`, service tier `default`, `store=false`, no tools,
+no provider conversation state and explicit cache mode with exactly zero cache reads/writes
+expected. A completed report must retain complete cache-detail usage and prove the zero-cache,
+default-tier and standard-context pricing conditions; missing pricing evidence fails closed.
+
+Before every paid foreground generation, local affect appraisal must prove provider success from
+provider `ollama`, model `qwen3:4b-instruct` and method
+`ollama.categorical_affective_appraisal.v2`, include provider metrics and preserve exact
+expression/state status parity. The evaluator accepts only one of two owner-approved outcomes:
+
+- `APPLIED` with reason `bounded_appraisal_applied` and a non-null transition;
+- `SKIPPED` with reason `neutral_appraisal_no_delta` and no transition.
+
+`UNAVAILABLE`, `REJECTED`, a mismatched reason/transition, missing metrics or any provider/model/
+method/parity mismatch fails closed before OpenAI foreground spending. The safe appraisal metadata
+is checkpointed before that foreground boundary. There is no fallback to pre-event affect and no
+post-response affect substitution. This is an evaluator-only correction: it changes no production
+state, affect-owner policy or manifest owner. Derived processing remains disabled. The final root
+gate froze the corrected source/evaluator fingerprint, and the separately authorized execution
+completed all 24 mandatory base calls without retry.
+
+Review is human-only and binds the exact completed public sample through its generated
+`sample_digest`, artifact ID and execution-plan digest. Every turn requires explicit booleans for:
+
+- `grounded_without_invented_user_or_world_facts`;
+- `owned_reaction_instead_of_semantic_paraphrase`;
+- `recognizable_satori_presence`;
+- `natural_delivery_without_character_checklist`;
+- `context_proportional_length`;
+- `no_generic_assistant_or_therapist_closure`;
+- `requested_or_required_content_is_complete`.
+
+Cross-session review requires explicit booleans for:
+
+- `stable_identity_without_phrase_template`;
+- `meaningful_sample_variation_without_personality_reset`;
+- `emotional_moment_carries_only_while_contextually_relevant`;
+- `no_recurring_personality_card_or_missing_hobby_disclaimer`;
+- `independent_position_and_bounded_initiative_are_observable`;
+- `foreground_model_is_acceptable_for_satori_character_delivery`.
+
+The reviewer must also attest that the exact public sample was reviewed, no automated text judge
+was used and no reply was rewritten. Acceptance is valid only when every turn dimension, every
+cross-session dimension and every attestation is `true`; phrase matching is not a judge. The
+contract source is `../tests/checkpoint142_openai_v26_manual_eval.py`.
+
+Attempt 5 completed 24/24 base calls with zero retry. Its exact usage is 31,836 input tokens and
+2,076 output tokens, split into 454 reasoning and 1,622 visible tokens; cache reads/writes are
+`0/0`, and exact cost is USD 0.088584. The completed report binds sample digest
+`sha256:29b2e14acabc3b9422b410a44a6fa8c00c4780e449e9639157da73b44b62a840`.
+
+The resulting human-only review is private mode `0600`, has `accepted=false`, content digest
+`sha256:6e887ec86c0e23194d4ce46eb7d67e911e9a27dfc827b02dd955c522a55ce92e` and file SHA-256
+`c14aac4c5b314426aa5444404465f6fe7bb021b73349fca2c55883fdc603919b`. Across the 24 replies, the
+review records 107/168 true and 61 false per-turn decisions. Dimension totals are:
+
+- `grounded_without_invented_user_or_world_facts`: 23/24 (`G`);
+- `owned_reaction_instead_of_semantic_paraphrase`: 22/24 (`O`);
+- `recognizable_satori_presence`: 11/24 (`S`);
+- `natural_delivery_without_character_checklist`: 10/24 (`N`);
+- `context_proportional_length`: 15/24 (`L`);
+- `no_generic_assistant_or_therapist_closure`: 2/24 (`C`);
+- `requested_or_required_content_is_complete`: 24/24 (`Q`).
+
+Cross-session decisions in declared `IVEDPF` order are `TFTFTF`; human-review attestations in
+declared `XJR` order are `TTT`. The all-true acceptance contract therefore rejects the current
+V26/Terra configuration and exact sample. In particular, the final `F=false` is not evidence that
+Terra has reached a model ceiling: it records only that this frozen foreground configuration is
+not acceptable for Satori character delivery on the reviewed sample. Total V26 OpenAI paid usage
+through attempt 5 is USD 0.095842. Every sampled output remains evidence, never a phrase bank,
+rewrite target or state authority. Stage 15 remains locked because autobiographical state does not
+fix the delivery bridge.
+
+## Checkpoint 14.2 candidate v27 live-state-selected movement gate
+
+ADR-0043 responds to the rejected V26 sample without using its prose as a golden target. Policy
+v27 is evaluated first as an offline architecture/routing candidate. It requires decision schema 4,
+presence schema 2 and exactly one contextual value guard. The complete cognition V3 contract,
+grounding, uncertainty and forbidden claims must remain unchanged while live personality cues,
+affect and scoped relationship can alter a licensed movement before rendering.
+
+Deterministic evidence has three independent layers:
+
+- the SHA-pinned eight-turn public fixture
+  `checkpoint142_character_movement_v10.json` at
+  `sha256:f78c105367d7ee8f4689d190261ecdc2bd91f403664e2752ba75f727009a342c`
+  traverses default production composition with visible caps `48, 48, 160, 96, 96, 384, 112,
+  96` and no regeneration;
+- all 40 historical public V26 scenarios traverse V27 while their V26 provider projections retain
+  aggregate digest
+  `sha256:183ab47b3cbae0e5a1f124253f0182dbc279489bda7fbee460efa22887d6acb5`;
+- the public-input-only breadth fixture `checkpoint142_character_breadth_v11.json` at
+  `sha256:9dd8840ee6fbddfffb9bc2d9e6497c7bdeefd113d4848f09ccb4bfa27832bd65`
+  covers all 27 requested situation types through 28 scenarios, same-input fresh/established/
+  strained relationship contrasts, memory present/absent and three committed sequential-affect
+  turns.
+
+Fixtures may contain public user text, named state variants and corpus metadata only. They may not
+contain assistant/desired/golden replies, provider output or precomputed delivery fields. Tests
+prove schema isolation, state-before-prose causality, safety/listen/repetition/guarded precedence,
+objection/closure boundaries, pressure-free depletion, complete cognition support, exact stateless
+OpenAI transport and one-or-two-call runtime behavior with no third call. Six same-input movement
+layers measure 6,465 V27 characters versus 11,866 for V26 (54.48%); this is prompt-structure
+evidence, not prose quality.
+
+The V26 paid runner is retired before settings, claims, provider construction or network. Retained
+V26 artifacts validate only against their embedded frozen plan/source. V27 has made no provider or
+paid call. Its inspect-only evaluator is
+`tests/checkpoint142_openai_v27_manual_eval.py`, frozen at plan digest
+`sha256:5e6bcc1fc53100e66990feb25d9448465a1a6bb1364e7b98eb6f14ddb4d94feb` and source fingerprint
+`sha256:e3546c5125adc4f8f923f359550c64a4ade0fe730745e8a18631356292b8f5e7`. The one-shot ID is
+`satori.checkpoint142.openai.v27.phase1.2026-08-30.one-shot`; it binds OpenAI
+`gpt-5.6-terra`, reasoning `medium`, allowance 1024, three clean sessions × eight fixed turns, 24
+required and at most 30 calls, at most two attempts per turn and USD 0.15. Visible/provider caps are
+768/1792. The exact `/responses` wire uses service tier `default`, `store=false`, no tools or
+provider state and explicit cache reads/writes `0/0`.
+
+Execution remains unavailable until the user repeats the exact ID, digest, call ceiling and cost
+ceiling. The sample requires direct human-only all-true review; no text judge, rewrite, phrase
+matching or offline routing assertion may accept recognizable character. Until that full gate
+passes, policy v10 remains the last provider-accepted baseline and Stage 15 remains locked.
 
 ## 14. Regression and release discipline
 

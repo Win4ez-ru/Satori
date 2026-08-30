@@ -225,6 +225,7 @@ class SQLAlchemyRelationshipRepository:
             select(RelationshipTransitionRow)
             .where(RelationshipTransitionRow.relationship_id == relationship_id)
             .order_by(
+                RelationshipTransitionRow.resulting_state_version.desc(),
                 RelationshipTransitionRow.committed_at.desc(),
                 RelationshipTransitionRow.transition_id.desc(),
             )

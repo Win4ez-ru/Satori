@@ -22,7 +22,7 @@ from satori.application.conversation.contracts import (
     RecentConversationContext,
     RecentConversationTurn,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V20
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V26
 from satori.application.relationship.use_cases import expression_for
 from satori.config import Settings
 from satori.domain.affect import initial_affective_state
@@ -49,7 +49,7 @@ ADDITIONAL_SCENARIOS = (
 )
 
 # Keep this explicit so the manual regression cannot silently lag production composition.
-EVALUATOR_BEHAVIOR_POLICY = BEHAVIOR_POLICY_V20
+EVALUATOR_BEHAVIOR_POLICY = BEHAVIOR_POLICY_V26
 
 FORMAL_PATTERNS = ("здравствуйте", "с вами", "у вас", "вам ", "ваш ")
 TECHNICAL_DUMP_PATTERNS = (

@@ -1,7 +1,10 @@
 # Persistent relationship model
 
-Status: Stage 8 state model implemented; policy/schema/appraisal versions are `1`, migration head
-is `0007_relationship_state`, and Stage 8.1 calibrates only its conversation expression.
+Status: Stage 8 state model implemented; state/policy/appraisal versions are `1`, while the current
+`RelationshipExpressionContext` schema is `2`. Relationship storage was introduced by
+`0007_relationship_state`; repository migration head is now
+`0013_conversation_failure_reason`.
+Stage 8.1 and Checkpoint 14.2 calibrate only conversation expression.
 
 ## Boundary and target
 
@@ -104,6 +107,30 @@ committed relationship snapshot while derived work is pending. Graceful chat shu
 existing in-process queue; after a crash `satori relationship process --interaction ...` can retry
 an eligible undecided source without duplicating a transition.
 
+### Short owner-derived strain projection
+
+`RelationshipExpressionContext` v2 adds one closed boolean, `recent_strain`; schema v1 remains
+read-compatible only with that value false. `GetRelationshipForSession` reads at most the latest two
+owner-committed transitions in descending canonical `resulting_state_version` order. The projection
+is true only when all of the following hold:
+
+- the latest transition belongs to the same relationship, its resulting state is not ahead of the
+  current state and its after-`processed_interaction_count` exactly equals the current count;
+- either the latest applied transition contains `dismissiveness`, `hostility`,
+  `reliability_negative` or `boundary_pressure`, or the latest contains `repair_attempt` and the
+  immediately previous applied transition contains one of those negative categories;
+- for that repair path, the latest transition's before-`processed_interaction_count` exactly equals
+  the previous negative transition's after-count, so an intervening terminal/no-effect source
+  closes the negative-to-repair arc even though it creates no transition row.
+
+After a negative transition is committed, the projection can shape the following future-turn
+repair reception and, if that repair is committed, the immediately following important-help turn.
+It ends when a later terminal/applicable processed relationship source advances
+`processed_interaction_count`; an outage or still-pending derived job
+does not invent a transition. `recent_strain` is recomputed from canonical owner rows, not stored as
+an offense flag, mood or second relationship state. Relationship appraisal and mutation remain
+strictly post-response, so the current user's category can affect only a future reply.
+
 ## Persistence, provenance and privacy
 
 Migration `0007_relationship_state` adds:
@@ -121,10 +148,17 @@ historical inference and creates no artificial closeness.
 
 ## Conversation and safety
 
-Generation receives a small trusted qualitative projection with maturity and state version. It
-can subtly calibrate warmth/directness, but never changes truth, grounding, values, safety,
-autonomy or permission to disagree. High trust/affection does not mean love, romance, dependency,
-exclusivity, possession, obedience or an obligation to agree. There is no CLI setter.
+Conversation composition receives a small trusted qualitative projection with maturity, state
+version and the closed `recent_strain` boolean. Historical v24/v25 provider blocks received only
+the effective profile and boolean; true strain selected
+`guarded_only_when_relationally_relevant`. V26 derives at most three typed qualitative relationship
+signals from the same owner read and places them inside the single current-turn character presence.
+Possible meanings include new contact, growing familiarity, earned trust, ease, closeness,
+intellectual respect, affection and recent strain. Raw transition categories, deltas, IDs and
+numeric axes remain local. The projection does not explain a cause to the model or authorize a new
+factual claim. It can subtly calibrate warmth/directness, but never changes truth, grounding, values,
+safety, autonomy or permission to disagree. High trust/affection does not mean love, romance,
+dependency, exclusivity, possession, obedience or an obligation to agree. There is no CLI setter.
 
 Stage 8.1 context schema v11/behavior policy v9 render this projection affirmatively:
 
@@ -144,13 +178,54 @@ activity does not imply disinterest in the user's experience. A correction about
 questions is session-local dialogue context, not relationship evidence. Neither assistant output
 nor the provider's chosen wording can change relationship state.
 
+For historical policies v24 through v26, `recent_strain` becomes turn-relevant only when the current user offers an explicit
+repair or the turn requires a substantive answer. Explicit listening and serious distress retain
+vulnerability precedence. Important practical or technical help is delivered completely as
+`guarded_help`; reserve may affect voice and continuation but never suppress or degrade the answer.
+The manifest exposes only `relationship_context_schema_version`, `relationship_state_version`,
+`relationship_expression_profile` and `relationship_recent_strain` as safe owner metadata. Fresh
+v26 generation additionally exposes only bounded `code:level` relationship-presence signals; it
+stores neither axis values nor the rendered provider guidance. Signals are transient observability,
+not relationship evidence, replay authority or a second relationship state.
+
+ADR-0043 keeps that owner and projection unchanged for current candidate v27. Relationship is read
+only after cognition truth/required-content selection and before the transient movement is rendered.
+It may change licensed warmth, ease, reserve and current-reply continuation only when the turn is
+relationship-relevant. Important help remains complete; direct devaluation, repair and explicit
+relationship questions stay relevant, while unrelated work is not globally chilled by old strain.
+
+A narrow complete topic closure is additionally relationship-relevant only for the bounded closure
+movement: fresh/strained state completes and may use reserve, while established positive state may
+use ease and open exactly one adjacent or new topic. This is not a probability engine, persistent
+initiative, punishment state or inference of intimacy. Raw relationship axes, transitions and
+causes remain local; the schema-2 presence projection carries only bounded qualitative signals and
+cannot mutate or replay relationship state.
+
 Developer inspection:
 
 ```bash
 uv run --no-sync satori relationship status
 uv run --no-sync satori relationship history --limit 20
 uv run --no-sync satori relationship process --interaction INTERACTION_ID
+uv run --no-sync satori relationship process --limit 20
 ```
 
-Status/history are typed read projections and contain no raw user text. Exact policy rationale is
-recorded by [ADR-0020](decisions/0020-persistent-counterparty-relationship-model.md).
+Status/history are typed read projections and contain no raw user text. The two `process` targets
+are mutually exclusive. `--interaction` retries one explicit source; positive `--limit N` selects
+at most `N` eligible completed sources without a terminal relationship decision for the default
+counterparty in canonical oldest-first `(started_at, interaction_id)` order. Processing is
+sequential through the existing Stage 8 owner, stops on the first failure and reports only bounded
+counts. Replay remains idempotent.
+
+This is explicit operator recovery, not automatic startup backfill or migration inference, and it
+may call the configured relationship appraisal provider. The real local backlog was not processed
+during the v25, v26 or v27 offline work; no relationship mutation or paid/background provider usage
+is claimed.
+Exact policy rationale is recorded by
+[ADR-0020](decisions/0020-persistent-counterparty-relationship-model.md), and the explicit recovery
+boundary by [ADR-0041](decisions/0041-v25-social-disclosure-and-failure-observability.md). The v26
+causal expression bridge is recorded by
+[ADR-0042](decisions/0042-unified-causal-character-presence.md); it changes no Stage 8 owner or
+mutation rule. The current v27 expression selection is recorded by
+[ADR-0043](decisions/0043-live-state-selected-character-movement.md); it likewise changes no Stage 8
+owner or mutation rule and has made no provider call.

@@ -6,12 +6,14 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
+from satori.core.conversation import ConversationProviderFailureReason
 from satori.domain.conversation_history import (
     ConversationHistorySnapshot,
     ConversationInteraction,
     ConversationSession,
     HistoricalMessage,
     HistoricalMessageRole,
+    InteractionFailureMetadata,
     InteractionProviderMetadata,
     InteractionStatus,
     SessionKind,
@@ -104,14 +106,20 @@ class SQLAlchemyConversationHistoryRepository:
         self._session.add(self._message_row(interaction.user_message))
         return True
 
-    def mark_failed(self, interaction_id: str, *, failure_kind: str) -> None:
+    def mark_failed(self, interaction_id: str, *, failure: InteractionFailureMetadata) -> None:
         self._session.execute(
             update(ConversationInteractionRow)
             .where(
                 ConversationInteractionRow.interaction_id == interaction_id,
                 ConversationInteractionRow.status != InteractionStatus.COMPLETED.value,
             )
-            .values(status=InteractionStatus.FAILED.value, failure_kind=failure_kind)
+            .values(
+                status=InteractionStatus.FAILED.value,
+                failure_kind=failure.kind,
+                failure_reason=(failure.reason.value if failure.reason is not None else None),
+                provider=failure.provider,
+                model=failure.model,
+            )
         )
         current = self._session.get(ConversationInteractionRow, interaction_id)
         if current is None:
@@ -183,6 +191,7 @@ class SQLAlchemyConversationHistoryRepository:
         )
         row.relationship_state_version = provider_metadata.relationship_state_version
         row.failure_kind = None
+        row.failure_reason = None
         if close_session:
             self._session.execute(
                 update(ConversationSessionRow)
@@ -264,6 +273,7 @@ class SQLAlchemyConversationHistoryRepository:
         if len(user_messages) != 1 or len(assistant_messages) > 1:
             raise RuntimeError("persistent interaction has invalid raw-message cardinality")
         metadata = None
+        failure = None
         if row.status == InteractionStatus.COMPLETED.value:
             if (
                 row.provider is None
@@ -312,6 +322,20 @@ class SQLAlchemyConversationHistoryRepository:
                 relationship_context_schema_version=row.relationship_context_schema_version,
                 relationship_state_version=row.relationship_state_version,
             )
+        elif row.status == InteractionStatus.FAILED.value:
+            if row.failure_kind is None:
+                raise RuntimeError("failed interaction has no failure kind")
+            failure_reason = (
+                ConversationProviderFailureReason(row.failure_reason)
+                if row.failure_reason is not None
+                else None
+            )
+            failure = InteractionFailureMetadata(
+                kind=row.failure_kind,
+                reason=failure_reason,
+                provider=row.provider,
+                model=row.model,
+            )
         return ConversationInteraction(
             interaction_id=row.interaction_id,
             session_id=row.session_id,
@@ -326,7 +350,7 @@ class SQLAlchemyConversationHistoryRepository:
                 self._map_message(assistant_messages[0]) if assistant_messages else None
             ),
             provider_metadata=metadata,
-            failure_kind=row.failure_kind,
+            failure=failure,
             relationship_processing_required=row.relationship_processing_required,
             model_processing_required=row.model_processing_required,
             position_processing_required=row.position_processing_required,

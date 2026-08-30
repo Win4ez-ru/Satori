@@ -16,8 +16,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from satori.core.conversation import ConversationProviderFailureReason
 from satori.infrastructure.persistence.base import Base
 from satori.infrastructure.persistence.types import UTCDateTime
+
+_FAILURE_REASON_VALUES_SQL = ", ".join(
+    f"'{reason.value}'" for reason in ConversationProviderFailureReason
+)
 
 
 class ConversationSessionRow(Base):
@@ -100,13 +105,27 @@ class ConversationInteractionRow(Base):
             "AND context_schema_version IS NOT NULL "
             "AND context_manifest_schema_version IS NOT NULL "
             "AND policy_id IS NOT NULL AND policy_schema_version IS NOT NULL "
-            "AND failure_kind IS NULL) OR "
-            "(status != 'completed' AND completed_at IS NULL AND provider IS NULL "
+            "AND failure_kind IS NULL AND failure_reason IS NULL) OR "
+            "(status = 'pending' AND completed_at IS NULL AND provider IS NULL "
             "AND model IS NULL AND finish_status IS NULL "
+            "AND input_tokens IS NULL AND output_tokens IS NULL "
             "AND context_schema_version IS NULL "
             "AND context_manifest_schema_version IS NULL "
-            "AND policy_id IS NULL AND policy_schema_version IS NULL)",
+            "AND policy_id IS NULL AND policy_schema_version IS NULL "
+            "AND failure_kind IS NULL AND failure_reason IS NULL) OR "
+            "(status = 'failed' AND completed_at IS NULL AND finish_status IS NULL "
+            "AND input_tokens IS NULL AND output_tokens IS NULL "
+            "AND context_schema_version IS NULL "
+            "AND context_manifest_schema_version IS NULL "
+            "AND policy_id IS NULL AND policy_schema_version IS NULL "
+            "AND failure_kind IS NOT NULL AND "
+            "((failure_reason IS NULL AND provider IS NULL AND model IS NULL) OR "
+            "(failure_reason IS NOT NULL AND provider IS NOT NULL AND model IS NOT NULL)))",
             name="completion_metadata_consistent",
+        ),
+        CheckConstraint(
+            f"failure_reason IS NULL OR failure_reason IN ({_FAILURE_REASON_VALUES_SQL})",
+            name="failure_reason_valid",
         ),
     )
 
@@ -143,6 +162,7 @@ class ConversationInteractionRow(Base):
     relationship_context_schema_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     relationship_state_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     failure_kind: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     relationship_processing_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
     model_processing_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
     position_processing_required: Mapped[bool] = mapped_column(Boolean, nullable=False)

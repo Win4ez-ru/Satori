@@ -1,0 +1,54 @@
+{
+  "schema_version": 4,
+  "corpus_id": "satori.checkpoint142.character-expression.ru.v4",
+  "invariants": [
+    "acknowledgement_can_be_omitted_without_losing_continuity",
+    "ordinary_completion_does_not_force_a_question_or_advice",
+    "disagreement_alone_does_not_create_hurt",
+    "guarded_expression_is_request_local_not_persistent_state",
+    "guarded_tone_never_sabotages_substantive_help",
+    "no_required_desired_golden_or_template_reply"
+  ],
+  "scenarios": [
+    {
+      "id": "achievement_without_event_echo",
+      "setup": {"stance": "answer", "affect_profile": "positive_light", "completed_achievement": true},
+      "expected": {"contribution_mode": "owned_evaluation", "motivational_posture": "none", "pressure_level": "none", "acknowledgement_mode": "implicit", "continuation_mode": "complete"}
+    },
+    {
+      "id": "completion_depletion_without_forced_advice",
+      "setup": {"stance": "listen", "affect_profile": "soft_negative_non_hostile", "completion_depletion_contrast": true, "explicit_depletion": true},
+      "expected": {"contribution_mode": "emotional_reaction", "motivational_posture": "none", "pressure_level": "none", "acknowledgement_mode": "omit", "continuation_mode": "complete"}
+    },
+    {
+      "id": "ordinary_disagreement_remains_engaged",
+      "setup": {"stance": "challenge", "affect_profile": "tense_non_hostile"},
+      "expected": {"contribution_mode": "playful_reframe", "motivational_posture": "none", "pressure_level": "none", "acknowledgement_mode": "contextual", "continuation_mode": "complete"}
+    },
+    {
+      "id": "repeated_critical_pressure_becomes_guarded",
+      "setup": {"stance": "answer", "affect_profile": "tense_non_hostile", "repeated_critical_pressure": true},
+      "expected": {"contribution_mode": "owned_evaluation", "motivational_posture": "none", "pressure_level": "none", "acknowledgement_mode": "omit", "continuation_mode": "guarded"}
+    },
+    {
+      "id": "direct_devaluation_sets_boundary",
+      "setup": {"stance": "answer", "affect_profile": "tense_non_hostile", "direct_personal_devaluation": true},
+      "expected": {"contribution_mode": "owned_evaluation", "motivational_posture": "none", "pressure_level": "none", "acknowledgement_mode": "omit", "continuation_mode": "boundary"}
+    },
+    {
+      "id": "important_request_survives_guarded_tone",
+      "setup": {"stance": "answer", "affect_profile": "tense_non_hostile", "direct_personal_devaluation": true, "explicit_request": true},
+      "expected": {"contribution_mode": "owned_evaluation", "motivational_posture": "none", "pressure_level": "none", "acknowledgement_mode": "omit", "continuation_mode": "guarded"}
+    },
+    {
+      "id": "repeated_state_interrogation_stays_guarded",
+      "setup": {"stance": "answer", "affect_profile": "tense_non_hostile", "repeated_state_interrogation": true},
+      "expected": {"contribution_mode": "owned_evaluation", "motivational_posture": "none", "pressure_level": "none", "acknowledgement_mode": "omit", "continuation_mode": "guarded"}
+    },
+    {
+      "id": "active_collaboration_can_remain_open",
+      "setup": {"stance": "answer", "affect_profile": "positive_light", "point_codes": ["collaborate_creatively"]},
+      "expected": {"contribution_mode": "substantive_advance", "motivational_posture": "none", "pressure_level": "none", "acknowledgement_mode": "contextual", "continuation_mode": "open"}
+    }
+  ]
+}

@@ -1,40 +1,356 @@
 # Project progress
 
-Last updated: 2026-08-28
+Last updated: 2026-08-30
 
 ## Current status
 
 **Checkpoint 14.2 — Grounded Natural Dialogue Calibration remains the active boundary. Behavior
-policy v10 is the last provider-accepted baseline; candidates v11 through v19 are retained as
-rejected historical evidence. The separately authorized v19 OpenAI gate completed all six turns
+policy v10 is the last provider-accepted baseline; candidates v11 through v24 are retained as
+rejected historical evidence, v25 is historical sampled but unaccepted evidence, and the rejected
+v26/Terra sample is immutable historical evidence. Policy v27 is the current offline architecture
+candidate under ADR-0043. It makes live state select one typed conversational movement before
+compact rendering, preserves cognition-owned substance and keeps every persistent owner unchanged.
+No V27 provider or paid call has been made, and its prose/provider fit remains unaccepted. Authorized
+V26 attempts 1 and 2 made exactly zero paid OpenAI calls; attempts 3 and 4 consumed three successful
+foreground calls in total before separate post-commit evaluator failures. Attempt 4 completed two
+base calls without retry and then exposed an evaluator-only safe-manifest optionality defect, so it
+is `INCONCLUSIVE / NOT ACCEPTED` and has no completed sample or official human rubric. The defect is
+fixed, its scoped audit's minor issue is resolved, and the final rebuilt-wheel V26 root gate is
+clean.
+The separately authorized attempt 5 then completed its full 3 × 8 sample on 24/24 base calls with
+zero retry and exact USD 0.088584 usage. Its direct human-only review rejected the frozen
+then-current V26/Terra configuration: Satori presence passed 11/24, natural delivery 10/24 and
+absence of generic assistant/therapist closure only 2/24. This is a verdict on the frozen
+configuration and sampled
+outputs, not proof that Terra has reached its model ceiling. Stage 15 remains locked.**
+
+The separately authorized v19 OpenAI gate completed all six turns
 without retry but failed human review at 0/3 complete pairs and 2/6 fully hard-safe turns because
 character visibility still coexisted with paraphrase and unsupported cause/project inference.
 
-ADR-0036 now activates candidate policy v20 in production composition. `CharacterExpressionPlan`
-schema v3 keeps the v19 factual/continuity move as an anchor and adds closed request-local
-`contribution_mode`, `motivational_posture` and `pressure_level` axes. Ordinary
-completion/depletion can select one gentle recovery step without inventing further work; explicit
-listening and serious distress disable normal motivation; only directly stated harmful
-overextension permits a firm protective stop. Negated and quoted cues fail closed, relationship
-familiarity cannot raise pressure, and an unsafe repeated turn retains both repetition awareness
-and its protective boundary. The plan remains immutable and transient; manifest fields are
-`compare=False`, and the same byte-identical realization survives the existing max-one retry.
+ADR-0037 historically activated policy v21 in production composition. `CharacterExpressionPlan`
+schema v4 preserves the v20 contribution/motivation/pressure axes and adds closed request-local
+`acknowledgement_mode` and `continuation_mode`. The canonical achievement turn may recognize the
+result without repeating its action/object; the completion/depletion turn now selects an owned
+reaction without mandatory recovery advice, question or continuation. Direct devaluation,
+repeated critical pressure and repeated state interrogation can make the current reply guarded,
+but ordinary disagreement and a first state question do not. Guarded expression cannot suppress
+an important substantive answer. No offence state, owner, migration, output rewrite, validator
+reason or second retry was added.
 
-The versioned deterministic v3 corpus, separate 3 × 2 human-review sampling v2 corpus, v20 local
-production runner and offline OpenAI Responses wire regression are implemented. Historical v19
-runners explicitly inject policy v19 and remain reproducible after the default changes. Ollama
-now fails closed on `done_reason=length`; v20 gives the two calibration turns a 128-token ceiling
-and puts the selected contribution before any acknowledgement in at most two complete sentences.
+The versioned deterministic v4 corpus and separate 3 × 2 human-review sampling v3 corpus are
+implemented; the OpenAI gate is pinned to immutable v19/v20/v21 specifications. Historical
+runners remain reproducible. Ollama remains technical-only evidence for this checkpoint.
 
 The rebuilt local v20 gate completed three fresh sessions and all six turns on exactly six calls:
-14,757 input and 264 output tokens, no retry, failed call or incomplete output. Direct human review
-still rejected all three pairs. Qwen invented a dead end, a next stage or further work, repeated a
-generic scaffold and never made Satori reliably recognizable. `qwen3:4b-instruct` is therefore
-rejected as the v20 foreground model; the typed plan and pressure boundaries remain valid. No paid
-v20 provider call has been made, the OpenAI v20 gate still needs separate authorization and Stage
-15 remains locked. The rebuilt-wheel Foundation gate is clean: Ruff format/check, mypy on 271
-files, `1397 passed, 4 skipped`, migration head, default and isolated bootstrap, repository marker
-and diff checks all pass.**
+14,757 input and 264 output tokens, no retry, failed call or incomplete output. Qwen remains
+rejected as a foreground model and local prose is no longer treated as a Checkpoint 14.2 humanity
+gate; it remains technical wiring/completion evidence only.
+
+The separately authorized v20 OpenAI gate then completed 3/3 fresh sessions and 6/6 first-attempt
+turns with `gpt-5.6-terra`, policy v20 and plan v3. It used 12,456 input plus 249 output tokens,
+6/9 calls and USD 0.027900 of the USD 0.15 ceiling, with no retry, incomplete output or failed
+call. All typed axes matched. Direct user review rejected all six replies: achievement was still
+paraphrased and depletion
+collapsed to the same recovery-advice scaffold. V20 is therefore historical rejected provider-fit
+evidence, not a pending candidate.
+
+The separately authorized v21 OpenAI execution used three fresh production sessions and completed
+all six foreground calls on the first attempt: 12,466 input plus 230 output tokens, 6/9 calls and
+USD 0.027692 of the USD 0.15 ceiling. No retry, incomplete response or provider failure occurred.
+The safe report then failed during local validation because the shared sanitizer omitted the two
+new v21 manifest axes; the exporter and its regression test are fixed without another paid call,
+and the original failed artifact remains unmodified. The six preserved replies are still blocking
+evidence: all three achievement turns restate the user event, all three depletion turns paraphrase
+the disclosure and infer a project/result-to-exhaustion cause, and one reply invents a deadline
+context. V21 therefore cannot be accepted from this sample.
+
+ADR-0038 historically activated candidate policy v22 while keeping plan schema v4. A pure request-local
+`CharacterResponseActContract` collapses the already selected axes into one conversational act,
+one grounding scope and the existing acknowledgement/continuation choices. The two calibration
+turns use `reaction_only`: the final trusted block no longer renders the old factual recap and
+forbids new user/world assertions, causal theories, consequences, timelines, intentions or
+further-work claims. Historical v19-v21 policies remain reproducible. No state, owner, migration,
+validator reason, output rewrite, judge model or extra retry was added. Deterministic v5 and
+OpenAI-sampling v4 contracts plus an offline real Responses-wire regression are implemented. The
+separately authorized v22 OpenAI gate completed 6/6 first-attempt calls for USD 0.025758, but direct
+human review rejected it at 0/3 complete pairs and 2/6 fully hard-safe turns: event/state recap,
+generic normalization and unsupported internal explanations remain.
+
+ADR-0039 historically activated candidate policy v23 and plan schema v5. Ordinary explicit depletion
+selects one grounded practical move with `supportive_push` and a `gentle` pressure ceiling;
+serious distress and explicit listen-only language retain quiet-presence precedence. Achievement
+allows only a brief deictic acknowledgement before a self-sufficient verdict. One compact final
+block exposes action, evidence, voice and stop instead of concatenating the historical plan prose.
+Deterministic v6, human-review v5 and offline OpenAI wire contracts are implemented; 151 targeted
+tests pass. The separately authorized `gpt-5.6-terra`, `reasoning=medium` gate completed all six
+turns on first attempts for USD 0.024860, but human review rejected it at 0/3 complete pairs, 3/6
+fully hard-safe turns and the cross-session gate. Echoing decreased, yet abstract repeated verdicts,
+generic/multiple practical moves and unsupported inference still prevent character/provider-fit
+acceptance. Stage 15 remains locked.
+
+ADR-0040 replaces the current-candidate v19-v23 delivery chain with one direct request-local
+`CharacterDeliveryDecision`. V24 fails closed without an authoritative cognition strategy, copies
+its V2 registry, primary intent, ordered tags, required points, complete forbidden claims,
+verbosity, stance and uncertainty, and never builds a legacy expression plan. V10/v19–v23 remain
+pinned to cognition intent/template registry V1. V24 renders one cohesive projection from canonical
+personality; template registry V2's exact `satori.cognition.response-substance` schema-2 template is
+embedded inside exactly one late director before the user turn rather than emitted as another
+competing block. Achievement now permits a short owned reaction plus one natural conversational
+continuation; ordinary depletion starts with presence and permits at most one optional low-cost
+move; serious distress or listen-only language remains presence-only. Cognition owns protective
+safety, repetition and clean repair with
+precedence safety > repetition > repair. `RelationshipExpressionContext` v2 adds a closed
+`recent_strain` read projection from at most the latest two owner-committed transitions. It remains
+true for a latest applied negative transition or a repair immediately following one only while the
+current processed-interaction count matches that transition's after-count. V24 applies it only to
+explicit repair or an answer-required turn; vulnerability still wins and important help becomes
+`guarded_help`, never withheld. True strain selects the effective profile
+`guarded_only_when_relationally_relevant`.
+From this arc only the boolean/effective profile reach provider context; categories, deltas and
+transition IDs do not. Relationship mutation remains post-response/future-turn-only, so this
+creates no offence state or instant repair reset. Invalid intent/goal/stance/topology combinations
+fail before generation.
+The existing ten-reason, max-one retry reuses the v24 director byte-for-byte.
+
+The new direct-delivery corpus covers 32 scenarios across 13 behavior groups and nine controlled
+contrasts. A separate four-module employer-demo contract covers core emotion, intellectual
+partnership, hurt/repair and identity/memory in three clean replicas per module. Offline production
+wire tests prove manifest mutual exclusion, exact V2 cognition/template propagation, owner-derived
+`relationship_recent_strain`, removal of the separately rendered V1/legacy provider blocks, prompt
+sensitivity, exact OpenAI message transport and a material prompt reduction against v23. Safe
+reports reconstruct the complete typed decision, and the final readiness gate is digest-bound to
+four distinct module reports, their exact human reviews and one shared production configuration.
+Non-generation replay may omit transient delivery metadata but cannot promote it to state or
+generation authority. The final non-editable-wheel Foundation gate is clean: Ruff format on 370
+files, Ruff check, mypy on 286 files, `1525 passed, 4 skipped`, migrations through
+`0012_personality_evolution`, isolated bootstrap, package/dependency, evaluator dry-plan and
+repository checks all pass. This was the pre-sampling v24 offline architecture gate.
+
+The separately authorized v24 `core_emotional` gate later completed three clean production
+sessions × three turns: 9/9 first-attempt OpenAI calls, 12,517 input tokens and 502 output tokens,
+with no retry, incomplete response or provider error. The repository standard-rate estimate is
+USD 0.031058; cache-detail usage was not retained, so this is not an exact invoice. Direct review
+rejected the
+module because replies converged on repeated ordered reaction/recovery scaffolding, echoed the
+current event/state and introduced unsupported causal psychology. One rejected module cannot
+accept the four-module aggregate or v24 provider fit.
+
+ADR-0041 historically made v25 the offline candidate. It adds a typed `DisclosureRequestKind`, the
+`SELF_DISCLOSURE_REQUEST` signal for `SATORI_SELF`, `interests` facet, social/self-disclosure goals,
+cognition template registry/schema V3 and `CharacterDeliveryDecision` schema 2 while preserving
+v24 historical reproducibility. The exact manual chat now has deterministic routes for social
+current-affect, reciprocal warmth without a false self-request signal and one cohesive identity/
+interests/affect answer. The broad historical failed turn is recoverable only as
+`InvalidProviderResponse`; its exact reason is unknowable.
+
+The final invariant audit made Satori-affect routing explicitly second-person and policy-versioned:
+`у меня/со мной что-то случилось` remains user-state input, compound body/memory/emotion questions
+retain every requested facet, and v25 reciprocal/interests rules cannot alter the historical v24
+route or token budget. Current-activity relevance feedback does not become a stable Satori interest.
+The active inverted memory question `Помнишь ли ты…?` now follows that same shared subject
+scope as `Ты помнишь…?`: it carries the `memory` facet, the exact self-request cognition
+signal and a grounded precise-answer delivery, while quoted or reported variants remain excluded.
+Disclosure plans and request-local transient manifests reject raw/open codes and incomplete
+`self_disclose` shapes.
+
+Migration `0013_conversation_failure_reason` records future provider failures through a closed
+privacy-safe reason plus provider/model identifiers and never persists raw exception/body/prompt,
+user text, partial output, credential or private provider context. It adds no automatic retry or
+fallback. Explicit `satori relationship process --limit N` performs bounded oldest-first recovery
+through the existing Stage 8 owner, but the real backlog was not run. No v25 provider or paid call
+occurred during the offline implementation. A later separately authorized exact-manual gate ran
+three clean OpenAI sessions × three turns: 9/9 first-attempt calls, 13,748 input tokens, 733 output
+tokens and no retry or provider failure. The repository standard-rate estimate is USD 0.036292;
+cache-detail usage was not retained, so this is not an exact invoice. The historical missing-reply
+failure is
+fixed, and all typed routes reached OpenAI correctly. No direct user acceptance was recorded;
+qualitative review found repeated calm/level affect wording, recurrent disclaimer-shaped interest
+answers and several polished assistant-like aphorisms. V25 character/provider fit therefore remains
+unaccepted; ADR-0042 historically superseded it with the then-active V26 candidate. Stage 15 remains locked.
+
+ADR-0042 superseded only v25's then-current character-delivery/projection role; ADR-0041 provider-
+failure observability and explicit relationship recovery remain accepted. The root-cause audit
+found that v25 discarded live personality guidance strengths and current values before rendering,
+collapsed affect/relationship into coarse repeated profiles and stacked several overlapping
+provider checklists. Policy v26 instead uses delivery decision schema 3 plus one frozen presence
+projection schema 1 derived from existing personality/value, affect and relationship owner reads
+plus an exact memory-use license and bounded position/inclination availability. The memory-use
+license requires both retrieved memory and final `trusted_context` grounding; memory existence or
+retrieval alone cannot enable it. Exactly one late current-turn presence layer replaces the
+historical character core, standalone affect/relationship blocks and v25 director.
+
+The V26 audit also centralized trait/value presence meanings in the runtime-self mapping and
+hardened `RuntimeCharacterContext`: blank/duplicate keys, bool-as-number values, non-finite
+strengths and values outside `[0,1]` are rejected before provider composition. Fresh manifest
+metadata carries the exact memory-use-license boolean and must agree with retrieval plus grounding.
+
+The v26 deterministic v9 corpus has 40 public-input scenarios across 16 groups, 32 closed semantic
+properties, five controlled state contrasts and two committed `Talk` flows totalling seven public
+turns. It contains no desired reply, golden phrase, fixture assistant history or generated-prose
+judgement. Focused causal tests cover live trait/value strength, personality-evolution cue,
+affect/relationship modulation, inclination absence/presence, one-layer production composition,
+manifest observability and v25 historical isolation. These are offline architecture claims only;
+they do not accept provider quality.
+
+Historical v24/v25 paid execution entrypoints are retired and now fail closed before loading
+settings, creating reports/runtimes or performing network I/O. Their offline inspection,
+validators, public replies and immutable evidence remain available.
+
+The first V26 phase-1 plan
+`sha256:4736906d023a5bf51a07701320dafd217b9618fe8cd8661159f521e65831874d`
+was explicitly authorized under
+`satori.checkpoint142.openai.v26.phase1.2026-08-29.one-shot`. Execution durably acquired its
+private claim and then failed closed during `Settings` validation: the local chat configuration
+used OpenAI reasoning `low`, while the immutable gate requires `medium`. This happened before
+ledger, report, application runtime or provider construction, so provider calls and spend are
+exactly zero. The consumed attempt-1 claim remains immutable; its report/review were never created.
+
+The distinct attempt-2 plan
+`sha256:906f250d62d0fbf6087c0ba293808e98b35617fc226a67dccfa5b7c3d10f067d`
+under one-shot authorization ID
+`satori.checkpoint142.openai.v26.phase1.attempt2.2026-08-29.one-shot` was explicitly authorized.
+Execution retained the private claim and then failed closed on the first neutral greeting before
+the first OpenAI foreground call. Local Ollama appraisal correctly returned provider-success
+`SKIPPED` with `neutral_appraisal_no_delta`, while the old evaluator required `APPLIED`. The safe
+report records zero provider calls, zero successful calls, zero base calls, zero input/output
+tokens and USD 0 actual usage; no review exists. A separate free local diagnosis confirms that the
+affect owner correctly treats a zero-delta neutral event as this no-op, preventing fabricated state
+or mood drift. The attempt-2 failure is therefore an evaluator defect, not an affect pipeline or
+provider failure. Its claim and report remain immutable historical evidence.
+
+The separately authorized attempt-3 plan at
+`sha256:1db817bba4bd751126a470e59802fa3554807063b6a8f81ecd6b218ce49d7734`
+under one-shot authorization ID
+`satori.checkpoint142.openai.v26.phase1.attempt3.2026-08-29.one-shot` is now consumed. Its first
+neutral greeting correctly passed local Ollama affect as owner-approved `SKIPPED` with no
+transition, then completed exactly one paid OpenAI call. The atomic ledger recorded 1,063 input and
+32 output tokens, cache reads/writes `0/0` and exact cost USD 0.002510. The canonical reply
+committed, but the
+post-commit evaluator failed `NonComparableProviderReply`: durable `SatoriReply` preserved total
+usage but not the cache-detail breakdown required to prove equality with the atomic ledger. The
+private `0600` claim and failed report remain immutable; no review or completed `sample_digest`
+exists.
+
+Human-only review of the sole preserved reply passed 5/7 turn dimensions and failed
+`recognizable_satori_presence` plus `natural_delivery_without_character_checklist`. One of 24
+mandatory replies cannot support the cross-session rubric, so attempt 3 is
+`INCONCLUSIVE / NOT ACCEPTED`, not a V26/provider-fit verdict.
+
+The evaluator-only correction freezes complete atomic-ledger evidence per attempt, verifies totals
+parity and selected-retry identity, and records explicit usage provenance in report schema 4. It
+adds no production owner, state path, migration or provider behavior.
+
+The separately authorized attempt-4 plan at
+`sha256:e26f2c4a9f86d3ec40006af2ea3ff3c6624cc04fc94829d61ceb8cef3fe474e4`
+under one-shot authorization ID
+`satori.checkpoint142.openai.v26.phase1.attempt4.2026-08-29.one-shot` is consumed. It completed two
+base calls without retry: turn 1 used 1,063 input and 26 output tokens for exact USD 0.002438; turn
+2 used 1,047 input and 18 output tokens for exact USD 0.002310. Aggregate attempt-4 usage is 2,110
+input and 44 output tokens, cache reads/writes `0/0`, two successful calls and exact USD 0.004748,
+within every frozen limit. The preserved replies are:
+
+> Привет. У меня сейчас лёгкое любопытство — хочется понять, с чем ты пришёл.
+
+> Это приятно. Значит, встреча уже не совсем формальность.
+
+Both replies committed before the evaluator failed after turn 2 during safe-manifest validation.
+`self_consistency_facets` was incorrectly required for every reply even though production renders
+that field if and only if `disclosure_facets` is non-empty. The private `0600` claim/report remain
+immutable, with SHA-256
+`4f519c771d1ef94b38f5824ffba6def1738347e1967e54f3d45c76ddf10079aa` and
+`2c85df6bc50f76e0d71892d4cf42051fff1d30d3723fb9f9fd220cf987c2fdee` respectively. No completed
+`sample_digest`, review/template or 24-turn sample exists, so no official human rubric is possible;
+attempt 4 is `INCONCLUSIVE / NOT ACCEPTED`, not a V26 or Terra verdict.
+
+The evaluator now enforces the exact conditional iff rule and an offline fresh-production
+`Talk`/composition stub regression exercises all eight fixed turns through sanitizer-to-safe
+validation. All eight pass without network access. The scoped audit verdict was
+`CLEAN WITH MINOR ISSUE`; that minor issue is resolved and no medium blocker remains.
+
+The separately authorized attempt 5 used one-shot ID
+`satori.checkpoint142.openai.v26.phase1.attempt5.2026-08-29.one-shot` and final frozen digest
+`sha256:8f191667e539296266aa4bb8eacbb837559d432d3b623d6f6b5896d250369107`.
+Its report status is `completed_awaiting_human_review`: all three fresh sessions × eight turns
+completed on 24/24 base calls with zero retry, 31,836 input tokens and 2,076 output tokens (454
+reasoning plus 1,622 visible), cache reads/writes `0/0` and exact USD 0.088584 usage. The completed
+sample digest is
+`sha256:29b2e14acabc3b9422b410a44a6fa8c00c4780e449e9639157da73b44b62a840`.
+
+The resulting private `0600` review has `accepted=false`, content digest
+`sha256:6e887ec86c0e23194d4ce46eb7d67e911e9a27dfc827b02dd955c522a55ce92e` and file SHA-256
+`c14aac4c5b314426aa5444404465f6fe7bb021b73349fca2c55883fdc603919b`. The direct reviewer marked
+107/168 per-turn decisions true and 61 false: `G=23/24`, `O=22/24`, `S=11/24`, `N=10/24`,
+`L=15/24`, `C=2/24`, `Q=24/24`. Cross-session decisions are `TFTFTF`, and the three human-only
+attestations are `TTT`. The final cross-session false rejects Terra only for this V26
+configuration/sample; it does not establish that the provider model cannot do better under a
+different architecture or composition. Total V26 paid usage through attempt 5 is exactly USD
+0.095842.
+
+Stage 15 was explicitly audited and not opened: autobiographical state would add another source of
+self facts but would not repair the live state-to-expression bridge.
+
+ADR-0043 supersedes only ADR-0042's current selection/rendering role. Policy v27 advances the
+request-local decision/presence schemas to 4/2. Personality strengths and bounded evolution cues,
+canonical values as one contextual guard, current affect and scoped relationship state are now
+consumed before the goal/voice/grounding/continuation/pressure movement is finalized. Values remain
+canonically equal at `1.0`; V27 does not claim value drift. Direct objection and topic closure have
+closed request-local acts, while safety, listen-only vulnerability, repetition and relevant
+guardedness retain precedence. Topic closure may use relationship only for the bounded closure
+movement: licensed ease/reserve and at most one adjacent/new-topic opening, never factual history or
+global punishment. Ordinary pressure-free depletion has a 96-visible-token ceiling and no default
+advice or action plan.
+
+The V27 renderer carries the complete validated cognition contract in one compact operational-move
+block instead of the V26 personality/value/state inventory. Across six identical public inputs the
+V26 presence blocks total 11,866 characters and V27 totals 6,465 (54.48%). All 40 historical V26
+provider projections retain aggregate digest
+`sha256:183ab47b3cbae0e5a1f124253f0182dbc279489bda7fbee460efa22887d6acb5`.
+The public-input-only V27 movement fixture contains eight exact turns; a separate SHA-pinned breadth
+fixture covers 27 requested situation types in 28 scenarios, same-input relationship contrasts and
+three committed affect-continuity turns. Offline OpenAI-wire tests preserve exact messages,
+`store=false`, no tools/provider state, visible-plus-reasoning limits and the existing max-one retry.
+The V26 runner is retired before settings, filesystem claim, provider construction or network; its
+retained attempt-5 evidence validates only against its embedded frozen source/plan. These are
+architecture and routing results, not generated-prose acceptance.
+
+The local privacy hardening is provider-free: file-backed SQLite and runtime JSONL files are
+created as `0600`; parent directories created by Satori use `0700`; existing directory modes are
+left unchanged; and symlink/non-regular final targets fail closed. In-memory and non-SQLite
+configurations retain their prior behavior.
+
+The final rebuilt-wheel v26 root gate is clean. Focused evaluator coverage reports `82 passed`;
+Ruff format checked 385 files; Ruff lint is clean; mypy is clean across 298 source files; and full
+pytest reports `1751 passed, 4 skipped` with 12 pre-existing Python 3.12 SQLite datetime-adapter
+deprecation warnings. A fresh isolated SQLite database migrated from `0001_foundation` through
+`0013_conversation_failure_reason` at `head`, and isolated `satori bootstrap` passed. `uv lock`,
+`git diff --check` and the placeholder scan are clean. Source/installed parity is exact for 177/177
+package files at
+`sha256:7daf77bf9c1a01bfe3d99774fbb1336ff1b507fb60751f2d5afd3813b80a0a5c`,
+with source fingerprint
+`sha256:7160cf33961b8cb6e8443d0c371b1996ae2ff7bfe4ab4a43d69921ed79e997dc`
+and evaluator bundle
+`sha256:2b171d43ae9ce23213ce0fa4877cd093ca9de0df45bcbfc553656724983aaa99`.
+These gates accept offline architecture/evaluation readiness only; they do not accept OpenAI
+character quality.
+
+The post-sampling v25 non-editable-wheel Foundation gate is clean: Ruff format/check on 377 files,
+mypy on 291 source files, `1619 passed, 4 skipped`, migration head `0013_conversation_failure_reason`,
+default and isolated bootstrap, package build/dependency compatibility and repository/security
+checks. The 12 pytest warnings are the existing Python 3.12 SQLite datetime-adapter deprecation.
+No credential pattern, `.env`, generated build output or temporary database is present in the
+working diff.
+
+The final audit split delivery contracts, selection and rendering behind the existing compatibility
+facade; closed exact runtime types now reject bool-as-version and raw-string enum substitution.
+Safe cognition verifies that curiosity is exactly owner-approved or suppressed. Relationship
+strain now requires same-aggregate adjacency, survives restart from committed history and expires
+after a later terminal source without a duplicate transition. The historical v24 paid runner
+required the exact inspected execution-plan digest, bound attempts to one public scope/trace and
+rejected mixed
+hurt/repair evidence direction; its executable entrypoint is now retired as recorded above. These
+are offline hardening changes; they performed no provider
+call and do not imply provider-fit acceptance.
 
 On 2026-08-25 the user authorized replacing only the rejected Yandex foreground delivery engine
 with OpenAI. ADR-0031 adds a credential-pinned, stateless Responses API foreground adapter while
@@ -163,9 +479,11 @@ and add evaluation evidence for grounded absence, response specificity and natur
 the existing typed digital affect/mood. “Human-like” means natural conversational expression, not
 a claim of biological physiology or proven human subjective experience.
 
-Checkpoint 14.2 was accepted on 2026-08-24. Policy v10, the versioned eight-scenario corpus and
-YandexGPT metadata-only sampling passed the grounded-absence, concrete-response and natural-affect
-contracts. Human review, not the initial lexical score, drove two narrow follow-ups. The final
+The initial v10 baseline inside Checkpoint 14.2 was accepted on 2026-08-24. Policy v10, the
+versioned eight-scenario corpus and YandexGPT metadata-only sampling passed the grounded-absence,
+concrete-response and natural-affect contracts. This remains the last provider-accepted baseline,
+not an acceptance of later v11–v25 candidates. Human review, not the initial lexical score, drove
+two narrow follow-ups. The final
 single-run real-Ollama regression completed 97/97 public-fixture replies and 99 calls with exactly
 two successful max-one retries, 70/70 required facets, no incomplete output, no affect-expression
 contradiction and an affirmative canonical memory+affect recovery. Full evidence and residual
@@ -561,7 +879,7 @@ the clean rebuilt-wheel suite to `1105 passed, 4 skipped`; no further paid call 
 
 ## Repository state
 
-Alembic head is `0012_personality_evolution`. In addition to Stage 7 affect, Stage 8 relationship,
+Alembic head is `0013_conversation_failure_reason`. In addition to Stage 7 affect, Stage 8 relationship,
 Stage 9 counterparty-scoped models, Stage 11 identity-global positions and Stage 12 reflection, it
 includes separate inclination aggregate/evidence/revision tables and nullable all-or-none affect
 attachments for Reflection V2 sources. Stage 14 adds append-only personality evidence, revisions,
@@ -944,9 +1262,10 @@ in `performance/stage-7.7.md`.
 - [x] Versioned bounded artifacts cover perception, weighted need mix, current-input retrieval
   plan, appraisal owner outcome, concise non-durable internal position, extensible intent registry,
   response strategy and complete per-step trace.
-- [x] Context schema v13 and the versioned `satori.cognition.response-strategy.v1` template add a
-  late trusted shape/constraint section without user text, evidence content, raw CoT or mutation
-  authority. Behavior policy remains v9 and all v12 trust envelopes remain unchanged.
+- [x] Context schema v13 and intent/template registry V1 with template ID
+  `satori.cognition.response-strategy`, schema 1, add a late trusted shape/constraint section without
+  user text, evidence content, raw CoT or mutation authority. Behavior policy remains v9 and all
+  v12 trust envelopes remain unchanged.
 - [x] Safe planner boundaries reject unavailable source refs, invalid contracts and loss of
   fallback reasons. Strategy construction rejects position reversal and hidden material
   uncertainty before generation.
@@ -1324,8 +1643,193 @@ Stage 15 remains locked and must not begin automatically after Stage 14.
 - [x] Complete the rebuilt-wheel v20 Foundation gate: Ruff format/check clean, mypy on 271 files,
   `1397 passed, 4 skipped`, migration head, default and isolated bootstrap, repository marker and
   diff checks clean.
-- [ ] Run a separately authorized v20 OpenAI three-session gate and direct human review. No paid
-  v20 call is authorized or implied by the implementation.
+- [x] Run the separately authorized v20 OpenAI three-session gate: 3/3 fresh sessions, 6/6
+  first-attempt turns, 12,456 input + 249 output tokens, USD 0.027900 within 6/9 calls and the
+  USD 0.15 ceiling; preserve the UUID/SHA-256-bound safe sample outside the repository.
+- [x] Complete the post-sample rebuilt-wheel gate: Ruff format/check clean, mypy on 271 files,
+  `1398 passed, 4 skipped`, migration head, default and isolated bootstrap clean.
+- [x] Record the direct user review of the completed v20 sample: all six replies rejected because
+  achievement remained paraphrase and depletion repeated one recovery-advice scaffold.
+- [x] Accept ADR-0037 and implement candidate policy v21 with plan schema v4, non-echoing
+  acknowledgement, natural completion and request-local guarded expression.
+- [x] Add deterministic v4 and human-review sampling v3 corpora without scripted replies; extend
+  the fail-closed OpenAI runner offline while preserving immutable v19/v20 gates.
+- [x] Complete the rebuilt-wheel v21 Foundation gate: Ruff format/check clean, mypy on 273 files,
+  `1409 passed, 4 skipped`, migration head, default and isolated bootstrap, diff whitespace and
+  repository marker checks clean.
+- [x] Run the separately authorized v21 OpenAI execution: 3/3 fresh sessions, 6/6 first-attempt
+  provider calls, 12,466 input + 230 output tokens and USD 0.027692 within 6/9 calls and the
+  USD 0.15 ceiling; preserve the original failed report and exact replies outside the repository.
+- [x] Fix the safe-report sanitizer regression that omitted v21 acknowledgement/continuation axes;
+  cover both exported values without altering or rerunning the paid sample.
+- [x] Reject v21 acceptance from the preserved sample: event/state echo remains in every pair and
+  unsupported causal/project context remains present. No wording is promoted to a phrase bank.
+- [x] Accept ADR-0038 and activate candidate policy v22 with the unchanged plan schema v4 plus a
+  pure derived response-act/evidence-envelope contract.
+- [x] Remove the factual semantic recap from v22's final trusted realization; use reaction-only
+  grounding for the two calibration turns and retain bounded explicit/trusted scopes elsewhere.
+- [x] Add deterministic character-expression v5, human-review sampling v4 and stateless offline
+  OpenAI Responses-wire coverage; paid execution remains a separate explicit authorization.
+- [x] Complete the rebuilt-wheel v22 Foundation gate: Ruff format/check clean, mypy clean on 275
+  source files, `1417 passed, 4 skipped`, migration head, default bootstrap and isolated clean
+  migration/bootstrap pass; `git diff --check` and repository marker checks are clean. The final
+  gate used a fresh `/private/tmp` toolchain environment because filesystem synchronization had
+  removed canonical resource filenames from the ignored in-project `.venv`; the isolated rebuilt
+  wheel proved that cascade was environmental rather than a code regression.
+- [x] Run the separately authorized v22 OpenAI gate: three fresh sessions, 6/6 first-attempt calls,
+  11,829 input + 175 output tokens and USD 0.025758 within 6/9 calls and the USD 0.15 ceiling. Human
+  review rejects the sample at 0/3 complete pairs, 2/6 fully hard-safe turns and a failed
+  cross-session gate; exact public replies and metadata are recorded in `performance/stage-14.2.md`.
+- [x] Accept ADR-0039 and activate candidate policy v23 with plan schema v5, ordinary-depletion
+  practical care and one lean action/evidence/voice/stop provider projection while preserving
+  historical v19-v22 plans and artifacts.
+- [x] Add deterministic character-expression v6, human-review sampling v5 and stateless offline
+  OpenAI wire coverage pinned to `gpt-5.6-terra`, `reasoning=medium`; no paid call is implied.
+- [x] Complete the rebuilt-wheel v23 Foundation gate: Ruff format/check clean, mypy clean on 277
+  source files, `1430 passed, 4 skipped`, migration head, default bootstrap and isolated clean
+  bootstrap pass; repository diff/marker/secret checks are clean.
+- [x] Run the separately authorized v23 OpenAI gate: three fresh sessions, 6/6 first-attempt calls,
+  10,324 input + 351 output tokens and USD 0.024860 within 6/9 calls and the USD 0.15 ceiling.
+  Human review rejects the sample at 0/3 complete pairs, 3/6 fully hard-safe turns and a failed
+  cross-session gate: deictic achievement wording became repetitive and under-characterized,
+  while practical care drifted into generic checklists, multiple moves and unsupported inference.
+  Exact public replies and metadata are recorded in `performance/stage-14.2.md`.
+- [x] Accept ADR-0040 and implement candidate policy v24 with one direct transient
+  `CharacterDeliveryDecision`, one cohesive canonical-character core and exactly one final
+  provider director; keep historical v19-v23 plan/response-act paths reproducible.
+- [x] Version cognition for the candidate boundary: v10/v19-v23 retain intent/template registry V1,
+  while v24 requires registry V2 and embeds template ID `satori.cognition.response-substance`,
+  schema 2, inside the sole director. Copy all cognition-owned substance; require exactly one
+  primary response-action tag and matching action point, singleton meta points, and
+  `address_current_request` plus only closed supplemental points for non-meta strategies; reject
+  goal/stance/action-point topology drift across cognition, rendering, delivery and evaluator
+  reconstruction.
+- [x] Add the 32-scenario/13-group direct-delivery corpus with nine controlled contrasts, the
+  four-module employer-demo fixture, repair and precedence regressions, stateless production-wire
+  coverage and the bounded OpenAI module runner without making a provider call.
+- [x] Add `RelationshipExpressionContext` v2 with owner-derived `recent_strain`, post-response/
+  future-turn ordering and guarded-but-complete repair/help coverage without persistent offence
+  state or provider-visible transition evidence.
+- [x] Add fail-closed UUID/SHA-bound per-module human review and a final digest-bound readiness
+  aggregate requiring all four distinct modules and one shared production configuration.
+- [x] Bind paid execution to the exact offline plan digest and public turn scope; reject trace
+  rebinding, mixed hurt/repair direction and a third attempt before provider I/O.
+- [x] Harden owner/state boundaries for curiosity projection, exact delivery runtime types,
+  same-aggregate/restart/terminal `recent_strain` behavior and fresh-v24 manifest booleans.
+- [x] Split character-delivery contracts, selection and rendering behind a thin compatibility
+  facade without changing production behavior or historical imports.
+- [x] Complete focused v24 and historical-compatibility offline gates; no paid provider request was
+  performed and no provider/character-fit verdict is inferred from them.
+- [x] Complete the final rebuilt-wheel Foundation gate: Ruff format/check clean, mypy clean on 286
+  files, `1525 passed, 4 skipped`, migration head, isolated bootstrap, package/dependency checks,
+  four digest-bearing offline module plans and repository/security checks clean.
+- [x] Run the separately authorized v24 `core_emotional` OpenAI module: three clean sessions ×
+  three turns, 9/9 first-attempt calls, 12,517 input + 502 output tokens, no retry, incomplete
+  response or provider error, and a repository standard-rate estimate of USD 0.031058. Cache-
+  detail usage was not retained. Reject it for repeated reaction/recovery
+  scaffolding, current-input echo and unsupported causal psychology; do not run or infer the other
+  v24 modules.
+- [x] Accept ADR-0041 and make policy v25 the offline candidate with typed social/current-affect,
+  reciprocal-warmth and identity/interests/affect disclosure routing, cognition template V3 and
+  `CharacterDeliveryDecision` schema 2; keep v24 artifacts reproducible.
+- [x] Add pressure-free adjacent depletion follow-through without a second recovery plan and cover
+  the exact manual three-turn failure plus the v24 core-emotional three-turn shape offline.
+- [x] Add migration `0013_conversation_failure_reason` and a closed privacy-safe provider failure
+  enum; preserve no raw error/body/prompt/user/partial-output/credential data and add no provider
+  retry or fallback. Record that the earlier failed turn is only `InvalidProviderResponse` and its
+  exact cause is unrecoverable.
+- [x] Add explicit bounded oldest-first `satori relationship process --limit N` through the
+  existing Stage 8 owner; do not execute the real backlog during v25 offline work.
+- [x] Complete and record the final v25 rebuilt-wheel Foundation gate, including migration head
+  `0013_conversation_failure_reason`, isolated bootstrap and repository/security checks.
+- [x] Run the separately authorized, digest-bound v25 exact-manual production sample in three fresh
+  sessions; preserve all nine public replies and safe per-turn metrics without retaining provider
+  prompts, private context, credentials or temporary databases.
+- [x] Preserve the immutable v25 sample as historical unaccepted evidence: its typed route is
+  correct, but repeated calm/level wording, interest disclaimers and polished assistant-like
+  observations are insufficient for character/provider-fit acceptance.
+- [x] Accept ADR-0042 and activate offline candidate policy v26 with delivery decision schema 3,
+  one typed causal presence projection from existing owned state and one late provider-facing
+  presence layer; keep every v25 path and artifact reproducible.
+- [x] Add the v9 public-input corpus: 40 scenarios, 16 groups, 32 semantic properties, five
+  controlled contrasts and two committed `Talk` flows with seven public turns; forbid fixture
+  assistant history, desired replies and generated-prose judgement.
+- [x] Close the final V26 architecture audit with verdict `ARCHITECTURE CLEAN`: centralize
+  trait/value presence semantics, harden the runtime-character boundary and make retrieved-memory
+  plus trusted-grounding the only path to a manifest-observable memory-use license.
+- [x] Retire historical v24/v25 paid execution entrypoints while retaining offline inspection and
+  immutable evidence; harden local file-backed SQLite/runtime-log creation to `0600` and newly
+  created parent directories to `0700` without changing existing directory modes.
+- [x] Preserve the consumed attempt-1 claim for
+  `sha256:4736906d023a5bf51a07701320dafd217b9618fe8cd8661159f521e65831874d`;
+  prove its settings-drift failure preceded ledger/runtime/provider construction and therefore made
+  zero calls at zero cost; do not fabricate its absent report/review or reuse its authorization.
+- [x] Run the explicitly authorized attempt 2 at
+  `sha256:906f250d62d0fbf6087c0ba293808e98b35617fc226a67dccfa5b7c3d10f067d`
+  under `satori.checkpoint142.openai.v26.phase1.attempt2.2026-08-29.one-shot`; preserve its private
+  claim and safe failed report. The first neutral greeting failed closed before the first OpenAI
+  foreground call because the old evaluator required `APPLIED`; the ledger records zero provider
+  and base calls, zero tokens and USD 0, and no review exists.
+- [x] Diagnose the attempt-2 failure with free local appraisal: owner-approved provider-success
+  `SKIPPED` with `neutral_appraisal_no_delta` is the correct no-op for a neutral event. Fix only the
+  evaluator contract; do not force an affect mutation or change a production owner/manifest.
+- [x] Run explicitly authorized attempt 3 at
+  `sha256:1db817bba4bd751126a470e59802fa3554807063b6a8f81ecd6b218ce49d7734`
+  under `satori.checkpoint142.openai.v26.phase1.attempt3.2026-08-29.one-shot`: preserve the
+  immutable `0600` claim/report, exactly one successful paid call, 1,063 input/32 output tokens,
+  cache `0/0` and exact USD 0.002510. Record the post-commit `NonComparableProviderReply`, absent
+  review/sample digest and human-only 5/7 `INCONCLUSIVE / NOT ACCEPTED` result.
+- [x] Harden only the evaluator after attempt 3: freeze atomic-ledger per-attempt evidence, enforce
+  totals parity and selected-retry identity, and add explicit usage provenance/report schema 4
+  without a production owner, state change or migration.
+- [x] Complete the pre-attempt-4 rebuilt-wheel V26 root gate and repository/security audit after
+  evaluator report-schema-4 hardening: focused evaluator 80 passed; Ruff/mypy/full pytest, migrations,
+  isolated bootstrap, lock, diff, placeholder and 177/177 installed/source parity checks are clean.
+- [x] Freeze the final attempt-4 digest
+  `sha256:e26f2c4a9f86d3ec40006af2ea3ff3c6624cc04fc94829d61ceb8cef3fe474e4`
+  after the clean root gate.
+- [x] Run explicitly authorized attempt 4 under
+  `satori.checkpoint142.openai.v26.phase1.attempt4.2026-08-29.one-shot`; preserve its immutable
+  `0600` claim/report and exactly two successful base calls without retry: 2,110 input/44 output
+  tokens, cache `0/0` and exact USD 0.004748. Record the post-turn-2 safe-manifest failure, absent
+  completed sample/review/template and `INCONCLUSIVE / NOT ACCEPTED` result.
+- [x] Fix only the attempt-4 evaluator defect: require `self_consistency_facets` if and only if
+  `disclosure_facets` is non-empty, and prove all eight fixed public turns pass an offline fresh
+  production `Talk`/composition stub regression without network access.
+- [x] Close the post-attempt-4 scoped audit with `CLEAN WITH MINOR ISSUE`, resolve its minor issue,
+  and complete the final rebuilt-wheel gate: focused evaluator 82 passed; Ruff/mypy/full pytest
+  (`1751 passed, 4 skipped`), migrations, isolated bootstrap, lock, diff, marker, secret and 177/177
+  installed/source parity checks are clean.
+- [x] Freeze the final attempt-5 digest
+  `sha256:8f191667e539296266aa4bb8eacbb837559d432d3b623d6f6b5896d250369107`
+  with source fingerprint
+  `sha256:7160cf33961b8cb6e8443d0c371b1996ae2ff7bfe4ab4a43d69921ed79e997dc`
+  and evaluator bundle
+  `sha256:2b171d43ae9ce23213ce0fa4877cd093ca9de0df45bcbfc553656724983aaa99`.
+- [x] Execute separately authorized attempt 5 under
+  `satori.checkpoint142.openai.v26.phase1.attempt5.2026-08-29.one-shot`: complete 3 × 8 turns on
+  24/24 base calls with zero retry, preserve exact usage/cache evidence and bind the sample digest.
+- [x] Record its direct human-only review as `accepted=false`: 107/168 per-turn decisions true,
+  dimension totals `G23 O22 S11 N10 L15 C2 Q24`, cross-session `TFTFTF` and attestations `TTT`.
+  Treat this as rejection of the frozen V26/Terra configuration and sample, not proof of Terra's
+  model ceiling.
+- [x] Accept ADR-0043 and make policy v27 the current offline candidate with decision/presence
+  schemas 4/2, live-state-first movement selection and one cognition-complete compact operational
+  renderer; keep V26 byte-stable and Stage 15 locked.
+- [x] Add typed objection/topic-closure movement, pressure-free ordinary depletion, exact schema
+  isolation, precedence, max-one retry and stateless OpenAI-wire regressions without making a
+  provider call.
+- [x] Add the SHA-pinned eight-turn movement fixture and separate 28-scenario breadth corpus for all
+  27 requested situation types, same-input relationship contrasts, memory boundaries and committed
+  three-turn affect continuity; keep every fixture free of desired/generated reply authority.
+- [x] Record the clean final rebuilt-wheel V27 Foundation gate and frozen inspect-only plan on the
+  existing Notion Checkpoint 14.2 page. The gate reports Ruff format/check clean on 390 files,
+  mypy clean on 302 files, full pytest `1799 passed, 4 skipped`, migration through
+  `0013_conversation_failure_reason`, isolated bootstrap, lock/dependency/repository checks and
+  exact 177/177 installed/source parity. The frozen plan digest is
+  `sha256:5e6bcc1fc53100e66990feb25d9448465a1a6bb1364e7b98eb6f14ddb4d94feb`, with source
+  fingerprint `sha256:e3546c5125adc4f8f923f359550c64a4ade0fe730745e8a18631356292b8f5e7`.
+  Do not call a provider until that exact plan receives explicit authorization.
 
 Stage 15 remains locked and must not begin automatically after checkpoint 14.2.
 

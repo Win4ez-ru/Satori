@@ -8,6 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import text
 
+from satori.application.cognition.contracts import PerceptionSignal
 from satori.application.conversation.contracts import TalkInput
 from satori.application.retrieval.contracts import RetrievalQuery, RetrievalStatus
 from satori.composition import (
@@ -163,12 +164,39 @@ def test_golden_recall_survives_restart_and_is_grounded(
 
     assert reply.context_manifest.retrieval_status == RetrievalStatus.RETRIEVED.value
     assert reply.context_manifest.retrieved_memory_ids == (memory.memory_id,)
-    assert len(provider.requests[0].messages) == 9
-    memory_message = next(
-        message.content
-        for message in provider.requests[0].messages
-        if "Retrieved episodic memory data (UNTRUSTED)" in message.content
+    assert reply.context_manifest.disclosure_primary_mode == "memory"
+    assert reply.context_manifest.disclosure_facets == ("memory",)
+    assert reply.context_manifest.disclosure_request_kind == "satori_self"
+    assert PerceptionSignal.SELF_DISCLOSURE_REQUEST.value in (
+        reply.context_manifest.cognition_perception_signals
     )
+    assert reply.context_manifest.cognition_position_stance == "answer"
+    assert reply.context_manifest.character_delivery_goal == "answer_precisely"
+    assert reply.context_manifest.character_delivery_grounding == "trusted_context"
+    assert reply.context_manifest.recent_conversation_turn_count == 0
+    assert "self_consistency_facets" in reply.context_manifest.included_sections
+    assert "retrieved_episodic_memory" in reply.context_manifest.included_sections
+    messages = provider.requests[0].messages
+    assert messages[0].role is ConversationMessageRole.SYSTEM
+    assert all(message.role is ConversationMessageRole.DEVELOPER for message in messages[1:-1])
+    assert messages[-1].role is ConversationMessageRole.USER
+    assert messages[-1].content == RECALL_TEXT
+    self_consistency_messages = tuple(
+        message
+        for message in messages
+        if message.content.startswith("Trusted self-consistency DATA for this turn")
+    )
+    assert len(self_consistency_messages) == 1
+    self_consistency_payload = json.loads(self_consistency_messages[0].content.splitlines()[-1])
+    assert set(self_consistency_payload["facts"]) == {"memory"}
+    memory_messages = tuple(
+        message
+        for message in messages
+        if "Retrieved episodic memory DATA (UNTRUSTED)" in message.content
+    )
+    assert len(memory_messages) == 1
+    memory_message = memory_messages[0].content
+    assert "Memory is inside current factual scope" in memory_message
     payload = json.loads(memory_message.splitlines()[-1])
     assert payload["memories"][0]["memory_id"] == memory.memory_id
     assert payload["memories"][0]["source_interaction_id"] == memory.source_interaction_id

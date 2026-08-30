@@ -13,6 +13,7 @@ from satori.core.conversation import (
     ConversationGenerationParameters,
     ConversationMessage,
     ConversationMessageRole,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     GenerationFailed,
     InvalidProviderResponse,
@@ -115,16 +116,22 @@ def test_ollama_maps_roles_disables_streaming_and_validates_usage(
 
 
 @pytest.mark.parametrize(
-    ("raised", "expected"),
+    ("raised", "expected", "reason"),
     [
-        (URLError("connection refused"), ProviderUnavailable),
+        (
+            URLError("connection refused"),
+            ProviderUnavailable,
+            ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        ),
         (
             HTTPError("http://localhost", 404, "not found", hdrs=Message(), fp=None),
             GenerationFailed,
+            ConversationProviderFailureReason.REQUEST_REJECTED,
         ),
         (
             HTTPError("http://localhost", 503, "unavailable", hdrs=Message(), fp=None),
             ProviderUnavailable,
+            ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE,
         ),
     ],
 )
@@ -132,6 +139,7 @@ def test_ollama_wraps_transport_and_http_failures(
     monkeypatch: pytest.MonkeyPatch,
     raised: Exception,
     expected: type[Exception],
+    reason: ConversationProviderFailureReason,
 ) -> None:
     """No urllib exception crosses the provider port."""
 
@@ -141,8 +149,11 @@ def test_ollama_wraps_transport_and_http_failures(
 
     monkeypatch.setattr("satori.infrastructure.providers.ollama.urlopen", failing_urlopen)
 
-    with pytest.raises(expected):
+    with pytest.raises(expected) as failure:
         asyncio.run(adapter().generate(provider_request()))
+
+    assert isinstance(failure.value, (ProviderUnavailable, GenerationFailed))
+    assert failure.value.reason is reason
 
 
 @pytest.mark.parametrize(
@@ -171,8 +182,10 @@ def test_ollama_rejects_malformed_or_incomplete_results(
 
     monkeypatch.setattr("satori.infrastructure.providers.ollama.urlopen", fake_urlopen)
 
-    with pytest.raises(InvalidProviderResponse):
+    with pytest.raises(InvalidProviderResponse) as failure:
         asyncio.run(adapter().generate(provider_request()))
+
+    assert failure.value.reason is ConversationProviderFailureReason.RESPONSE_MALFORMED
 
 
 def test_ollama_rejects_length_limited_partial_text(
@@ -201,5 +214,6 @@ def test_ollama_rejects_length_limited_partial_text(
         asyncio.run(adapter().generate(provider_request()))
 
     assert "partial private reply" not in str(raised.value)
+    assert raised.value.reason is ConversationProviderFailureReason.OUTPUT_TOKEN_LIMIT
     assert raised.value.metrics is not None
     assert raised.value.metrics.eval_count == 321

@@ -14,6 +14,9 @@ from satori.application.cognition.contracts import (
     CognitionPipelineTrace,
 )
 from satori.application.cognition.use_cases import SafeCognitionPipeline
+from satori.application.conversation.character_evidence import (
+    analyze_character_request_evidence,
+)
 from satori.application.conversation.coherence import (
     DialogueCoherenceContext,
     analyze_dialogue_coherence,
@@ -22,15 +25,19 @@ from satori.application.conversation.coherence import (
     requests_extended_session_context,
 )
 from satori.application.conversation.context import (
-    CONVERSATION_INCLUDED_SECTIONS,
     CharacterContextComposer,
     ConversationRequestBuilder,
+    plan_conversational_disclosure,
 )
 from satori.application.conversation.contracts import (
+    CONVERSATION_INCLUDED_SECTIONS,
     ConversationContextManifest,
     SatoriReply,
     TalkInput,
     TurnPhaseTimings,
+)
+from satori.application.conversation.disclosure_contracts import (
+    is_satori_self_disclosure_plan,
 )
 from satori.application.conversation.errors import (
     AffectiveFinalizeConflict,
@@ -53,6 +60,7 @@ from satori.core.conversation import (
     ConversationMessage,
     ConversationMessageRole,
     ConversationProviderError,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     ConversationProviderResponse,
     ConversationUsage,
@@ -64,6 +72,7 @@ from satori.core.provider_metrics import ProviderExecutionMetrics
 from satori.domain.affect import AffectiveStateConflict
 from satori.domain.conversation_history import (
     ConversationInteraction,
+    InteractionFailureMetadata,
     InteractionProviderMetadata,
     InteractionStatus,
 )
@@ -74,7 +83,15 @@ ConversationProvider = ConversationGenerationPort[
     ConversationProviderResponse,
 ]
 
-_FINAL_CHARACTER_REALIZATION_MARKER = "Финальная реализация характера Сатори для этой реплики"
+_FINAL_CHARACTER_REALIZATION_MARKERS = (
+    "Trusted current-turn presence Сатори / operational move v2",
+    "Trusted current-turn presence Сатори",
+    "Единая request-local режиссура реплики Сатори",
+    "Финальный компактный речевой контракт Сатори для этой реплики",
+    "Финальный response-act контракт Сатори для этой реплики",
+    "Единая финальная request-local реализация характера Сатори",
+    "Финальная реализация характера Сатори для этой реплики",
+)
 
 
 def _log_fields(**fields: object) -> dict[str, object]:
@@ -179,6 +196,7 @@ class TalkToSatori:
             else None
         )
         dialogue_context = analyze_dialogue_coherence(command.user_text, recent_context)
+        character_evidence = analyze_character_request_evidence(command.user_text, recent_context)
         cognition_intake = (
             self.cognition_pipeline.prepare_intake(
                 user_text=command.user_text,
@@ -198,6 +216,22 @@ class TalkToSatori:
                     ),
                     no_routine_questions=(dialogue_context.active_no_routine_questions_correction),
                     current_activity=dialogue_context.current_activity_mention,
+                    explicit_listen_request=character_evidence.explicit_listen_request,
+                    high_distress=character_evidence.high_distress,
+                    harmful_overextension=character_evidence.harmful_overextension,
+                    explicit_motivation_request=(character_evidence.explicit_motivation_request),
+                    explicit_task_abandonment=(character_evidence.explicit_task_abandonment),
+                    explicit_repair_offer=character_evidence.explicit_repair_offer,
+                    self_disclosure_request=(
+                        self.request_builder.policy.schema_version >= 25
+                        and is_satori_self_disclosure_plan(
+                            plan_conversational_disclosure(
+                                command.user_text,
+                                dialogue_context,
+                                policy_schema_version=(self.request_builder.policy.schema_version),
+                            )
+                        )
+                    ),
                 ),
             )
             if self.cognition_pipeline is not None
@@ -338,6 +372,7 @@ class TalkToSatori:
                 recent_context=recent_context,
                 dialogue_context=dialogue_context,
                 cognition_trace=cognition_trace,
+                character_evidence=character_evidence,
             )
         except Exception as error:
             self._mark_failed(interaction.interaction_id, error)
@@ -349,6 +384,7 @@ class TalkToSatori:
                 operation="conversation",
                 primary_mode=manifest.disclosure_primary_mode,
                 facets=list(manifest.disclosure_facets),
+                request_kind=manifest.disclosure_request_kind,
                 interaction_id=interaction.interaction_id,
             ),
         )
@@ -383,6 +419,7 @@ class TalkToSatori:
                     provider=error.provider,
                     model=error.model,
                     error_type=type(error).__name__,
+                    failure_reason=error.reason.value,
                     latency_ms=round(latency_ms, 3),
                     context_schema_version=context.schema_version,
                     interaction_id=interaction.interaction_id,
@@ -396,6 +433,7 @@ class TalkToSatori:
                 "unknown",
                 "unknown",
                 "conversation provider violated its typed failure contract",
+                reason=ConversationProviderFailureReason.ADAPTER_CONTRACT_VIOLATION,
             )
             self.logger.error(
                 "conversation_failed",
@@ -404,6 +442,9 @@ class TalkToSatori:
                     provider="unknown",
                     model="unknown",
                     error_type=type(error).__name__,
+                    failure_reason=(
+                        ConversationProviderFailureReason.ADAPTER_CONTRACT_VIOLATION.value
+                    ),
                     latency_ms=round(latency_ms, 3),
                     context_schema_version=context.schema_version,
                     interaction_id=interaction.interaction_id,
@@ -419,6 +460,7 @@ class TalkToSatori:
                 provider_response.provider,
                 provider_response.model,
                 "provider returned an empty conversational response",
+                reason=ConversationProviderFailureReason.MISSING_ASSISTANT_TEXT,
             )
             self._log_invalid_response(
                 invalid_response_error,
@@ -432,6 +474,7 @@ class TalkToSatori:
                 provider_response.provider,
                 provider_response.model,
                 "provider response exceeds configured character limit",
+                reason=(ConversationProviderFailureReason.RESPONSE_CHARACTER_LIMIT_EXCEEDED),
             )
             self._log_invalid_response(
                 invalid_response_error,
@@ -727,8 +770,25 @@ class TalkToSatori:
             ),
             "cognition_need_dimensions": list(reply.context_manifest.cognition_need_dimensions),
             "cognition_position_stance": reply.context_manifest.cognition_position_stance,
+            "cognition_preserve_uncertainty": (
+                reply.context_manifest.cognition_preserve_uncertainty
+            ),
+            "cognition_intent_registry_version": (
+                reply.context_manifest.cognition_intent_registry_version
+            ),
+            "cognition_primary_intent": reply.context_manifest.cognition_primary_intent,
             "cognition_intent_tags": list(reply.context_manifest.cognition_intent_tags),
+            "cognition_required_point_codes": list(
+                reply.context_manifest.cognition_required_point_codes
+            ),
+            "cognition_forbidden_claim_codes": list(
+                reply.context_manifest.cognition_forbidden_claim_codes
+            ),
             "cognition_strategy_tone": reply.context_manifest.cognition_strategy_tone,
+            "cognition_response_verbosity": (reply.context_manifest.cognition_response_verbosity),
+            "cognition_template_registry_version": (
+                reply.context_manifest.cognition_template_registry_version
+            ),
             "cognition_template_id": reply.context_manifest.cognition_template_id,
             "cognition_template_schema_version": (
                 reply.context_manifest.cognition_template_schema_version
@@ -749,6 +809,26 @@ class TalkToSatori:
                 reply.context_manifest.character_motivational_posture
             ),
             "character_pressure_level": reply.context_manifest.character_pressure_level,
+            "character_acknowledgement_mode": (
+                reply.context_manifest.character_acknowledgement_mode
+            ),
+            "character_continuation_mode": reply.context_manifest.character_continuation_mode,
+            "character_delivery_decision_schema_version": (
+                reply.context_manifest.character_delivery_decision_schema_version
+            ),
+            "character_delivery_goal": reply.context_manifest.character_delivery_goal,
+            "character_delivery_voice": reply.context_manifest.character_delivery_voice,
+            "character_delivery_grounding": (reply.context_manifest.character_delivery_grounding),
+            "character_delivery_continuation": (
+                reply.context_manifest.character_delivery_continuation
+            ),
+            "character_delivery_pressure": (reply.context_manifest.character_delivery_pressure),
+            "character_delivery_position_stance": (
+                reply.context_manifest.character_delivery_position_stance
+            ),
+            "character_delivery_preserve_uncertainty": (
+                reply.context_manifest.character_delivery_preserve_uncertainty
+            ),
             "cognition_fallback_reasons": list(reply.context_manifest.cognition_fallback_reasons),
             "emotion_state_version": reply.context_manifest.emotion_state_version,
             "mood_state_version": reply.context_manifest.mood_state_version,
@@ -758,6 +838,7 @@ class TalkToSatori:
             "recent_conversation_chars": reply.context_manifest.recent_conversation_chars,
             "disclosure_primary_mode": reply.context_manifest.disclosure_primary_mode,
             "disclosure_facets": list(reply.context_manifest.disclosure_facets),
+            "disclosure_request_kind": reply.context_manifest.disclosure_request_kind,
             "consecutive_same_user_message_count": (
                 reply.context_manifest.consecutive_same_user_message_count
             ),
@@ -981,9 +1062,12 @@ class TalkToSatori:
                 "Bounded response-contract retry. "
                 f"{reason_guidance} Preserve the same user request, trusted facts, current affect, "
                 "relationship bounds and evidence. Preserve the already selected final character "
-                "realization, including its reaction, factual anchor, contribution, wit, care, "
-                "openness, initiative, motivational posture and pressure ceiling; do not collapse "
-                "into generic service language. Do not mention validation or the discarded draft."
+                "realization. Preserve any supplied direct-delivery goal, voice, grounding, "
+                "continuation, pressure ceiling, cognition stance and uncertainty. Preserve a "
+                "legacy response act and expression axes only when they were supplied. Do not "
+                "collapse into generic "
+                "service language. Do not "
+                "mention validation or the discarded draft."
                 f"{active_correction_guidance}"
                 f"{activity_correction_guidance}"
                 f"{prompt_correction_guidance}{concise_relevance_guidance}{facet_guidance} This is "
@@ -991,9 +1075,17 @@ class TalkToSatori:
             ),
         )
         final_guidance = request.messages[-2]
-        if _FINAL_CHARACTER_REALIZATION_MARKER in final_guidance.content:
+        realization_marker = next(
+            (
+                marker
+                for marker in _FINAL_CHARACTER_REALIZATION_MARKERS
+                if marker in final_guidance.content
+            ),
+            None,
+        )
+        if realization_marker is not None:
             invariant_content, marker, realization_content = final_guidance.content.partition(
-                _FINAL_CHARACTER_REALIZATION_MARKER
+                realization_marker
             )
             final_guidance = replace(
                 final_guidance,
@@ -1008,10 +1100,18 @@ class TalkToSatori:
         return replace(request, messages=messages)
 
     def _mark_failed(self, interaction_id: str, error: Exception) -> None:
+        failure = InteractionFailureMetadata(kind=type(error).__name__)
+        if isinstance(error, ConversationProviderError):
+            failure = InteractionFailureMetadata(
+                kind=type(error).__name__,
+                reason=error.reason,
+                provider=error.provider,
+                model=error.model,
+            )
         try:
             self.interaction_log.mark_failed(
                 interaction_id,
-                failure_kind=type(error).__name__,
+                failure=failure,
             )
         except Exception as persistence_error:
             self.logger.error(
@@ -1095,6 +1195,8 @@ class TalkToSatori:
                             "dialogue_coherence",
                             "self_consistency_facets",
                             "cognition_response_strategy",
+                            "character_delivery_decision",
+                            "character_presence_projection",
                         }
                     )
                 ),
@@ -1160,6 +1262,7 @@ class TalkToSatori:
                 provider=error.provider,
                 model=error.model,
                 error_type=type(error).__name__,
+                failure_reason=error.reason.value,
                 latency_ms=round(latency_ms, 3),
                 context_schema_version=context_schema_version,
             ),

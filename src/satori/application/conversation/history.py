@@ -24,6 +24,7 @@ from satori.domain.conversation_history import (
     ConversationSession,
     HistoricalMessage,
     HistoricalMessageRole,
+    InteractionFailureMetadata,
     InteractionProviderMetadata,
     InteractionStatus,
     SessionKind,
@@ -262,13 +263,13 @@ class InteractionLog:
             )
         return interaction
 
-    def mark_failed(self, interaction_id: str, *, failure_kind: str) -> None:
+    def mark_failed(self, interaction_id: str, *, failure: InteractionFailureMetadata) -> None:
         """Persist retryable failure metadata without message content."""
 
         with self.unit_of_work_factory() as unit_of_work:
             unit_of_work.conversation_history.mark_failed(
                 interaction_id,
-                failure_kind=failure_kind,
+                failure=failure,
             )
             unit_of_work.commit()
 

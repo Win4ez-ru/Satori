@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from satori.core.conversation import ConversationProviderFailureReason
 from satori.domain.validation import aware_utc, non_blank, positive_version
 
 
@@ -401,6 +402,40 @@ class InteractionProviderMetadata:
 
 
 @dataclass(frozen=True, slots=True)
+class InteractionFailureMetadata:
+    """Content-free reason for one failed interaction attempt."""
+
+    kind: str
+    reason: ConversationProviderFailureReason | None = None
+    provider: str | None = None
+    model: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "kind", non_blank(self.kind, "failure kind", maximum=128))
+        provider_values = (self.provider, self.model)
+        if self.reason is None:
+            if any(value is not None for value in provider_values):
+                raise ValueError("legacy/non-provider failure cannot contain provider metadata")
+            return
+        if not isinstance(self.reason, ConversationProviderFailureReason):
+            raise ValueError("failure reason must be a ConversationProviderFailureReason")
+        if any(value is None for value in provider_values):
+            raise ValueError("typed provider failure requires provider and model")
+        assert self.provider is not None
+        assert self.model is not None
+        object.__setattr__(
+            self,
+            "provider",
+            non_blank(self.provider, "failure provider", maximum=128),
+        )
+        object.__setattr__(
+            self,
+            "model",
+            non_blank(self.model, "failure model", maximum=256),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class ConversationInteraction:
     """One user-to-Satori turn with an atomic completed-message pair."""
 
@@ -415,7 +450,7 @@ class ConversationInteraction:
     assistant_message: HistoricalMessage | None = None
     completed_at: datetime | None = None
     provider_metadata: InteractionProviderMetadata | None = None
-    failure_kind: str | None = None
+    failure: InteractionFailureMetadata | None = None
     relationship_processing_required: bool = True
     model_processing_required: bool = True
     position_processing_required: bool = True
@@ -458,7 +493,7 @@ class ConversationInteraction:
                 self.assistant_message is None
                 or self.completed_at is None
                 or self.provider_metadata is None
-                or self.failure_kind is not None
+                or self.failure is not None
             ):
                 raise ValueError("completed interaction requires reply metadata and no failure")
             if self.assistant_message.role is not HistoricalMessageRole.ASSISTANT:
@@ -473,12 +508,19 @@ class ConversationInteraction:
                 )
             if self.completed_at < self.started_at:
                 raise ValueError("completed_at cannot precede started_at")
-        elif (
-            self.assistant_message is not None
-            or self.completed_at is not None
-            or self.provider_metadata is not None
-        ):
-            raise ValueError("incomplete interaction cannot contain a committed assistant reply")
+        else:
+            if (
+                self.assistant_message is not None
+                or self.completed_at is not None
+                or self.provider_metadata is not None
+            ):
+                raise ValueError(
+                    "incomplete interaction cannot contain a committed assistant reply"
+                )
+            if self.status is InteractionStatus.PENDING and self.failure is not None:
+                raise ValueError("pending interaction cannot contain failure metadata")
+            if self.status is InteractionStatus.FAILED and self.failure is None:
+                raise ValueError("failed interaction requires failure metadata")
 
 
 @dataclass(frozen=True, slots=True)

@@ -278,7 +278,7 @@ def test_film_interest_correction_keeps_embodiment_separate_from_curiosity() -> 
         recent=_recent(("а я фильм смотрю сейчас", "Понятно.")),
     )
 
-    assert plan.primary_mode is ConversationalDisclosureMode.INTERESTS
+    assert plan.primary_mode is ConversationalDisclosureMode.STYLE_CALIBRATION
     assert plan.required_facets == (DisclosureFacet.EMBODIMENT,)
     assert "физического опыта не уменьшает разговорное любопытство" in rendered
     assert "предыдущий ответ не показал интереса" in rendered

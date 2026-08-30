@@ -9,6 +9,7 @@ from satori.core.conversation import (
     ConversationGenerationParameters,
     ConversationMessage,
     ConversationMessageRole,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     GenerationFailed,
     InvalidProviderResponse,
@@ -171,20 +172,45 @@ def test_yandex_maps_explicit_reasoning_effort_without_requesting_reasoning_cont
 
 
 @pytest.mark.parametrize(
-    ("error", "expected"),
+    ("error", "expected", "reason"),
     [
-        (YandexAIStudioTransportError("timeout"), ProviderUnavailable),
-        (YandexAIStudioHttpStatusError(401), GenerationFailed),
-        (YandexAIStudioHttpStatusError(429), ProviderUnavailable),
-        (YandexAIStudioHttpStatusError(503), ProviderUnavailable),
+        (
+            YandexAIStudioTransportError("timeout"),
+            ProviderUnavailable,
+            ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        ),
+        (
+            YandexAIStudioHttpStatusError(401),
+            GenerationFailed,
+            ConversationProviderFailureReason.CREDENTIALS_REJECTED,
+        ),
+        (
+            YandexAIStudioHttpStatusError(404),
+            GenerationFailed,
+            ConversationProviderFailureReason.RESOURCE_NOT_FOUND,
+        ),
+        (
+            YandexAIStudioHttpStatusError(429),
+            ProviderUnavailable,
+            ConversationProviderFailureReason.RATE_OR_QUOTA_LIMITED,
+        ),
+        (
+            YandexAIStudioHttpStatusError(503),
+            ProviderUnavailable,
+            ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE,
+        ),
     ],
 )
 def test_yandex_maps_transport_and_http_failures(
     error: Exception,
     expected: type[Exception],
+    reason: ConversationProviderFailureReason,
 ) -> None:
-    with pytest.raises(expected):
+    with pytest.raises(expected) as failure:
         asyncio.run(adapter(FakeYandexTransport(error=error)).generate(provider_request()))
+
+    assert isinstance(failure.value, (ProviderUnavailable, GenerationFailed))
+    assert failure.value.reason is reason
 
 
 @pytest.mark.parametrize(
@@ -208,8 +234,10 @@ def test_yandex_maps_transport_and_http_failures(
     ],
 )
 def test_yandex_rejects_malformed_results(body: bytes) -> None:
-    with pytest.raises(InvalidProviderResponse):
+    with pytest.raises(InvalidProviderResponse) as failure:
         asyncio.run(adapter(FakeYandexTransport(body)).generate(provider_request()))
+
+    assert failure.value.reason is ConversationProviderFailureReason.RESPONSE_MALFORMED
 
 
 @pytest.mark.parametrize(
@@ -232,5 +260,7 @@ def test_yandex_model_uri_rejects_ambiguous_identifiers(
 
 
 def test_yandex_response_byte_limit_is_enforced() -> None:
-    with pytest.raises(InvalidProviderResponse, match="byte limit"):
+    with pytest.raises(InvalidProviderResponse, match="byte limit") as failure:
         asyncio.run(adapter(FakeYandexTransport(b"x" * 1_000_001)).generate(provider_request()))
+
+    assert failure.value.reason is ConversationProviderFailureReason.RESPONSE_TOO_LARGE
