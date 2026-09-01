@@ -1,5 +1,7 @@
 # SATORI
 
+[![CI](https://github.com/Win4ez-ru/Satori/actions/workflows/ci.yml/badge.svg)](https://github.com/Win4ez-ru/Satori/actions/workflows/ci.yml)
+
 SATORI is a local-first system for a persistent digital character whose identity,
 memory, relationships, affect, positions, and personality evolution remain owned by
 the application rather than by an LLM provider. Language models are replaceable
