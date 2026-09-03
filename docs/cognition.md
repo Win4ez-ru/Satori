@@ -626,10 +626,11 @@ and final grounding. Non-generation replay may omit the transient fields, and pr
 feeds back into cognition or any state owner. The later attempt-5 sample rejected that frozen
 V26/Terra realization; it remains historical evidence rather than cognition or prompt authority.
 
-ADR-0043 keeps the same cognition intent/template registry V2/V3 but makes policy v27 the current
-offline candidate. The full validated V3 support is no longer reduced to a generic presence
-purpose: the compact operational renderer carries `address_current_request`, the selected
-analysis/creative/follow-up support, conditional presence-before-advice, uncertainty, every
+ADR-0043 kept the same cognition intent/template registry V2/V3 for the then-current policy v27
+offline candidate. In that now-rejected historical policy, the full validated V3 support is no
+longer reduced to a generic presence purpose: the compact operational renderer carries
+`address_current_request`, the selected analysis/creative/follow-up support, conditional
+presence-before-advice, uncertainty, every
 forbidden-claim category and cognition-owned verbosity. Character selection may choose voice,
 pressure and continuation only inside that substance/truth boundary.
 
@@ -642,10 +643,36 @@ renders no advice/action plan, while explicit help, safety and listen-only paths
 precedence. Schema-2 presence is transient proof of selected owner inputs, never feedback into
 cognition.
 
-No V27 provider call has been made. Offline tests cover exact schema isolation, complete V3 support,
-all 40 historical public inputs, eight exact current turns, 28 broader situations and the unchanged
-maximum-one retry. Generated prose still requires a separately authorized immutable human-reviewed
-gate.
+Offline tests cover exact schema isolation, complete V3 support, all 40 historical public inputs,
+eight exact current turns, 28 broader situations and the unchanged maximum-one retry. The later
+V27 attempt-2 provider sample completed 24/24 base calls without retry; generated prose remains
+non-authoritative. Its direct human-only gate rejected the configuration at 6/24 recognizable
+Satori presence and 9/24 natural delivery despite 24/24 grounding and completeness.
+
+Checkpoint 14.3 / ADR-0045 changes the ordering that V27 could not validate. After retrieval and
+tentative affect reads, but before `SafeCognitionPipeline.complete`, deterministic policy selects
+one `CharacterAgencyDecision` from prepared perception/needs plus the immutable live state. The
+decision states what Satori chooses to do in this reply; it does not contain prose, a hidden
+thought, a durable goal or an instruction to mutate state. Cognition completion then remains the
+hard obligation boundary: agency cannot remove required points, weaken forbidden claims, reverse
+stance, hide uncertainty or pre-empt safety/listen/repetition/repair precedence.
+
+Policy v28 delivery schema 5 copies both inputs into one validated result and presence schema 3
+renders exactly one integrated movement. An owner-approved position/inclination contribution must
+name a supplied ID; absent state cannot be synthesized. A retry receives the byte-identical
+decision and request, and neither successful nor rejected provider prose becomes cognition or
+agency evidence.
+
+Completion failure is explicit rather than a mixed-status request: if the safe pipeline completes
+as `fallback` after an applied intake, the earlier agency decision is downgraded before rendering
+to the sole conservative `none/respond/stop` fallback topology. Delivery and manifest validation
+require status parity while retaining cognition's final safety, repetition, uncertainty and point
+requirements.
+
+Fresh V28 generation records that transient decision in manifest schema 17. Historical policies
+through V27 remain on manifest schema 16 and cannot consume or reconstruct V28 agency authority;
+non-generation replay may omit the full transient agency/delivery/presence set but cannot create
+one.
 
 No persistent creator relation exists. The model may accurately attribute a creator claim to the
 current user input, but cannot make it a durable fact, deny it as impossible, or replace the

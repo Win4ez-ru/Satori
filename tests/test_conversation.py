@@ -161,17 +161,22 @@ def test_conversation_returns_validated_reply_without_mutating_self(
     assert reply.text == "Привет. Я здесь."
     assert reply.provider == "fake-a"
     assert reply.context_manifest.character_context_schema_version == 16
+    assert reply.context_manifest.schema_version == 17
+    assert reply.context_manifest.policy_id == "satori.conversation.behavior.v28"
+    assert reply.context_manifest.policy_schema_version == 28
     assert reply.cognition_trace is not None
     assert reply.context_manifest.cognition_pipeline_status == "applied"
     assert reply.context_manifest.cognition_intent_registry_version == 2
     assert reply.context_manifest.cognition_template_id == "satori.cognition.response-substance"
     assert reply.context_manifest.cognition_template_schema_version == 3
     assert "cognition_response_strategy" not in reply.context_manifest.included_sections
+    assert "character_agency_decision" in reply.context_manifest.included_sections
     assert "character_delivery_decision" in reply.context_manifest.included_sections
-    assert reply.context_manifest.character_delivery_decision_schema_version == 4
-    assert reply.context_manifest.character_presence_projection_schema_version == 2
+    assert reply.context_manifest.character_agency_decision_schema_version == 1
+    assert reply.context_manifest.character_delivery_decision_schema_version == 5
+    assert reply.context_manifest.character_presence_projection_schema_version == 3
     assert any(
-        "Trusted current-turn presence Сатори" in message.content
+        "Trusted current-turn agency Сатори" in message.content
         for message in provider.requests[0].messages
     )
     assert all(

@@ -6,10 +6,18 @@ from functools import partial
 from satori.application.affect.contracts import EmotionalExpressionContext
 from satori.application.cognition.contracts import (
     INTENT_REGISTRY_VERSION_V2,
+    CognitionArtifactStatus,
     CognitionOwner,
     IntentSelection,
     PositionStance,
     ResponseStrategy,
+)
+from satori.application.conversation.character_agency import (
+    CharacterAgencyDecision,
+    CharacterAgencyDrive,
+    CharacterAgencyInitiative,
+    CharacterAgencyReason,
+    CharacterAgencyStatus,
 )
 from satori.application.conversation.character_delivery_contracts import (
     _SUPPORTED_STRATEGY_STATUSES,
@@ -17,9 +25,11 @@ from satori.application.conversation.character_delivery_contracts import (
     CHARACTER_DELIVERY_DECISION_V2_SCHEMA_VERSION,
     CHARACTER_DELIVERY_DECISION_V3_SCHEMA_VERSION,
     CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION,
+    CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION,
     CHARACTER_PRESENCE_PERSONALITY_CODES,
     CHARACTER_PRESENCE_PROJECTION_SCHEMA_VERSION,
     CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION,
+    CHARACTER_PRESENCE_PROJECTION_V3_SCHEMA_VERSION,
     CHARACTER_PRESENCE_VALUE_KEYS,
     CharacterAffectSignal,
     CharacterAffectSignalCode,
@@ -289,6 +299,65 @@ _SELECTION_WEIGHTS = (0.5, 0.3, 0.2)
 _VOICE_ORDER = tuple(CharacterDeliveryVoice)
 _VoiceSelector = Callable[[CharacterDeliveryGoal, CharacterDeliveryVoice], CharacterDeliveryVoice]
 
+_AGENCY_VOICE_PREFERENCES = {
+    CharacterAgencyDrive.NONE: {
+        CharacterDeliveryVoice.THOUGHTFUL_PRECISION,
+        CharacterDeliveryVoice.WARM_INDEPENDENCE,
+        CharacterDeliveryVoice.REFLECTIVE_CANDOR,
+    },
+    CharacterAgencyDrive.CONNECT: {
+        CharacterDeliveryVoice.LIVELY_DRY_WARMTH,
+        CharacterDeliveryVoice.EASY_PLAYFUL_WARMTH,
+        CharacterDeliveryVoice.WARM_INDEPENDENCE,
+    },
+    CharacterAgencyDrive.EXPLORE: {
+        CharacterDeliveryVoice.ENERGIZED_COLLABORATION,
+        CharacterDeliveryVoice.REFLECTIVE_CANDOR,
+        CharacterDeliveryVoice.THOUGHTFUL_PRECISION,
+    },
+    CharacterAgencyDrive.EXPRESS_VIEW: {
+        CharacterDeliveryVoice.WARM_INDEPENDENCE,
+        CharacterDeliveryVoice.ENGAGED_SKEPTICISM,
+        CharacterDeliveryVoice.THOUGHTFUL_PRECISION,
+    },
+    CharacterAgencyDrive.CHALLENGE: {
+        CharacterDeliveryVoice.ENGAGED_SKEPTICISM,
+        CharacterDeliveryVoice.PLAYFUL_EDGE,
+    },
+    CharacterAgencyDrive.CARE: {
+        CharacterDeliveryVoice.PRACTICAL_GUARDED_CARE,
+        CharacterDeliveryVoice.OPEN_CARE,
+        CharacterDeliveryVoice.WARM_INDEPENDENCE,
+    },
+    CharacterAgencyDrive.PLAY: {
+        CharacterDeliveryVoice.PLAYFUL_EDGE,
+        CharacterDeliveryVoice.LIVELY_DRY_WARMTH,
+        CharacterDeliveryVoice.EASY_PLAYFUL_WARMTH,
+    },
+    CharacterAgencyDrive.SHARE_SELF: {
+        CharacterDeliveryVoice.WARM_INDEPENDENCE,
+        CharacterDeliveryVoice.REFLECTIVE_CANDOR,
+    },
+    CharacterAgencyDrive.HELP: {
+        CharacterDeliveryVoice.THOUGHTFUL_PRECISION,
+        CharacterDeliveryVoice.ENERGIZED_COLLABORATION,
+    },
+    CharacterAgencyDrive.PROTECT: {
+        CharacterDeliveryVoice.OPEN_CARE,
+        CharacterDeliveryVoice.COOL_RESERVE,
+    },
+    CharacterAgencyDrive.REPAIR: {
+        CharacterDeliveryVoice.ACCOUNTABLE_DIRECT,
+        CharacterDeliveryVoice.WARM_INDEPENDENCE,
+    },
+    CharacterAgencyDrive.CLOSE: {
+        CharacterDeliveryVoice.WARM_INDEPENDENCE,
+        CharacterDeliveryVoice.REFLECTIVE_CANDOR,
+        CharacterDeliveryVoice.COOL_RESERVE,
+    },
+    CharacterAgencyDrive.RESERVE: {CharacterDeliveryVoice.COOL_RESERVE},
+}
+
 
 def _decision(
     *,
@@ -303,6 +372,7 @@ def _decision(
     schema_version: int = CHARACTER_DELIVERY_DECISION_SCHEMA_VERSION,
     required_disclosure_facets: tuple[DisclosureFacet, ...] = (),
     voice_selector: _VoiceSelector | None = None,
+    agency: CharacterAgencyDecision | None = None,
 ) -> CharacterDeliveryDecision:
     selected_voice = voice_selector(goal, voice) if voice_selector is not None else voice
     return CharacterDeliveryDecision(
@@ -322,6 +392,7 @@ def _decision(
         response_verbosity=strategy.verbosity,
         required_disclosure_facets=required_disclosure_facets,
         source_personality_codes=personality_codes,
+        agency=agency,
     )
 
 
@@ -333,6 +404,7 @@ def _build_v4_voice_selector(
     affect_profile: str | None,
     relationship_profile: str | None,
     relationship_relevant: bool,
+    agency: CharacterAgencyDecision | None = None,
 ) -> _VoiceSelector:
     """Use live state before rendering while keeping truth and cognition out of style scoring."""
 
@@ -379,6 +451,8 @@ def _build_v4_voice_selector(
             total = 0.82 * personality_score + 0.18 * value_score
             if voice is default:
                 total += 0.08
+            if agency is not None and voice in _AGENCY_VOICE_PREFERENCES[agency.drive]:
+                total += 0.18
             for code, direction in cue_directions.items():
                 if code in _VOICE_PERSONALITY_PRIORITY[voice]:
                     total += 0.12 if direction == "slightly_stronger" else -0.12
@@ -525,6 +599,7 @@ def decide_character_delivery(
     live_personality: RuntimePersonalityExpression | None = None,
     live_traits: tuple[RuntimeTrait, ...] | None = None,
     live_values: tuple[RuntimeValue, ...] | None = None,
+    agency: CharacterAgencyDecision | None = None,
 ) -> CharacterDeliveryDecision:
     """Choose one delivery goal directly from authoritative transient inputs."""
 
@@ -538,9 +613,26 @@ def decide_character_delivery(
         CHARACTER_DELIVERY_DECISION_V2_SCHEMA_VERSION,
         CHARACTER_DELIVERY_DECISION_V3_SCHEMA_VERSION,
         CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION,
+        CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION,
     }:
         raise ValueError("character delivery decision schema_version is not supported")
     schema_v4 = decision_schema_version >= CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION
+    schema_v5 = decision_schema_version >= CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION
+    if schema_v5 != isinstance(agency, CharacterAgencyDecision):
+        raise ValueError("character delivery v5 requires exactly one typed agency decision")
+    if schema_v5:
+        assert agency is not None
+        cognition_fallback = strategy is not None and (
+            strategy.status is CognitionArtifactStatus.FALLBACK
+        )
+        agency_fallback = agency.status is CharacterAgencyStatus.FALLBACK
+        if cognition_fallback is not agency_fallback:
+            raise ValueError("character agency and completed cognition status must agree")
+        if (
+            CharacterAgencyReason.SOCIAL_EXCHANGE in agency.reason_codes
+            and disclosure_mode is not ConversationalDisclosureMode.SOCIAL
+        ):
+            raise ValueError("social agency requires the authoritative social disclosure plan")
     live_inputs = (live_personality, live_traits, live_values)
     if schema_v4 and any(item is None for item in live_inputs):
         raise ValueError("character delivery v4 requires complete live personality and value state")
@@ -554,6 +646,7 @@ def decide_character_delivery(
             affect_profile=affect_profile,
             relationship_profile=relationship_profile,
             relationship_relevant=relationship_relevant,
+            agency=agency,
         )
         if live_personality is not None and live_traits is not None and live_values is not None
         else None
@@ -564,6 +657,7 @@ def decide_character_delivery(
         schema_version=decision_schema_version,
         required_disclosure_facets=facets,
         voice_selector=voice_selector,
+        agency=agency,
     )
     if (
         strategy.status not in _SUPPORTED_STRATEGY_STATUSES
@@ -742,10 +836,18 @@ def decide_character_delivery(
         )
     if schema_v4 and topic_closure and stance is PositionStance.ANSWER and not current_turn_guarded:
         assert live_personality is not None
-        continuation = _v4_topic_closure_continuation(
-            personality=live_personality,
-            relationship_profile=relationship_profile,
-            affect_profile=affect_profile,
+        continuation = (
+            CharacterContinuationMode.OPEN
+            if schema_v5
+            and agency is not None
+            and agency.initiative is CharacterAgencyInitiative.SHIFT_ADJACENT
+            else CharacterContinuationMode.COMPLETE
+            if schema_v5
+            else _v4_topic_closure_continuation(
+                personality=live_personality,
+                relationship_profile=relationship_profile,
+                affect_profile=affect_profile,
+            )
         )
         return make_decision(
             goal=CharacterDeliveryGoal.CLOSE_TOPIC,
@@ -897,7 +999,17 @@ def decide_character_delivery(
                     else CharacterGroundingMode.REACTION_ONLY
                 )
             ),
-            continuation=CharacterContinuationMode.OPEN,
+            continuation=(
+                CharacterContinuationMode.OPEN
+                if not schema_v5
+                or agency is None
+                or agency.initiative
+                in {
+                    CharacterAgencyInitiative.ADVANCE_CURRENT,
+                    CharacterAgencyInitiative.SHIFT_ADJACENT,
+                }
+                else CharacterContinuationMode.COMPLETE
+            ),
             pressure=CharacterPressureLevel.NONE,
             strategy=strategy,
             intent=intent,
@@ -1069,6 +1181,9 @@ def project_character_presence(
         CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION: (
             CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION
         ),
+        CHARACTER_PRESENCE_PROJECTION_V3_SCHEMA_VERSION: (
+            CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION
+        ),
     }.get(projection_schema_version)
     if decision.schema_version != expected_decision_schema:
         if projection_schema_version == CHARACTER_PRESENCE_PROJECTION_SCHEMA_VERSION:
@@ -1088,7 +1203,18 @@ def project_character_presence(
         }
     except KeyError as error:
         raise ValueError("character presence requires the canonical optimism trait") from error
-    if projection_schema_version >= CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION:
+    if projection_schema_version >= CHARACTER_PRESENCE_PROJECTION_V3_SCHEMA_VERSION:
+        if decision.agency is None:
+            raise ValueError("character presence v3 requires character agency")
+        preferred_codes = tuple(
+            dict.fromkeys(
+                (
+                    *decision.agency.source_personality_codes,
+                    *cue_directions,
+                )
+            )
+        )[:3]
+    elif projection_schema_version >= CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION:
         posture_codes = _V4_GOAL_PERSONALITY_PRIORITY[decision.goal]
 
         def posture_score(code: str) -> tuple[float, int]:
@@ -1145,7 +1271,12 @@ def project_character_presence(
         raise ValueError(
             f"character presence is missing canonical values: {sorted(missing_values)}"
         )
-    prioritized_values = _GOAL_VALUE_PRIORITY[decision.goal]
+    prioritized_values = (
+        (decision.agency.source_value_key,)
+        if projection_schema_version >= CHARACTER_PRESENCE_PROJECTION_V3_SCHEMA_VERSION
+        and decision.agency is not None
+        else _GOAL_VALUE_PRIORITY[decision.goal]
+    )
     ranked_values = sorted(
         prioritized_values,
         key=lambda key: (-values_by_key[key].strength, prioritized_values.index(key)),

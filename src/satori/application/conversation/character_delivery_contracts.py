@@ -14,6 +14,12 @@ from satori.application.cognition.contracts import (
     PositionStance,
     ResponseVerbosity,
 )
+from satori.application.conversation.character_agency import (
+    CharacterAgencyDecision,
+    CharacterAgencyDrive,
+    CharacterAgencyReason,
+    CharacterAgencyStatus,
+)
 from satori.application.conversation.character_expression import (
     BASELINE_CHARACTER_GUIDANCE_CODES,
     CharacterContinuationMode,
@@ -26,8 +32,10 @@ CHARACTER_DELIVERY_DECISION_SCHEMA_VERSION = 1
 CHARACTER_DELIVERY_DECISION_V2_SCHEMA_VERSION = 2
 CHARACTER_DELIVERY_DECISION_V3_SCHEMA_VERSION = 3
 CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION = 4
+CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION = 5
 CHARACTER_PRESENCE_PROJECTION_SCHEMA_VERSION = 1
 CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION = 2
+CHARACTER_PRESENCE_PROJECTION_V3_SCHEMA_VERSION = 3
 CHARACTER_PRESENCE_PERSONALITY_CODES = (
     *BASELINE_CHARACTER_GUIDANCE_CODES,
     "grounded_optimism",
@@ -310,6 +318,7 @@ class CharacterPresenceProjection:
         if type(self.schema_version) is not int or self.schema_version not in {
             CHARACTER_PRESENCE_PROJECTION_SCHEMA_VERSION,
             CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION,
+            CHARACTER_PRESENCE_PROJECTION_V3_SCHEMA_VERSION,
         }:
             raise ValueError("unsupported character presence projection schema_version")
         if (
@@ -323,6 +332,9 @@ class CharacterPresenceProjection:
             ),
             CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION: (
                 CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION
+            ),
+            CHARACTER_PRESENCE_PROJECTION_V3_SCHEMA_VERSION: (
+                CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION
             ),
         }[self.schema_version]
         if self.decision.schema_version != expected_decision_schema:
@@ -347,6 +359,15 @@ class CharacterPresenceProjection:
             and len(value_signals) != 1
         ):
             raise ValueError("character presence v2 requires exactly one value guard")
+        if self.schema_version >= CHARACTER_PRESENCE_PROJECTION_V3_SCHEMA_VERSION:
+            if self.decision.agency is None:
+                raise ValueError("character presence v3 requires character agency")
+            if not set(self.decision.agency.source_personality_codes) <= set(personality_codes):
+                raise ValueError(
+                    "character agency personality sources must be realized by presence"
+                )
+            if set(value_keys) != {self.decision.agency.source_value_key}:
+                raise ValueError("character agency value source must match the presence guard")
         affect_signals = tuple(self.affect_signals)
         affect_codes = tuple(item.code for item in affect_signals)
         if (
@@ -434,6 +455,21 @@ _ALLOWED_TOPOLOGIES = {
         (
             CharacterGroundingMode.TRUSTED_CONTEXT,
             CharacterContinuationMode.OPEN,
+            CharacterPressureLevel.NONE,
+        ),
+        (
+            CharacterGroundingMode.REACTION_ONLY,
+            CharacterContinuationMode.COMPLETE,
+            CharacterPressureLevel.NONE,
+        ),
+        (
+            CharacterGroundingMode.EXPLICIT_INPUT_ONLY,
+            CharacterContinuationMode.COMPLETE,
+            CharacterPressureLevel.NONE,
+        ),
+        (
+            CharacterGroundingMode.TRUSTED_CONTEXT,
+            CharacterContinuationMode.COMPLETE,
             CharacterPressureLevel.NONE,
         ),
     },
@@ -717,6 +753,7 @@ class CharacterDeliveryDecision:
     response_verbosity: ResponseVerbosity
     required_disclosure_facets: tuple[DisclosureFacet, ...] = ()
     source_personality_codes: tuple[str, ...] = BASELINE_CHARACTER_GUIDANCE_CODES
+    agency: CharacterAgencyDecision | None = None
 
     def __post_init__(self) -> None:
         if type(self.schema_version) is not int or self.schema_version not in {
@@ -724,6 +761,7 @@ class CharacterDeliveryDecision:
             CHARACTER_DELIVERY_DECISION_V2_SCHEMA_VERSION,
             CHARACTER_DELIVERY_DECISION_V3_SCHEMA_VERSION,
             CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION,
+            CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION,
         }:
             raise ValueError("unsupported character delivery decision schema_version")
         disclosure_facets = tuple(self.required_disclosure_facets)
@@ -778,6 +816,15 @@ class CharacterDeliveryDecision:
         if codes != BASELINE_CHARACTER_GUIDANCE_CODES:
             raise ValueError("character delivery decision requires canonical personality guidance")
         object.__setattr__(self, "source_personality_codes", codes)
+        if self.schema_version >= CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION:
+            if not isinstance(self.agency, CharacterAgencyDecision):
+                raise ValueError("character delivery v5 requires one typed agency decision")
+            if not set(self.agency.source_personality_codes) <= set(codes):
+                raise ValueError("character agency personality sources are not canonical")
+            if self.agency.source_value_key not in CHARACTER_PRESENCE_VALUE_KEYS:
+                raise ValueError("character agency value source is not canonical")
+        elif self.agency is not None:
+            raise ValueError("historical character delivery cannot contain character agency")
         intent_tags = tuple(self.cognition_intent_tags)
         required_points = tuple(self.required_point_codes)
         forbidden_claims = tuple(self.forbidden_claim_codes)
@@ -794,6 +841,39 @@ class CharacterDeliveryDecision:
         safety_intent = primary_intent == "hold_safety_boundary"
         repair_intent = primary_intent == "receive_repair"
         meta_intent = primary_intent in V2_META_INTENT_TAGS
+        if (
+            self.schema_version >= CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION
+            and self.agency is not None
+            and self.agency.status is CharacterAgencyStatus.APPLIED
+        ):
+            assert self.agency is not None
+            agency_reasons = set(self.agency.reason_codes)
+            agency_safety = CharacterAgencyReason.SAFETY_PRECEDENCE in agency_reasons
+            agency_repetition = CharacterAgencyReason.REPETITION_PRECEDENCE in agency_reasons
+            agency_repair_offer = CharacterAgencyReason.REPAIR_OFFER in agency_reasons
+            if safety_intent is not agency_safety or (
+                safety_intent and self.agency.drive is not CharacterAgencyDrive.PROTECT
+            ):
+                raise ValueError("character agency must preserve cognition-owned safety intent")
+            if repetition_intent is not agency_repetition:
+                raise ValueError("character agency must preserve cognition-owned repetition intent")
+            if repair_intent is not agency_repair_offer:
+                raise ValueError("character agency must preserve cognition-owned repair intent")
+            correction_intent = primary_intent == "acknowledge_correction"
+            agency_correction = CharacterAgencyReason.CORRECTION_UPTAKE in agency_reasons
+            if correction_intent is not agency_correction:
+                raise ValueError("character agency must preserve cognition-owned correction intent")
+            vulnerable_presence = bool(
+                agency_reasons.intersection(
+                    {
+                        CharacterAgencyReason.HIGH_DISTRESS,
+                        CharacterAgencyReason.EXPLICIT_LISTEN,
+                    }
+                )
+                and not repetition_intent
+            )
+            if vulnerable_presence and primary_intent != "listen_and_reflect":
+                raise ValueError("character agency must preserve cognition-owned listen intent")
         if set(intent_tags).intersection(V2_ACTION_INTENT_TAGS) != {primary_intent}:
             raise ValueError("character delivery requires exactly one cognition action intent")
         if primary_intent not in intent_tags or (
@@ -892,10 +972,15 @@ class CharacterDeliveryDecision:
                     else set()
                 ),
             }
-            or self.continuation is not CharacterContinuationMode.OPEN
+            or self.continuation
+            not in (
+                {CharacterContinuationMode.OPEN, CharacterContinuationMode.COMPLETE}
+                if self.schema_version >= CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION
+                else {CharacterContinuationMode.OPEN}
+            )
             or self.pressure is not CharacterPressureLevel.NONE
         ):
-            raise ValueError("celebration delivery requires reaction-only open flow")
+            raise ValueError("celebration delivery requires a licensed reaction flow")
         if self.goal is CharacterDeliveryGoal.PRACTICAL_CARE:
             if self.grounding is not CharacterGroundingMode.EXPLICIT_INPUT_ONLY:
                 raise ValueError("practical care requires explicit-input grounding")

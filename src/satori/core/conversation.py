@@ -184,13 +184,34 @@ class ConversationProviderError(Exception):
         *,
         reason: ConversationProviderFailureReason,
         metrics: ProviderExecutionMetrics | None = None,
+        usage: ConversationUsage | None = None,
+        provider_response_observed: bool = False,
+        response_completed: bool = False,
+        service_tier_verified: bool = False,
     ) -> None:
         self.provider = _non_blank(provider, "provider")
         self.model = _non_blank(model, "model")
         if not isinstance(reason, ConversationProviderFailureReason):
             raise ValueError("reason must be a ConversationProviderFailureReason")
+        if usage is not None and not isinstance(usage, ConversationUsage):
+            raise ValueError("usage must be ConversationUsage or None")
+        for field_name, value in (
+            ("provider_response_observed", provider_response_observed),
+            ("response_completed", response_completed),
+            ("service_tier_verified", service_tier_verified),
+        ):
+            if type(value) is not bool:
+                raise ValueError(f"{field_name} must be a boolean")
+        if (usage is not None or response_completed or service_tier_verified) and not (
+            provider_response_observed
+        ):
+            raise ValueError("post-response evidence requires an observed provider response")
         self.reason = reason
         self.metrics = metrics
+        self.usage = usage
+        self.provider_response_observed = provider_response_observed
+        self.response_completed = response_completed
+        self.service_tier_verified = service_tier_verified
         super().__init__(_non_blank(message, "message"))
 
 

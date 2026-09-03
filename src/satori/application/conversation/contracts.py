@@ -13,6 +13,17 @@ from satori.application.cognition.contracts import (
     PositionStance,
     ResponseVerbosity,
 )
+from satori.application.conversation.character_agency import (
+    CHARACTER_AGENCY_DECISION_SCHEMA_VERSION,
+    CharacterAgencyAct,
+    CharacterAgencyDecision,
+    CharacterAgencyDrive,
+    CharacterAgencyInitiative,
+    CharacterAgencyLead,
+    CharacterAgencyReason,
+    CharacterAgencyStatus,
+    CharacterAgencySubject,
+)
 from satori.application.conversation.character_delivery_contracts import (
     CHARACTER_PRESENCE_PERSONALITY_CODES,
     CHARACTER_PRESENCE_VALUE_KEYS,
@@ -59,6 +70,7 @@ CONVERSATION_INCLUDED_SECTIONS = (
     "recent_conversation",
     "dialogue_coherence",
     "cognition_response_strategy",
+    "character_agency_decision",
     "character_delivery_decision",
     "character_presence_projection",
     "current_user_input",
@@ -531,6 +543,27 @@ class ConversationContextManifest:
     cognition_template_registry_version: int | None = field(default=None, compare=False)
     cognition_template_id: str | None = field(default=None, compare=False)
     cognition_template_schema_version: int | None = field(default=None, compare=False)
+    # Checkpoint 14.3 agency is one request-local, typed decision selected before
+    # cognition realization. These fields are observability only, never a durable
+    # desire, interest, position or replay authority.
+    character_agency_decision_schema_version: int | None = field(
+        default=None,
+        compare=False,
+    )
+    character_agency_status: str | None = field(default=None, compare=False)
+    character_agency_drive: str | None = field(default=None, compare=False)
+    character_agency_act: str | None = field(default=None, compare=False)
+    character_agency_subject: str | None = field(default=None, compare=False)
+    character_agency_initiative: str | None = field(default=None, compare=False)
+    character_agency_lead: str | None = field(default=None, compare=False)
+    character_agency_source_personality_codes: tuple[str, ...] = field(
+        default=(),
+        compare=False,
+    )
+    character_agency_source_value_key: str | None = field(default=None, compare=False)
+    character_agency_reason_codes: tuple[str, ...] = field(default=(), compare=False)
+    character_agency_source_refs: tuple[str, ...] = field(default=(), compare=False)
+    character_agency_subject_ref: str | None = field(default=None, compare=False)
     # Checkpoint 14.2 character expression is request-local metadata. It is deliberately not
     # persisted as personality, mood, relationship state or replay authority.
     character_expression_plan_schema_version: int | None = field(default=None, compare=False)
@@ -602,6 +635,11 @@ class ConversationContextManifest:
             raise ValueError("context manifest included_sections contain an unknown section")
         if self.policy_id != f"satori.conversation.behavior.v{self.policy_schema_version}":
             raise ValueError("context manifest policy_id and schema_version must agree")
+        if self.policy_schema_version >= 28:
+            if self.schema_version != 17:
+                raise ValueError("behavior policy v28 requires context manifest schema v17")
+        elif self.schema_version >= 17:
+            raise ValueError("historical behavior policy cannot use context manifest schema v17")
         optional_versions = (
             (
                 self.personality_aggregate_version,
@@ -657,6 +695,10 @@ class ConversationContextManifest:
             (
                 self.cognition_template_schema_version,
                 "cognition template schema_version",
+            ),
+            (
+                self.character_agency_decision_schema_version,
+                "character agency decision schema_version",
             ),
             (
                 self.character_expression_plan_schema_version,
@@ -1103,6 +1145,112 @@ class ConversationContextManifest:
                 )
         elif any(item is not None for item in cognition_scalar_metadata) or any(cognition_tuples):
             raise ValueError("unrequested cognition cannot contain cognition metadata")
+
+        agency_personality_codes = _normalized_unique_ids(
+            self.character_agency_source_personality_codes,
+            "character_agency_source_personality_codes",
+        )
+        agency_reason_codes = _normalized_unique_ids(
+            self.character_agency_reason_codes,
+            "character_agency_reason_codes",
+        )
+        agency_source_refs = _normalized_unique_ids(
+            self.character_agency_source_refs,
+            "character_agency_source_refs",
+        )
+        object.__setattr__(
+            self,
+            "character_agency_source_personality_codes",
+            agency_personality_codes,
+        )
+        object.__setattr__(self, "character_agency_reason_codes", agency_reason_codes)
+        object.__setattr__(self, "character_agency_source_refs", agency_source_refs)
+        agency_required_scalars = (
+            self.character_agency_decision_schema_version,
+            self.character_agency_status,
+            self.character_agency_drive,
+            self.character_agency_act,
+            self.character_agency_subject,
+            self.character_agency_initiative,
+            self.character_agency_lead,
+            self.character_agency_source_value_key,
+        )
+        agency_metadata_present = bool(
+            any(item is not None for item in agency_required_scalars)
+            or agency_personality_codes
+            or agency_reason_codes
+            or agency_source_refs
+            or self.character_agency_subject_ref is not None
+        )
+        agency_decision: CharacterAgencyDecision | None = None
+        agency_section_included = "character_agency_decision" in included_sections
+        if self.policy_schema_version >= 28:
+            transient_agency_omitted_for_replay = (
+                not agency_metadata_present and not cognition_requested
+            )
+            if agency_section_included is transient_agency_omitted_for_replay:
+                raise ValueError("character agency metadata and included section must agree")
+            if not cognition_requested and agency_metadata_present:
+                raise ValueError(
+                    "character agency metadata requires a fresh behavior policy v28 turn"
+                )
+            if not transient_agency_omitted_for_replay:
+                if (
+                    self.character_agency_decision_schema_version
+                    != CHARACTER_AGENCY_DECISION_SCHEMA_VERSION
+                    or any(item is None for item in agency_required_scalars)
+                    or not agency_personality_codes
+                    or not agency_reason_codes
+                    or not agency_source_refs
+                ):
+                    raise ValueError("behavior policy v28 requires a complete character agency")
+                assert self.character_agency_status is not None
+                assert self.character_agency_drive is not None
+                assert self.character_agency_act is not None
+                assert self.character_agency_subject is not None
+                assert self.character_agency_initiative is not None
+                assert self.character_agency_lead is not None
+                assert self.character_agency_source_value_key is not None
+                agency_decision = CharacterAgencyDecision(
+                    schema_version=CHARACTER_AGENCY_DECISION_SCHEMA_VERSION,
+                    status=CharacterAgencyStatus(self.character_agency_status),
+                    drive=CharacterAgencyDrive(self.character_agency_drive),
+                    act=CharacterAgencyAct(self.character_agency_act),
+                    subject=CharacterAgencySubject(self.character_agency_subject),
+                    initiative=CharacterAgencyInitiative(self.character_agency_initiative),
+                    lead=CharacterAgencyLead(self.character_agency_lead),
+                    source_personality_codes=agency_personality_codes,
+                    source_value_key=self.character_agency_source_value_key,
+                    reason_codes=tuple(CharacterAgencyReason(code) for code in agency_reason_codes),
+                    source_refs=agency_source_refs,
+                    subject_ref=self.character_agency_subject_ref,
+                )
+                if agency_decision.status.value != self.cognition_pipeline_status:
+                    raise ValueError("character agency and completed cognition status must agree")
+                if (
+                    CharacterAgencyReason.SOCIAL_EXCHANGE in agency_decision.reason_codes
+                    and disclosure_plan.primary_mode is not ConversationalDisclosureMode.SOCIAL
+                ):
+                    raise ValueError(
+                        "social agency requires the authoritative social disclosure plan"
+                    )
+                if (
+                    agency_decision.subject is CharacterAgencySubject.CANONICAL_POSITION
+                    and agency_decision.subject_ref not in self.position_context_ids
+                ):
+                    raise ValueError(
+                        "canonical position agency ref must be present in position context"
+                    )
+                if (
+                    agency_decision.subject is CharacterAgencySubject.CANONICAL_INCLINATION
+                    and agency_decision.subject_ref not in self.inclination_context_ids
+                ):
+                    raise ValueError(
+                        "canonical inclination agency ref must be present in inclination context"
+                    )
+        elif agency_metadata_present or agency_section_included:
+            raise ValueError("historical behavior policy cannot contain character agency metadata")
+
         legacy_character_fields = (
             self.character_expression_register,
             self.character_owned_reaction,
@@ -1144,7 +1292,9 @@ class ConversationContextManifest:
             if not transient_delivery_omitted_for_replay and (
                 self.character_delivery_decision_schema_version
                 != (
-                    4
+                    5
+                    if self.policy_schema_version >= 28
+                    else 4
                     if self.policy_schema_version >= 27
                     else 3
                     if self.policy_schema_version == 26
@@ -1315,6 +1465,11 @@ class ConversationContextManifest:
                         if self.character_delivery_decision_schema_version >= 2
                         else ()
                     ),
+                    agency=(
+                        agency_decision
+                        if self.character_delivery_decision_schema_version >= 5
+                        else None
+                    ),
                 )
             presence_tuples = (
                 tuple(self.character_presence_personality_signals),
@@ -1326,7 +1481,11 @@ class ConversationContextManifest:
                 if type(
                     self.character_presence_projection_schema_version
                 ) is not int or self.character_presence_projection_schema_version != (
-                    2 if self.policy_schema_version >= 27 else 1
+                    3
+                    if self.policy_schema_version >= 28
+                    else 2
+                    if self.policy_schema_version >= 27
+                    else 1
                 ):
                     raise ValueError("behavior policy requires its exact character presence schema")
                 if "character_presence_projection" not in included_sections:
@@ -1334,7 +1493,7 @@ class ConversationContextManifest:
                 if not all(presence_tuples[:2]):
                     raise ValueError("character presence requires personality and value signals")
                 if self.policy_schema_version >= 27 and len(presence_tuples[1]) != 1:
-                    raise ValueError("behavior policy v27 requires exactly one value guard")
+                    raise ValueError("behavior policy v27+ requires exactly one value guard")
                 if type(self.character_presence_memory_use_licensed) is not bool:
                     raise ValueError("character presence requires an exact memory-use license")
                 if (self.emotion_context_schema_version is None) is not (not presence_tuples[2]):
@@ -1452,6 +1611,24 @@ class ConversationContextManifest:
                     raise ValueError(
                         "personality cue observability and presence directions must agree"
                     )
+                if self.policy_schema_version >= 28:
+                    if agency_decision is None:
+                        raise ValueError("fresh behavior policy v28 requires character agency")
+                    presence_personality_codes = {
+                        signal.split(":", 1)[0] for signal in presence_tuples[0]
+                    }
+                    if not set(agency_decision.source_personality_codes) <= (
+                        presence_personality_codes
+                    ):
+                        raise ValueError(
+                            "character agency personality sources must be present in character "
+                            "presence"
+                        )
+                    presence_value_keys = {signal.split(":", 1)[0] for signal in presence_tuples[1]}
+                    if presence_value_keys != {agency_decision.source_value_key}:
+                        raise ValueError(
+                            "character agency value source must match the character presence guard"
+                        )
                 if (
                     self.character_delivery_goal
                     == CharacterDeliveryGoal.CELEBRATE_AND_CONTINUE.value

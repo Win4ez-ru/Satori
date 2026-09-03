@@ -18,6 +18,7 @@ from satori.application.cognition.use_cases import (
     DeterministicCognitionPlanner,
     SafeCognitionPipeline,
 )
+from satori.application.conversation.character_agency import CharacterAgencyKernel
 from satori.application.conversation.coherence import SESSION_RECAP_MAX_RECENT_TURNS
 from satori.application.conversation.context import (
     CharacterContextComposer,
@@ -32,7 +33,7 @@ from satori.application.conversation.history import (
     InteractionLog,
     StartConversationSession,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V27
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V28
 from satori.application.conversation.post_processing import ProcessPostResponse
 from satori.application.conversation.use_cases import ConversationProvider, TalkToSatori
 from satori.application.initial_self.use_cases import (
@@ -221,7 +222,7 @@ def build_conversation_services(
     model_provider: ModelFormationProvider | None = None,
     position_provider: PositionFormationProvider | None = None,
     reflection_provider: ReflectionGenerationPort | None = None,
-    behavior_policy: BehaviorPolicy = BEHAVIOR_POLICY_V27,
+    behavior_policy: BehaviorPolicy = BEHAVIOR_POLICY_V28,
 ) -> ConversationServices:
     """Wire InteractionLog and MemoryManager to replaceable provider capabilities."""
 
@@ -492,6 +493,9 @@ def build_conversation_services(
             fallback=DeterministicCognitionPlanner(
                 intent_registry_version=cognition_intent_registry_version
             ),
+        ),
+        character_agency_kernel=(
+            CharacterAgencyKernel() if behavior_policy.schema_version >= 28 else None
         ),
     )
     return ConversationServices(

@@ -10,7 +10,8 @@ from sqlalchemy import text
 
 from satori.__main__ import main
 from satori.application.affect.contracts import PreparedAffectiveContext
-from satori.application.conversation.contracts import SatoriReply, TalkInput
+from satori.application.conversation.contracts import BehaviorPolicy, SatoriReply, TalkInput
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V28
 from satori.composition import (
     ConversationServices,
     InitialSelfServices,
@@ -156,6 +157,7 @@ def build(
     *,
     clock: FrozenClock | None = None,
     conversation: FakeConversationProvider | None = None,
+    behavior_policy: BehaviorPolicy = BEHAVIOR_POLICY_V28,
 ) -> tuple[ConversationServices, FakeConversationProvider, InitialSelfServices]:
     initial_self = build_initial_self_services(database)
     active_conversation = conversation or conversation_provider()
@@ -168,6 +170,7 @@ def build(
         clock=clock or FrozenClock(NOW),
         id_generator=Uuid4Generator(),
         appraisal_provider=appraisal,
+        behavior_policy=behavior_policy,
     )
     return services, active_conversation, initial_self
 
@@ -238,14 +241,15 @@ def test_golden_appraisal_is_tentative_then_committed_with_canonical_reply(
     presence_message = next(
         message.content
         for message in generator.requests[0].messages
-        if "Trusted current-turn presence Сатори" in message.content
+        if "Trusted current-turn agency Сатори" in message.content
     )
-    assert reply.context_manifest.character_presence_projection_schema_version == 2
+    assert reply.context_manifest.character_agency_decision_schema_version == 1
+    assert reply.context_manifest.character_presence_projection_schema_version == 3
     assert "engaged_curiosity:defining" in (
         reply.context_manifest.character_presence_affect_signals
     )
     assert "живое любопытство" in presence_message
-    assert "operational move v2" in presence_message
+    assert "current-turn agency" in presence_message
     assert "state_version" not in presence_message
     assert generator.requests[0].messages[-1].content == "Это очень хорошая новость"
 
@@ -291,12 +295,12 @@ def test_same_phrase_after_prior_event_changes_only_affective_expression_layer(
     first_presence = next(
         message.content
         for message in first.messages
-        if "Trusted current-turn presence Сатори" in message.content
+        if "Trusted current-turn agency Сатори" in message.content
     )
     second_presence = next(
         message.content
         for message in second.messages
-        if "Trusted current-turn presence Сатори" in message.content
+        if "Trusted current-turn agency Сатори" in message.content
     )
     assert first_presence != second_presence
     assert first_reply.context_manifest.emotion_state_version == 2

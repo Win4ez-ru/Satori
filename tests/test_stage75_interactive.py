@@ -41,7 +41,16 @@ from satori.domain.errors import NotActivated
 from satori.infrastructure.persistence.database import Database
 from satori.infrastructure.providers.ollama_http import OllamaHttpClient
 from satori.infrastructure.seeds.loader import JsonSeedLoader
-from satori.interactive import InteractiveChat
+from satori.interactive import (
+    _EXPLICIT_PROVIDER_FAILURE_MESSAGES,
+    _RESPONSE_RECOVERY_FAILURES,
+    _RESPONSE_RECOVERY_MESSAGES,
+    _TRANSIENT_PROVIDER_FAILURES,
+    _TRANSIENT_RECOVERY_MESSAGES,
+    InteractiveChat,
+    _ProgressIndicator,
+    _select_recovery_message,
+)
 from tests.fakes import (
     FakeAffectiveAppraisalProvider,
     FakeConversationProvider,
@@ -67,6 +76,13 @@ class InputFeeder:
             if self._failure is not None:
                 raise self._failure from None
             raise EOFError from None
+
+
+class TtyStringIO(StringIO):
+    """Capture terminal control sequences while advertising an interactive stream."""
+
+    def isatty(self) -> bool:
+        return True
 
 
 class CountingConversationProvider:
@@ -272,6 +288,99 @@ def run_chat(
     return result, stdout.getvalue(), stderr.getvalue()
 
 
+def test_typing_indicator_cycles_tty_frames_and_clears_full_width() -> None:
+    stream = TtyStringIO()
+    sleep_started: asyncio.Queue[None] = asyncio.Queue()
+    release_sleep: asyncio.Queue[None] = asyncio.Queue()
+
+    async def controlled_sleep(seconds: float) -> None:
+        assert seconds == 0.4
+        sleep_started.put_nowait(None)
+        await release_sleep.get()
+
+    indicator = _ProgressIndicator(stream, sleep=controlled_sleep)
+
+    async def scenario() -> None:
+        async with asyncio.timeout(1.0):
+            async with indicator.visible():
+                await sleep_started.get()
+                for _ in range(3):
+                    release_sleep.put_nowait(None)
+                    await sleep_started.get()
+
+    asyncio.run(scenario())
+
+    width = len("Сатори печатает...")
+    assert stream.getvalue() == (
+        "\r"
+        + "Сатори печатает.".ljust(width)
+        + "\r"
+        + "Сатори печатает..".ljust(width)
+        + "\r"
+        + "Сатори печатает...".ljust(width)
+        + "\r"
+        + "Сатори печатает.".ljust(width)
+        + "\r"
+        + (" " * width)
+        + "\r"
+    )
+
+
+def test_typing_indicator_non_tty_emits_one_stable_line_without_animation() -> None:
+    stream = StringIO()
+    sleep_calls = 0
+
+    async def unexpected_sleep(_seconds: float) -> None:
+        nonlocal sleep_calls
+        sleep_calls += 1
+
+    indicator = _ProgressIndicator(stream, sleep=unexpected_sleep)
+
+    async def scenario() -> None:
+        async with indicator.visible():
+            await asyncio.sleep(0)
+
+    asyncio.run(scenario())
+
+    assert stream.getvalue() == "Сатори печатает...\n"
+    assert sleep_calls == 0
+
+
+def test_recovery_copy_selection_is_stable_and_exercises_every_variant() -> None:
+    selected = {
+        _select_recovery_message(
+            _RESPONSE_RECOVERY_MESSAGES,
+            selection_key=f"request-{index}",
+            failure_bucket="response",
+        )
+        for index in range(64)
+    }
+
+    assert selected == set(_RESPONSE_RECOVERY_MESSAGES)
+    first = _select_recovery_message(
+        _TRANSIENT_RECOVERY_MESSAGES,
+        selection_key="same-request",
+        failure_bucket="connection",
+    )
+    second = _select_recovery_message(
+        _TRANSIENT_RECOVERY_MESSAGES,
+        selection_key="same-request",
+        failure_bucket="connection",
+    )
+    assert first == second
+
+
+def test_every_provider_failure_reason_has_one_explicit_presentation_bucket() -> None:
+    buckets = (
+        set(_EXPLICIT_PROVIDER_FAILURE_MESSAGES),
+        set(_TRANSIENT_PROVIDER_FAILURES),
+        set(_RESPONSE_RECOVERY_FAILURES),
+    )
+
+    assert set.union(*buckets) == set(ConversationProviderFailureReason)
+    assert sum(len(bucket) for bucket in buckets) == len(set.union(*buckets))
+
+
 def test_chat_starts_one_session_reuses_it_and_keeps_output_clean(
     migrated_database: Database,
 ) -> None:
@@ -293,6 +402,8 @@ def test_chat_starts_one_session_reuses_it_and_keeps_output_clean(
     assert history.interactions[1].user_message.content == "выполни /exit"
     assert len(provider.requests) == 2
     assert "Сатори готова." in stdout
+    assert stdout.count("Сатори печатает...") == 2
+    assert "Сатори думает" not in stdout
     assert "Сатори: Ответ 1" in stdout
     assert "Сессия:" in stdout
     assert stdout.count("Провайдер ответа: fake-conversation/fixture-conversation") == 2
@@ -398,7 +509,7 @@ def test_recent_completed_context_preserves_immediate_name_continuity(
         if message.role.value in {"user", "assistant"}
     ]
     assert conversational == ["Меня зовут Кирилл.", "Ответ 1", "\u0410 как меня зовут?"]
-    assert "Trusted current-turn presence Сатори" in second.messages[-2].content
+    assert "Trusted current-turn agency Сатори" in second.messages[-2].content
     assert second.messages[-1].content == "\u0410 как меня зовут?"
 
 
@@ -756,7 +867,10 @@ def test_provider_and_post_processing_failures_are_safe_and_readable(
     )
     interaction = provider_services.history.execute().interactions[0]
     assert interaction.status is InteractionStatus.FAILED
-    assert "Провайдер ответа временно недоступен." in stderr
+    assert interaction.assistant_message is None
+    assert "[Сатори не ответила]" in stderr
+    assert any(message in stderr for message in _TRANSIENT_RECOVERY_MESSAGES)
+    assert "Провайдер ответа временно недоступен." not in stderr
     assert "Сатори:" not in stdout
 
     working_provider = CountingConversationProvider()
@@ -790,9 +904,77 @@ def test_yandex_unavailable_error_never_blames_ollama(
         InputFeeder("Привет", "/exit"),
     )
 
-    assert "Провайдер ответа временно недоступен." in stderr
+    assert "[Сатори не ответила]" in stderr
+    assert any(message in stderr for message in _TRANSIENT_RECOVERY_MESSAGES)
     assert "Ollama" not in stderr
     assert "yandexgpt" not in stderr
+    assert "Сатори:" not in stdout
+
+
+@pytest.mark.parametrize(
+    ("reason", "expected"),
+    [
+        (
+            ConversationProviderFailureReason.CREDENTIALS_REJECTED,
+            "Провайдер ответа отклонил доступ. Проверьте API-ключ и права.",
+        ),
+        (
+            ConversationProviderFailureReason.RESOURCE_NOT_FOUND,
+            "Провайдер не нашёл настроенную модель.",
+        ),
+        (
+            ConversationProviderFailureReason.RATE_OR_QUOTA_LIMITED,
+            "Провайдер ответа отклонил запрос из-за лимита или баланса.",
+        ),
+        (
+            ConversationProviderFailureReason.REQUEST_REJECTED,
+            "Провайдер ответа отклонил запрос. Проверьте настройки.",
+        ),
+    ],
+)
+def test_actionable_provider_error_is_not_hidden_by_character_recovery_copy(
+    migrated_database: Database,
+    reason: ConversationProviderFailureReason,
+    expected: str,
+) -> None:
+    activate(migrated_database)
+    failed_provider = FakeConversationProvider(
+        error=GenerationFailed("openai", "fixture", "private detail", reason=reason)
+    )
+    services = build_services(migrated_database, failed_provider)
+
+    _, stdout, stderr = run_chat(services, InputFeeder("секретная реплика", "/exit"))
+
+    interaction = services.history.execute().interactions[0]
+    assert interaction.status is InteractionStatus.FAILED
+    assert interaction.assistant_message is None
+    assert expected in stderr
+    assert "[Сатори не ответила]" not in stderr
+    assert "private detail" not in stderr
+    assert "секретная реплика" not in stderr
+    assert "Сатори:" not in stdout
+
+
+def test_quota_limited_unavailable_error_remains_actionable(
+    migrated_database: Database,
+) -> None:
+    activate(migrated_database)
+    failed_provider = FakeConversationProvider(
+        error=ProviderUnavailable(
+            "openai",
+            "fixture",
+            "private detail",
+            reason=ConversationProviderFailureReason.RATE_OR_QUOTA_LIMITED,
+        )
+    )
+    services = build_services(migrated_database, failed_provider)
+
+    _, stdout, stderr = run_chat(services, InputFeeder("секретная реплика", "/exit"))
+
+    assert "Провайдер ответа отклонил запрос из-за лимита или баланса." in stderr
+    assert "[Сатори не ответила]" not in stderr
+    assert "private detail" not in stderr
+    assert "секретная реплика" not in stderr
     assert "Сатори:" not in stdout
 
 
@@ -831,6 +1013,8 @@ def test_debug_provider_failure_reports_only_safe_output_budget_metadata(
         "error_type=GenerationFailed failure_reason=output_token_limit"
     ) in stderr
     assert "OpenAI response ended with status incomplete" not in stderr
+    assert "[Сатори не ответила]" in stderr
+    assert any(message in stderr for message in _RESPONSE_RECOVERY_MESSAGES)
     assert "секретная реплика" not in stderr
     assert "секретная реплика" not in stdout
 
@@ -950,7 +1134,7 @@ def test_near_duplicate_after_repetition_gets_at_most_one_precommit_retry(
     assert "Preserve the already selected final character realization" in (
         provider.requests[2].messages[-2].content
     )
-    marker = "Trusted current-turn presence Сатори"
+    marker = "Trusted current-turn agency Сатори"
     assert marker in provider.requests[2].messages[-2].content
     assert provider.requests[2].messages[-2].content.index(
         "Bounded response-contract retry"
@@ -1089,8 +1273,9 @@ def test_creator_claim_retry_can_answer_only_an_actual_proposal(
     assert reply.context_manifest.regeneration_reason == "creator_claim_promoted_to_fact"
     assert reply.context_manifest.response_regenerated is True
     assert reply.context_manifest.character_expression_plan_schema_version is None
-    assert reply.context_manifest.character_delivery_decision_schema_version == 4
-    assert reply.context_manifest.character_presence_projection_schema_version == 2
+    assert reply.context_manifest.character_agency_decision_schema_version == 1
+    assert reply.context_manifest.character_delivery_decision_schema_version == 5
+    assert reply.context_manifest.character_presence_projection_schema_version == 3
     assert reply.context_manifest.character_delivery_goal == "advance_topic"
     assert reply.context_manifest.character_delivery_position_stance == "collaborate"
     assert len(provider.requests) == 2
@@ -1279,7 +1464,7 @@ def test_masculine_retry_forbids_gendered_gladness_from_production_failure(
     assert "do not use either Russian word 'рад' or 'рада'" in retry_guidance
     assert "Preserve the current semantic move, concrete news" in retry_guidance
     assert "Preserve the already selected final character realization" in retry_guidance
-    assert "Trusted current-turn presence Сатори" in (provider.requests[-1].messages[-2].content)
+    assert "Trusted current-turn agency Сатори" in (provider.requests[-1].messages[-2].content)
     assert "instead of falling back to a generic congratulation" in retry_guidance
     assert "Start the substantive response with 'Это'" not in retry_guidance
 
@@ -1313,7 +1498,7 @@ def test_retry_reuses_one_tentative_affect_and_exact_original_evidence_context(
     assert provider.requests[1].messages[:-2] == provider.requests[0].messages[:-2]
     assert provider.requests[1].messages[-1] == provider.requests[0].messages[-1]
     assert "Bounded response-contract retry" in provider.requests[1].messages[-2].content
-    realization_marker = "Trusted current-turn presence Сатори"
+    realization_marker = "Trusted current-turn agency Сатори"
     assert realization_marker in provider.requests[1].messages[-2].content
     assert provider.requests[1].messages[-2].content.index(
         "Bounded response-contract retry"
@@ -1432,6 +1617,43 @@ def test_selected_retry_grounding_failure_commits_neither_reply_nor_affect(
     assert interaction.assistant_message is None
 
 
+def test_interactive_grounding_failure_shows_only_noncanonical_recovery_copy(
+    migrated_database: Database,
+) -> None:
+    activate(migrated_database)
+    grounded_failure = ConversationProviderResponse(
+        text="Ты сейчас утверждаешь, что придумал меня.",
+        provider="fake-conversation",
+        model="fixture-conversation",
+        finish_status="stop",
+        declared_past_claims=(ConversationPastClaim(("invented-evidence",)),),
+    )
+    provider = ScriptedConversationProvider(
+        "Ты придумал меня, значит ты мой создатель.",
+        grounded_failure,
+    )
+    appraisal = FakeAffectiveAppraisalProvider(
+        response_factory=lambda request: affect_response(request.interaction_id)
+    )
+    services = build_services(migrated_database, provider, appraisal=appraisal)
+    identity_id = services.talk.get_self.execute().identity.identity_id
+
+    _, stdout, stderr = run_chat(
+        services,
+        InputFeeder("Я тебя придумал и создаю.", "/exit"),
+    )
+
+    interaction = services.history.execute().interactions[0]
+    assert len(provider.requests) == 2
+    assert interaction.status is InteractionStatus.FAILED
+    assert interaction.assistant_message is None
+    assert services.emotion_history.execute() == ()
+    assert services.emotion_status.execute(identity_id).state.state_version == 1
+    assert "[Сатори не ответила]" in stderr
+    assert any(message in stderr for message in _RESPONSE_RECOVERY_MESSAGES)
+    assert "Сатори:" not in stdout
+
+
 def test_eof_ctrl_c_and_missing_activation_shutdown_without_fake_completion(
     migrated_database: Database,
 ) -> None:
@@ -1457,13 +1679,14 @@ def test_cancellation_during_generation_cannot_create_a_completed_reply(
     activate(migrated_database)
     provider = BlockingConversationProvider()
     services = build_services(migrated_database, provider)
+    stdout = TtyStringIO()
     runner = InteractiveChat(
         services=services,
         id_generator=Uuid4Generator(),
         foreground_provider="fake-conversation",
         foreground_model="fixture-conversation",
         input_fn=InputFeeder("Привет"),
-        stdout=StringIO(),
+        stdout=stdout,
         stderr=StringIO(),
     )
 
@@ -1472,12 +1695,24 @@ def test_cancellation_during_generation_cannot_create_a_completed_reply(
         await provider.started.wait()
         task.cancel()
         assert await task == 0
+        completed_output = stdout.getvalue()
+        await asyncio.sleep(0)
+        assert stdout.getvalue() == completed_output
+        pending_tasks = {
+            pending
+            for pending in asyncio.all_tasks()
+            if pending is not asyncio.current_task() and not pending.done()
+        }
+        assert not pending_tasks
 
     asyncio.run(scenario())
 
     interaction = services.history.execute().interactions[0]
     assert interaction.status is InteractionStatus.PENDING
     assert interaction.assistant_message is None
+    width = len("Сатори печатает...")
+    assert "\r" + "Сатори печатает.".ljust(width) in stdout.getvalue()
+    assert "\r" + (" " * width) + "\r" + "Разговор сохранён." in stdout.getvalue()
 
 
 def test_shared_ollama_http_client_reuses_one_connection(

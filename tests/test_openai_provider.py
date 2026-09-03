@@ -246,7 +246,16 @@ def test_openai_rejects_visible_output_above_application_limit() -> None:
     assert failure.value.metrics.reasoning_output_tokens == 50
     assert failure.value.metrics.visible_output_tokens == 350
     assert failure.value.reason is ConversationProviderFailureReason.VISIBLE_OUTPUT_LIMIT_EXCEEDED
+    assert failure.value.usage is not None
+    assert failure.value.usage.input_tokens == 111
+    assert failure.value.usage.output_tokens == 400
+    assert failure.value.usage.cached_input_tokens == 0
+    assert failure.value.usage.cache_write_input_tokens == 0
+    assert failure.value.provider_response_observed is True
+    assert failure.value.response_completed is True
+    assert failure.value.service_tier_verified is True
     assert "private oversized output" not in str(failure.value)
+    assert "private oversized output" not in repr(failure.value.__dict__)
 
 
 def test_openai_rejects_reasoning_count_above_total_output_count() -> None:
@@ -275,6 +284,12 @@ def test_openai_rejects_incomplete_text_instead_of_committing_partial_reply() ->
     assert failure.value.metrics.provider_output_token_limit == 1345
     assert failure.value.metrics.reasoning_output_tokens == 5
     assert failure.value.metrics.visible_output_tokens == 12
+    assert failure.value.usage is not None
+    assert failure.value.usage.input_tokens == 111
+    assert failure.value.usage.output_tokens == 17
+    assert failure.value.provider_response_observed is True
+    assert failure.value.response_completed is False
+    assert failure.value.service_tier_verified is True
 
 
 @pytest.mark.parametrize(

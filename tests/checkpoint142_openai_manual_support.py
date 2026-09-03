@@ -39,11 +39,11 @@ from satori.domain.initial_self import InitialSelfSnapshot
 from satori.infrastructure.providers.ollama import OLLAMA_PROVIDER_NAME
 from satori.infrastructure.providers.ollama_affect import APPRAISAL_METHOD
 from tests.checkpoint142_openai_v26_ledger import (
-    AtomicOpenAICallLedger,
     BudgetedOpenAIProvider,
     ExactProviderUsage,
     PublicTurnScope,
     TurnScopeBinding,
+    V26AtomicOpenAICallLedger,
     safe_provider_metrics,
 )
 from tests.stage81_real_eval import (
@@ -440,6 +440,8 @@ def validate_manual_evaluation_sessions(
     sessions: object,
     *,
     public_turns: Sequence[Mapping[str, Any]],
+    expected_turn_temperatures: Sequence[float],
+    expected_turn_visible_output_token_limits: Sequence[int],
     expected_replica_count: int,
     public_session_prefix: str,
     expected_provider: ConversationProviderKind,
@@ -451,6 +453,18 @@ def validate_manual_evaluation_sessions(
 ) -> list[dict[str, Any]]:
     """Validate exact public session, attempt, retry, usage and manifest evidence."""
 
+    frozen_turn_temperatures = tuple(expected_turn_temperatures)
+    frozen_turn_visible_output_token_limits = tuple(expected_turn_visible_output_token_limits)
+    if len(frozen_turn_temperatures) != len(public_turns) or any(
+        type(value) not in {int, float} or not math.isfinite(value) or not 0.0 <= value <= 2.0
+        for value in frozen_turn_temperatures
+    ):
+        raise ValueError("expected per-turn temperature vector is invalid")
+    if len(frozen_turn_visible_output_token_limits) != len(public_turns) or any(
+        type(value) is not int or not 1 <= value <= visible_output_token_ceiling
+        for value in frozen_turn_visible_output_token_limits
+    ):
+        raise ValueError("expected per-turn visible-output-token vector is invalid")
     if not isinstance(sessions, list) or len(sessions) != expected_replica_count:
         raise ValueError("completed report has invalid session cardinality")
     validated = cast(list[dict[str, Any]], sessions)
@@ -464,7 +478,7 @@ def validate_manual_evaluation_sessions(
         turns = session.get("turns")
         if not isinstance(turns, list) or len(turns) != len(public_turns):
             raise ValueError("completed session turn cardinality drift")
-        for actual, expected in zip(turns, public_turns, strict=True):
+        for turn_index, (actual, expected) in enumerate(zip(turns, public_turns, strict=True)):
             if not isinstance(actual, dict) or set(actual) != _PUBLIC_TURN_EVIDENCE_KEYS:
                 raise ValueError("completed turn schema drift")
             if (
@@ -542,11 +556,10 @@ def validate_manual_evaluation_sessions(
                     or sum(cast(dict[str, int], role_counts).values()) != attempt["message_count"]
                     or type(attempt.get("request_content_chars")) is not int
                     or cast(int, attempt["request_content_chars"]) < 1
-                    or attempt.get("temperature") != 0.3
+                    or attempt.get("temperature") != frozen_turn_temperatures[turn_index]
                     or type(attempt.get("max_output_tokens")) is not int
-                    or not 1
-                    <= cast(int, attempt["max_output_tokens"])
-                    <= visible_output_token_ceiling
+                    or attempt.get("max_output_tokens")
+                    != frozen_turn_visible_output_token_limits[turn_index]
                     or type(attempt.get("input_tokens")) is not int
                     or type(attempt.get("output_tokens")) is not int
                     or cast(int, attempt["input_tokens"]) < 0
@@ -890,12 +903,9 @@ class DurableReportWriter:
     def path(self) -> Path:
         return self.root / "evaluations" / self.expected_report_name
 
-    def write(self, report: Mapping[str, Any]) -> None:
-        unsafe = unsafe_artifact_paths(report)
-        if unsafe:
-            raise EvaluationArtifactSafetyError(
-                "report contains forbidden private keys: " + ", ".join(unsafe)
-            )
+    def prepare(self) -> None:
+        """Validate/create the fixed report directory and reject an occupied target."""
+
         reports = self.root / "evaluations"
         _safe_directory(reports, create=True)
         _fsync_directory(self.root)
@@ -913,6 +923,16 @@ class DurableReportWriter:
             raise EvaluationArtifactSafetyError(
                 f"fixed {self.evaluation_label} report already exists"
             )
+
+    def write(self, report: Mapping[str, Any]) -> None:
+        unsafe = unsafe_artifact_paths(report)
+        if unsafe:
+            raise EvaluationArtifactSafetyError(
+                "report contains forbidden private keys: " + ", ".join(unsafe)
+            )
+        self.prepare()
+        reports = self.root / "evaluations"
+        target = self.path
 
         payload = (json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
             "utf-8"
@@ -1201,7 +1221,7 @@ async def run_replica(
     database_path: Path,
     alembic_config: Path,
     replica_number: int,
-    ledger: AtomicOpenAICallLedger,
+    ledger: V26AtomicOpenAICallLedger,
     checkpoint: Callable[[], None],
     behavior_policy: BehaviorPolicy,
     public_turns: tuple[dict[str, Any], ...],
@@ -1210,6 +1230,7 @@ async def run_replica(
     expected_model: str,
     safe_manifest: Callable[[Mapping[str, Any]], dict[str, Any]],
     record: dict[str, Any],
+    manifest_projector: Callable[[SatoriReply], dict[str, Any]] = _sanitized_manifest,
 ) -> dict[str, Any]:
     """Run one production session with durable evidence before and after each paid attempt."""
 
@@ -1287,7 +1308,19 @@ async def run_replica(
                     )
                 )
             except BaseException as error:
-                turn_record.update({"status": "failed", "error_type": type(error).__name__})
+                failed_attempts = runtime.conversation_provider.attempts[first_attempt:]
+                turn_record.update(
+                    {
+                        "status": "failed",
+                        "error_type": type(error).__name__,
+                        "provider_call_observed": ledger.provider_call_observed(scope),
+                        "provider_attempt_count": len(failed_attempts),
+                        "provider_attempts": [
+                            _safe_attempt(attempt, index)
+                            for index, attempt in enumerate(failed_attempts, start=1)
+                        ],
+                    }
+                )
                 checkpoint()
                 raise
             finally:
@@ -1359,7 +1392,7 @@ async def run_replica(
                 }
             )
             checkpoint()
-            raw_manifest = _sanitized_manifest(reply)
+            raw_manifest = manifest_projector(reply)
             raw_manifest["character_presence_memory_use_licensed"] = (
                 reply.context_manifest.character_presence_memory_use_licensed
             )

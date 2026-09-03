@@ -27,6 +27,7 @@
 | `performance/stage-14.md` | Stage 14 deterministic evolution/stability gates, anchor A/B/restore and real-Ollama evidence | Personality evolution acceptance/regression review |
 | `performance/stage-14.1.md` | Checkpoint 14.1 cross-provider foreground A/B, tariffs, quality and state evidence | Provider-portability acceptance/regression review |
 | `performance/stage-14.2.md` | Checkpoint 14.2 grounded absence, natural affect, character-expression candidates and dialogue evidence | Dialogue calibration, raw sampled-reply review and residual hallucination limits |
+| `performance/stage-14.3.md` | Checkpoint 14.3 request-local Character Agency Kernel, offline causal gate and future paired A/B | Character agency architecture, provider-fit diagnosis and Stage 15 gate |
 | `provider-portability.md` | Checkpoint 14.1 cloud-provider scope, secure configuration, A/B gate and deferred routing | Provider/model replacement work |
 | `threat-model.md` | Failure modes, mitigations, detection и stage gates | Security, reliability, state mutation |
 | `roadmap.md` | Scope и exit condition каждого Stage | Планирование и проверка границ |

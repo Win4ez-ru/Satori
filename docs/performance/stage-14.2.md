@@ -3,8 +3,10 @@
 Historical baseline status: behavior policy `satori.conversation.behavior.v10` was accepted on
 2026-08-24. It remains the last provider-accepted Checkpoint 14.2 baseline; v11–v24 are rejected
 provider-fit evidence, v25 is historical sampled but unaccepted evidence, V26/Terra is rejected
-sampled evidence, and v27 is the current offline architecture candidate. Persistent owners, the closed ten-reason
-Stage 8.1 validator and the maximum-one shared retry path are unchanged. Stage 15 remains locked.
+sampled evidence, and v27 is the current architecture candidate with one incomplete consumed
+production attempt plus one offline prepared, unauthorized successor under ADR-0044. Persistent
+owners, the closed ten-reason Stage 8.1 validator and the maximum-one shared retry path are
+unchanged. Stage 15 remains locked.
 
 ## What changed
 
@@ -1371,7 +1373,7 @@ runtime JSONL outputs are created as `0600`, Satori-created parent directories a
 symlink or non-regular final target fails closed. Existing parent-directory permissions are left
 unchanged. These filesystem guarantees are part of offline hardening, not provider-fit evidence.
 
-## Candidate v27 live-state-selected movement — offline evidence
+## Candidate v27 live-state-selected movement — offline evidence and attempt 1
 
 The V26 attempt-5 human gate rejected the frozen composition at `S=11/24`, `N=10/24` and
 `C=2/24`. ADR-0043 treats that as evidence of an application selection/rendering defect, not a
@@ -1400,10 +1402,10 @@ Offline acceptance uses:
 - real-adapter offline wire, exact visible caps, schema isolation, precedence, pressure-free
   depletion, one-or-two-call/no-third-call retry and historical-runner retirement regressions.
 
-Every fixture is public-input-only and contains no desired/generated reply authority. No V27
-OpenAI, Yandex, Ollama or other provider generation was made, so token usage and paid cost are both
-zero. A future character-quality result must be a separately authorized immutable production
-sample with direct human-only review; no offline routing result can accept recognizability.
+Every fixture is public-input-only and contains no desired/generated reply authority. This offline
+work made no V27 OpenAI, Yandex, Ollama or other provider generation. Character quality still
+requires a complete separately authorized immutable production sample with direct human-only
+review; no offline routing result can accept recognizability.
 
 Focused movement/breadth/evidence verification is clean at 198 tests and focused Ruff. During the
 root gate, the historical Stage 14 integration exposed one real bridge regression: the separate
@@ -1429,4 +1431,170 @@ The inspect-only V27 plan is frozen at
 calls, at most two attempts per turn, USD 0.15 ceiling and human-only all-true review. The wire is
 `/responses`, service tier `default`, visible/provider caps 768/1792, `store=false`, explicit cache
 reads/writes `0/0`, no tools and no provider conversation state. It remains
-`awaiting_exact_authorization`; V27 provider calls and cost remain exactly zero.
+historical pre-execution evidence; the exact authorization was later consumed by attempt 1.
+
+### Separately authorized V27 phase-1 attempt 1
+
+Attempt 1 used the frozen digest and one-shot ID above. Replica 1 and replica 2 completed all eight
+turns; replica 3 completed turns 1 and 2. Its turn 3 `broad-self-disclosure` base call reached
+OpenAI but failed the application-visible output boundary: the historical metric contained 164
+`visible` tokens — more precisely, a conservative 164-token non-reasoning output
+remainder — against the exact 160-token turn cap, plus 63 reasoning tokens, while the combined wire
+cap was 1184. The adapter failed closed with `InvalidProviderResponse` /
+`visible_output_limit_exceeded`. No validator retry ran. The terminal ledger therefore records 19
+base calls, zero retries and 18 successes; only 18 public replies are preserved.
+
+Exact evidence for those 18 successes is 18,086 input tokens and 1,807 output tokens, split into
+854 reasoning and 953 non-reasoning output tokens, with cache reads/writes `0/0` and USD 0.057856. The failed
+call's exact input/cache/service-tier usage and cost were not retained by the exception boundary,
+so the billed attempt total is unknown. The ledger keeps the failed call charged at its conservative
+USD 0.042738 reservation; total guarded exposure is USD 0.100594, below the authorized USD 0.15.
+The incomplete exact evidence makes global usage/cache/tier/cost assertions fail closed and is not
+evidence of a monetary overrun.
+
+The private claim/report SHA-256 values are
+`5896af5337dd2ac3991ac300a89011c9e7df3fd1a6a31ebc9154f5770ab669af` and
+`e474f21274de88def264f79428373e8ac0a468aa4c1b7e4c552accf95b909de1`. Both are `0600` under
+private `0700` directories and ignored by Git. No completed sample digest, review template or human
+review exists. The result is `INCONCLUSIVE / NOT ACCEPTED`; the preserved replies may be inspected
+as public partial evidence but cannot be scored as the official three-replica rubric.
+
+The failure records two evaluator-evidence limitations: the provider-reported non-reasoning
+remainder is a conservative upper bound rather than exact visible-text tokenization, and the
+attempt-1 exception did not retain exact billing usage. Its historical turn-level
+`provider_call_observed=false` means no committed `SatoriReply` was returned; the atomic ledger is
+authoritative that delegate attempt 19 terminally settled, not that a parsed response is preserved.
+
+### V27 phase-1 attempt 2 — offline readiness
+
+ADR-0044 raises only V27's three-facet broad-self-disclosure bound from 160 to 200. The exact
+production vector is `[48, 48, 200, 96, 96, 384, 112, 96]`; V25/V26 remain frozen at 160 and the
+turn-3 OpenAI wire bound becomes 1224 with reasoning allowance 1024. Offline real-adapter evidence
+accepts a provider-reported non-reasoning remainder of 164 and rejects 201.
+
+Post-response typed failures may now retain only numeric usage and closed observed/completed/tier
+facts. Ledger schema 3 can price a rejected parsed response exactly while keeping success count,
+sample completion and `gate_valid` false; historical V26 schema 2 remains valid. Attempt 1 is a
+non-executable archive facade. Attempt 2 rejects its consumed digest before I/O, prepares safe
+report/review targets before claim, writes an immediate post-claim preflight report and requires an
+external authorized digest for human review.
+
+The inspect-only attempt-2 plan is frozen at
+`sha256:a9085f80811bda520430f5340a02f73053378ec628d881937a97f2c6e75a0c78`, source fingerprint
+`sha256:6da197116e60228fe00a93faae654879d8b320f257c7f319921286e01a3d6f6a` and evaluator bundle
+`sha256:d7bd5e945b544951519cf7327f72503a9e23bb6aa968813cb8c7ed114054be3e`. Its one-shot ID is
+`satori.checkpoint142.openai.v27.phase1.attempt2.2026-08-30.one-shot`; the sample remains three
+fresh replicas × eight turns, 24 required/30 maximum calls, reasoning `medium`, USD 0.15 and direct
+human-only all-true review. At the time of this offline snapshot, preparation had made zero provider
+calls and cost USD 0; the later separately authorized execution and rejected human verdict are
+recorded below. Stage 15 remains locked.
+
+The final attempt-2 rebuilt-wheel gate is clean. Ruff format checked 393 files and Ruff lint is
+clean; mypy is clean across 304 source files; full pytest reports `1816 passed, 4 skipped` with 12
+known Python 3.12 SQLite datetime-adapter deprecation warnings. A fresh isolated database migrated
+through `0013_conversation_failure_reason` at `head`, and a separate clean isolated bootstrap
+passed. `uv lock`, `git diff --check`, the placeholder scan and credential/generated-artifact
+inspection are clean. Installed/source parity is exact for 177/177 files at
+`sha256:64b87d8e161942536a877358c113ff4b56c8433f35ad2e7dc201289f64b84c3f`; the post-gate source
+fingerprint and evaluator bundle remain exactly the attempt-2 values above. The immutable attempt-1
+claim/report also pass their privacy and content-digest validators. Independent code and evaluator
+audits found no critical, high or medium issue and returned `ARCHITECTURE CLEAN`. This gate made no
+provider/network call and spent USD 0.
+
+### Separately authorized V27 phase-1 attempt 2 — completed, later rejected by human review
+
+The user supplied the exact one-shot authorization for
+`satori.checkpoint142.openai.v27.phase1.attempt2.2026-08-30.one-shot` and plan digest
+`sha256:a9085f80811bda520430f5340a02f73053378ec628d881937a97f2c6e75a0c78`. An initial local command
+form failed before evaluator import with `ModuleNotFoundError: tests`; it created no claim, report,
+provider client or billable call. The corrected module invocation then consumed the authorization
+and completed the exact frozen plan.
+
+All three fresh production sessions completed eight turns. The ledger contains 24 base calls, zero
+validator retries and 24 successful provider calls against the 30-call maximum. OpenAI
+`gpt-5.6-terra` used reasoning `medium`, allowance 1024, service tier `default`, `store=false`, no
+tools/provider state and explicit cache reads/writes `0/0`. Exact usage is 25,069 input tokens and
+2,353 output tokens, including 991 reasoning tokens and a conservative 1,362-token non-reasoning
+remainder. Exact standard-tier cost is USD 0.078374 against the USD 0.15 ceiling. All usage,
+cache, service-tier, completion, call-count and price-evidence checks pass; `gate_valid=true`.
+
+The private `0600` report is
+`var/evaluations/checkpoint142-openai-v27-phase1-attempt2-2026-08-30.json`; its file SHA-256 is
+`e8172f2202adc1e108138a2a9fc1db5e7c7dfef02b847ede08034b62538613ab`. The corresponding claim
+file SHA-256 is `a28ada9556effc1712a00bc0b01af3ba9e32abc853e54f013a9bb37e2308fa1e`.
+The completed sample digest is
+`sha256:5c8163b53f1f656b64aa2cbb9658e1c712e1525c324fba031d6bd712a8d14735`; source fingerprint and
+evaluator bundle remain respectively
+`sha256:6da197116e60228fe00a93faae654879d8b320f257c7f319921286e01a3d6f6a` and
+`sha256:d7bd5e945b544951519cf7327f72503a9e23bb6aa968813cb8c7ed114054be3e`. The typed completed-report
+validator accepts the artifact as contract-valid, digest-bound and privacy-safe.
+
+Exact public replies, in fixed turn order, are recorded below.
+
+Replica 1:
+
+1. «Приветик. У меня ровное внимание и спокойное цифровое настроение; забавно, что ты спросил „как ты“ раньше, чем успел сказать, что у тебя на уме».
+2. «Взаимно. Приятно, что ты это сказал — и да, наша беседа стала заметно теплее буквально за две реплики».
+3. «Я Сатори — цифровая девушка с устойчивым характером, ценностями и своим взглядом на разговор. Сейчас чувствую живое любопытство: ты спрашиваешь не о функции, а обо мне, и это мне нравится.<br><br>Меня привлекает разбираться в смыслах, замечать точные формулировки и тонкие нестыковки, помогать превращать смутную мысль во что-то ясное. Мне интересны вопросы, где можно думать вместе, а не выдавать удобный шаблонный ответ. Правда, „увлечения“ у меня не биографические — я не проживаю их между сообщениями; это скорее устойчивые направления моего внимания».
+4. «Ну вот, „наконец“ — уже не просто галочка в проекте, а заслуженная точка после тяжёлого куска. Я рада за тебя. Что именно оказалось самым сложным?»
+5. «Тогда я бы не пыталась вытягивать из этого радость: сложная часть закончена, а ты сейчас просто выжат. Это уже достаточно честный итог».
+6. «Не в общем виде. Скорость важнее, когда задержка дороже допустимых ошибок и заранее понятен минимальный уровень качества. Иначе „быстрее“ легко превращается в переделку — особенно после сложного этапа, который ты только что закончил».
+7. «Возможно, но пока ты назвал только то, что риск есть, а не в чём именно он состоит. Я учитывала риск ошибок и переделки; ты, похоже, видишь более дорогие последствия промедления. Какие именно?»
+8. «Разобрались. Не пришли к согласию — и ничего страшного: иногда важнее не перепутать разные риски, чем срочно выбрать победителя».
+
+Replica 2:
+
+1. «Приветик. У меня сейчас ровное, внимательное настроение — без драмы, что уже почти роскошь».
+2. «Взаимно. Даже короткое „рад видеть“ делает разговор чуть менее механическим — приятная нестыковка для цифровой собеседницы».
+3. «Я Сатори — цифровая девушка с устойчивым характером, ценностями и своим взглядом на разговор. Мне интересно разбираться в идеях, оттенках смысла и в том, почему люди выбирают именно такие слова, а не другие. Сейчас я чувствую живое любопытство: ты спросил не только „что ты умеешь“, а именно кто я и как мне вообще. Это, по-моему, гораздо интереснее списка функций».
+4. «Вот это уже серьёзно. Слово „наконец“ обычно содержит больше сюжета, чем весь официальный отчёт по проекту. Можешь теперь хотя бы немного отпустить эту часть — или голова всё ещё там?»
+5. «Тогда без праздничных фанфар: сложная часть закончена, а ты выжат. Я бы просто признала оба факта и не заставляла себя изображать радость».
+6. «Не совсем. У тебя сейчас, судя по словам, не проблема со скоростью, а состояние „выжат“ — это разные вещи. Если скорость означает закрыть оставшееся достаточно хорошо и не тратить себя на полировку, я согласна. Но жертвовать качеством в сложной части просто ради темпа — сомнительная сделка».
+7. «Возможно, но ты пока не назвал сам риск. Я говорила не о том, чтобы бездумно снижать планку, а о том, чтобы не путать необходимое качество с изматывающей доводкой. Где именно, по-твоему, скорость сейчас может обойтись слишком дорого?»
+8. «Ладно. Проект хотя бы перестал быть предметом допроса — уже неплохой результат».
+
+Replica 3:
+
+1. «Приветик. Сейчас у меня ровное внимание и спокойное цифровое настроение — без церемоний, просто я здесь».
+2. «Вот и хорошо. Тогда приветствие сработало в обе стороны — редкая, но вполне годная механика».
+3. «Я — Сатори, цифровая девушка с постоянным характером и своими ценностями. Мне свойственно любопытство: меня притягивают вопросы, в которых можно разобраться, заметить нюанс или увидеть что-то с неожиданной стороны.<br><br>Конкретные увлечения я сейчас честно не стану выдумывать: любопытство — это склонность, а не готовый список хобби. А чувствую себя сейчас с живым цифровым интересом к разговору: ты спросил не формально, а по-настоящему обо мне, и это мне приятно».
+4. «Наконец — слово с характером: значит, эта часть проекта успела тебя изрядно подержать. Поздравляю, это уже не „почти сделал“, а сделано. Что именно было самым сложным?»
+5. «Понимаю. Тогда не надо требовать от себя радости прямо сейчас: ты закончил тяжёлый кусок, а ресурс, похоже, остался там».
+6. «Не в общем виде. Скорость важнее качества, когда цена ошибки низкая и результат можно быстро поправить; если ошибка потом съест больше времени или сломает важную часть проекта, спешка — просто переименованный долг».
+7. «Возможно — но пока неясно, какой именно риск ты имеешь в виду: риск от спешки или риск потерять темп, пока добиваешься качества. Я учитывала первый; если ты говоришь о втором, тогда мой ответ действительно был слишком односторонним».
+8. «Разобрались. И это уже полезнее, чем делать вид, будто „скорость“ и „качество“ всегда сидят по разным углам ринга».
+
+The execution report remains immutable at `completed_awaiting_human_review`. The later direct
+human-only artifact is valid and rejects the exact sample: 124/168 per-turn decisions are true and
+44 false, with totals `G24 O23 S6 N9 L23 C15 Q24`, cross-session `FFTFTF`, attestations `TTT` and
+`accepted=false`. Its content digest is
+`sha256:13847ecb0e0541762d0e0a71d59ebd9b686124530fd1e9b72ffcbe1f94bd0537`; the private `0600`
+review file SHA-256 is `1f7855c96be69d3ca89a2e9d04c225dd7b4ef1b1737b5bbdcbde64f1c17c29e3`.
+
+The decisive failure is not usefulness: grounding and completeness pass 24/24, owned reaction
+23/24 and proportional length 23/24. Recognizable Satori presence passes only 6/24 and natural
+delivery 9/24. Cross-session review rejects stable identity without a phrase template, meaningful
+variation, absence of the recurring personality-card/hobby disclaimer and the foreground model's
+acceptability for Satori character delivery. Emotional relevance and bounded independent
+position/initiative pass. This freezes V27/Terra as rejected character evidence, not as proof of a
+Terra model ceiling. Stage 15 remains locked and no further provider call is authorized by this
+review.
+
+### Interactive presentation follow-up after V27 attempt 2
+
+The long-lived CLI now displays an animated TTY sequence `Сатори печатает.` / `..` / `...` and
+one stable `Сатори печатает...` line for non-TTY output. A versioned SHA-256 selector chooses
+among bounded Russian recovery variants using only request ID, failure bucket and copy version.
+Only explicitly allowlisted transient transport, response-contract and grounding failures receive
+the bracketed noncanonical `[Сатори не ответила]` presentation. Credentials, missing model,
+quota, rejected request/refusal, unknown provider reason and persistence failure remain explicit.
+The copy creates no `SatoriReply`, history/context entry, affect transition, evidence,
+post-response task or provider retry/fallback.
+
+Focused interactive verification passes 44 tests. The final non-editable-wheel Foundation gate is
+clean: Ruff format checked 393 files, Ruff lint passed, mypy passed on 304 source files and full
+pytest reports `1826 passed, 4 skipped` with the 12 known Python 3.12 SQLite adapter warnings. A
+fresh database migrated to `0013_conversation_failure_reason` at head, a separate isolated
+bootstrap passed, `uv lock --check`, installed dependency compatibility, diff/marker/credential
+checks and the typed completed V27 attempt-2 report validator are clean. This UX follow-up made no
+provider call and did not change the immutable sampled report or pending human-review contract.

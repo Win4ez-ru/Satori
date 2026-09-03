@@ -113,7 +113,7 @@ def test_evolved_expression_cue_is_persisted_reloaded_and_replayed_without_provi
     assert reply.context_manifest.personality_expression_cues == expected_cues
     provider_context = "\n".join(message.content for message in provider.requests[0].messages)
     assert "оставь направление вперёд без принудительной бодрости" in provider_context
-    assert "Trusted current-turn presence Сатори / operational move v2" in provider_context
+    assert "Trusted current-turn agency Сатори" in provider_context
     assert "сохранять спокойный реалистичный оптимизм" not in provider_context
     assert "сейчас чуть заметнее исходного уровня" not in provider_context
     assert "Единая request-local режиссура реплики Сатори" not in provider_context

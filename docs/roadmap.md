@@ -437,7 +437,7 @@ does not authorize Stage 9.
 - **Prerequisites:** accepted checkpoint 14.1; exact A/B evidence; Stage 15 remains locked.
 - **Scope:** versioned behavior calibration (v10 grounded accepted baseline; rejected v11-v24;
   historical unaccepted v25 social/self-disclosure correction; rejected sampled v26 unified causal
-  presence; current offline v27 live-state-selected movement under ADR-0043), stronger
+  presence; rejected sampled v27 live-state-selected movement under ADR-0043), stronger
   `no_relevant_memory`
   generation guidance,
   concrete current-turn specificity, natural first-person expression of the existing qualitative
@@ -446,15 +446,16 @@ does not authorize Stage 9.
   expression observability, deterministic negation-safe cue refinements, historical narrow grounded
   current-reply practical initiative, explicit acknowledgement/continuation choice, bounded
   request-local guarded tone, historical v23-v26 ordinary-depletion optional practical moves and
-  current v27 pressure-free ordinary-depletion with no default advice, one direct cognition-
-  preserving delivery decision, a cohesive canonical-character
+  rejected historical v27 pressure-free ordinary-depletion with no default advice, one direct
+  cognition-preserving delivery decision, a cohesive canonical-character
   baseline, cognition intent V2 with historical V1 compatibility, template V2 for v24 and V3 for
   v25-v27, typed social/current-affect/reciprocal/self-disclosure routing with explicit facets, one
   late provider director historically, unified live-state presence for v26 and one compact
   cognition-complete operational movement for v27, historical v25-v26 pressure-free adjacent
   depletion follow-through, a closed owner-derived
   relationship `recent_strain` expression projection, privacy-safe provider failure diagnostics,
-  explicit bounded relationship backlog recovery, versioned broad corpus and provider sampling.
+  noncanonical interactive typing/recovery presentation, explicit bounded relationship backlog
+  recovery, versioned broad corpus and provider sampling.
 - **Out of scope:** Stage 15, new memory/emotion state or owner, human physiology/subjective-
   consciousness claims, an eleventh Stage 8.1 validator reason, output rewriting, judge LLM,
   unbounded or automatic provider retry/fallback, automatic relationship backfill, numeric
@@ -525,7 +526,9 @@ does not authorize Stage 9.
   regressions. V27 additionally requires state-before-prose voice counterfactuals, exactly one value
   guard, complete cognition support, objection/closure precedence, ordinary-depletion no-advice,
   exact stateless OpenAI wire, one-or-two-call/no-third-call retry behavior, eight-turn default
-  composition and the 28-scenario breadth/relationship/affect suite. Public corpora must forbid
+  composition, the 28-scenario breadth/relationship/affect suite, TTY/non-TTY typing cleanup,
+  exhaustive provider-failure presentation partitioning and proof that friendly failure copy never
+  becomes history, affect, context or post-response work. Public corpora must forbid
   fixture assistant history and desired/golden replies, and committed flows must use the real
   `Talk` lifecycle.
 - **Manual verification:** separately authorized credentialed OpenAI module gates with three
@@ -604,13 +607,35 @@ does not authorize Stage 9.
   decisions (`G23 O22 S11 N10 L15 C2 Q24`), cross-session `TFTFTF` and attestations `TTT`.
   This does not prove a Terra model ceiling; it rejects only this configuration and sample. Total
   V26 paid usage through attempt 5 is USD 0.095842. V27 offline implementation and verification
-  made no provider or paid call. Its nearest provider gate is frozen at plan digest
+  made no provider or paid call. Its provider gate was frozen at plan digest
   `sha256:5e6bcc1fc53100e66990feb25d9448465a1a6bb1364e7b98eb6f14ddb4d94feb` and one-shot ID
   `satori.checkpoint142.openai.v27.phase1.2026-08-30.one-shot`: OpenAI `gpt-5.6-terra`, reasoning
   `medium`, allowance 1024, three clean sessions × eight fixed turns, 24 required/30 maximum calls,
   at most two attempts per turn and USD 0.15. It uses direct human-only per-turn/cross-session review
-  and does not replace the later four-module exit gate. Execution awaits exact explicit
-  authorization. Stage 15 remains locked.
+  and does not replace the later four-module exit gate. The separately authorized attempt 1
+  consumed that one-shot plan and stopped at 19 base calls with zero retry: 18 succeeded, then
+  replica 3 turn 3 returned a 164-token provider-reported non-reasoning remainder (historically
+  named `visible`) against its 160-token limit, plus 63 reasoning tokens under the 1184-token
+  combined wire cap. Exact evidence for the successes is 18,086 input/1,807
+  output tokens and USD 0.057856; failed-call usage and cost remain unknown, while total guarded
+  exposure is USD 0.100594 below the USD 0.15 ceiling. No complete sample digest or review exists,
+  so attempt 1 is `INCONCLUSIVE / NOT ACCEPTED`. The private claim/report hashes are
+  `5896af5337dd2ac3991ac300a89011c9e7df3fd1a6a31ebc9154f5770ab669af` and
+  `e474f21274de88def264f79428373e8ac0a468aa4c1b7e4c552accf95b909de1`.
+
+  ADR-0044 prepares a distinct attempt 2 without provider I/O. It raises only V27's three-facet
+  broad-self-disclosure bound to 200, freezes the exact vector
+  `[48, 48, 200, 96, 96, 384, 112, 96]`, preserves V25/V26 at 160, carries numeric-only exact usage
+  through post-response rejection and isolates attempt authorization/report/review lifecycle. The
+  inspect-only plan is
+  `sha256:a9085f80811bda520430f5340a02f73053378ec628d881937a97f2c6e75a0c78` under ID
+  `satori.checkpoint142.openai.v27.phase1.attempt2.2026-08-30.one-shot`, still three clean sessions ×
+  eight turns, 24 required/30 maximum calls, reasoning `medium`, USD 0.15 and human-only review.
+  Its final rebuilt-wheel gate is clean at Ruff format/check 393 files, mypy 304 source files,
+  full pytest `1816 passed, 4 skipped`, migration head, isolated bootstrap and exact 177/177
+  installed/source parity. That preparation made zero provider calls and cost USD 0. The later
+  exact execution completed 24/24 calls for USD 0.078374, and its direct human review rejected
+  V27/Terra at `S=6/24`, `N=9/24`, cross-session `FFTFTF`. Stage 15 remains locked.
 - **Risks:** prompt overconstraint, scripted emotion, false certainty from a polished tone,
   motivational overreach, shame or productivity-worth coupling, regressions in brevity, paid retry
   cost, collapsing live state into generic labels, opening Stage 15 to conceal an expression-bridge
@@ -622,13 +647,100 @@ does not authorize Stage 9.
   impossibility of guaranteeing zero open-domain hallucinations is documented before Stage 15 is
   reconsidered. Until then Stage 15 remains locked.
 
+## Checkpoint 14.3 — Character Agency Kernel
+
+- **Status:** offline policy-v28 implementation, architecture and the corrected attempt-2 full gate
+  are clean. A first paired attempt
+  consumed its one-shot claim but stopped before OpenAI on a frozen-cap/runtime-cap mismatch;
+  OpenAI calls/tokens/cost are `0`, `0/0` and USD 0, so it is `INCONCLUSIVE / NOT ACCEPTED`.
+  Corrected attempt 2 consumed its claim and then failed after one control OpenAI call: 786 input,
+  29 output, cache `0/0`, exact USD 0.001920. Control S1T2 was rejected pre-network because the
+  evaluator fixed temperature at `0.3` while production requested `0.0`; V28 made zero calls and no
+  blind/review artifact exists. It is `FAILED / INCONCLUSIVE / NOT ACCEPTED`. The paired A/B has
+  not completed, the checkpoint is not accepted and Stage 15 remains locked.
+- **Goal:** make foreground dialogue originate from Satori's own current perspective instead of
+  selecting an assistant response first and decorating it with character afterwards.
+- **Why it matters:** V27 reached `G24/Q24` and disciplined grounded/complete helper behavior, yet
+  direct review found recognizable Satori presence in only `6/24` turns and rejected cross-session
+  identity. Better compliance therefore did not produce a subject with her own conversational will.
+- **Prerequisites:** the immutable rejected V27 sample and its direct review; explicit user
+  authorization to open Checkpoint 14.3. Stage 15 remains locked.
+- **Scope (Phase A):** one frozen request-local `CharacterAgencyDecision` selected from canonical
+  personality/values, current affect/relationship, cognition intake and available owner-approved
+  position/inclination reads before cognition completion; one drive, act, subject, provenance,
+  initiative and lead order; cognition truth/safety/explicit-answer obligations merged afterwards;
+  one integrated provider movement; bounded use of at most one existing positive interest for an
+  eligible in-reply adjacent topic move.
+- **Out of scope:** Stage 15 autobiography, Stage 17 unfinished threads, Stage 19 out-of-band
+  proactivity, persistent desire/goal/attention state, seeded hobbies, a second interest owner,
+  invented biography, tools/actions, automatic messages, phrase banks, provider-output authority,
+  an extra model call, judge/rewrite, automatic retry expansion or model switch.
+- **Ownership:** the kernel is transient and has no repository or writer. Durable interests remain
+  `SatoriInclination` state under the sole `PositionManager` write path. A clean identity may have
+  a current situational wish to explore, connect, challenge, care or stop, but cannot claim a
+  concrete lasting hobby without canonical inclination state. Origin-aware seed interests are a
+  separate Phase B decision gate that would supersede the Stage 13 formation contract and require
+  explicit provenance/adoption plus DDL; they are not implemented here.
+- **Deliverables:** ADR-0045; behavior policy v28; typed agency schema/selector; delivery schema v5
+  and presence schema v3 that preserve the complete V27 cognition boundary; compact integrated
+  renderer replacing, not stacking on, the V27 movement; manifest schema v17 transient provenance
+  isolated from historical schema v16; bounded owner-interest read; public-input-only
+  deterministic corpus and future paired A/B protocol.
+- **Acceptance criteria:** every fresh v28 turn has exactly one valid agency decision; every owned
+  topic/position contribution points to supplied canonical state; absence of an inclination cannot
+  become a stable-interest claim or topic shift; hard safety, repetition, vulnerability, repair and
+  explicit-answer obligations cannot be suppressed; relevant state can change the act while
+  irrelevant state cannot; generation never mutates agency or persistent state; retry reuses the
+  same request bytes; V10–V27 remain reproducible.
+- **Automated tests:** closed enum/topology validation, source-ID reachability, no-mirroring and
+  no-invented-interest controls, relevant/irrelevant state contrasts, safety/listen/repetition/
+  repair precedence, explicit task completeness, closure pivot-vs-stop, exactly one integrated
+  provider block, historical V27 byte isolation, max-one byte-identical retry, no persistence or
+  replay authority, an executed offline bundle of 39 evaluation units (36 public single-turn
+  scenarios in nine groups plus three committed flows) and 13 controlled contrasts without desired
+  answers or fixture assistant prose, and full Foundation regressions.
+- **Manual verification:** after the offline gate only, freeze a separately authorized blinded
+  paired A/B using identical state/input/model parameters: historical V27/Terra versus V28/Terra,
+  three clean replicas × six fixed turns per cell. Grounding/completeness stay hard gates; review
+  separately scores recognizable Satori, natural delivery, non-replaceability by a generic helper,
+  self-originated movement and whether the model realized the typed agency act. A stronger-model
+  diagnostic is allowed only after this comparison distinguishes selector failure from realization
+  failure and receives separate authorization/budget.
+- **Frozen A/B plan:** attempt 1
+  (`sha256:f21bbced0317bf1806712c70717f8f3f36fea7b51d784d2f8684f78d6914a70c`, one-shot
+  `satori.checkpoint143.openai.v27-v28.ab1.2026-08-31.one-shot`) is consumed historical evidence:
+  its first control request proved production cap `48` against planned `64` and stopped before
+  OpenAI. Corrected attempt 2 has 36 mandatory/48 maximum calls and USD 0.30 total. Both
+  cells bind provider request context schema 16; report manifests remain V27=16 and V28=17 on
+  separate per-cell ledgers. The exact visible cap vector is `[48, 80, 96, 96, 112, 384]`, digest
+  is `sha256:8e6dc91d173ed83c274ef1ff0327721728630dd26c4da3f6bf81d7f4a05b5f83`, and one-shot ID is
+  `satori.checkpoint143.openai.v27-v28.ab2.2026-08-31.one-shot`. That authorization is consumed.
+  Only control S1T1 reached OpenAI; S1T2 exposed the evaluator's fixed-temperature mismatch before
+  network, and V28 did not run. Exact usage is one call, 786 input/29 output tokens, cache `0/0` and
+  USD 0.001920. No sample digest or blind/review artifact exists, and the safe `0600` report
+  contains no secret/private prompt or provider context. Attempt 3 is also consumed and
+  `FAILED / INCONCLUSIVE / NOT ACCEPTED`: all 18 V27 control calls succeeded at exact USD 0.050838,
+  then a stale terminal validator rejected turn 2's frozen `0.0`; V28 made zero calls and no
+  blind/review artifact exists. Attempt 4 is inspect-only under digest
+  `sha256:cbea4634e2f108532d21eb0022ca1295e08655c07a894f315ac9b7945f791153` and one-shot ID
+  `satori.checkpoint143.openai.v27-v28.ab4.2026-08-31.one-shot`. Its typed per-turn request contract
+  binds exact identity, temperature and cap through admission and terminal checks. Paths remain
+  free and no attempt-4 provider call has run; execution requires separate exact authorization.
+- **Risks:** deterministic agency becoming another visible checklist, curiosity collapsing into
+  routine questions, an adjacent pivot becoming Stage 19 by stealth, own-state provenance leaking
+  into biography, or preserving helper obligations so strongly that agency remains decorative.
+- **Exit condition:** offline causal/ownership/history gates are clean and a separately authorized
+  paired production review shows that the integrated agency movement is both grounded and
+  recognizably Satori across replicas. Until then Stage 15 remains locked.
+
 ## Stage 15 — Autobiographical Self
 
 - **Goal:** construct a source-grounded self model and narrative of significant change/events.
 - **Why it matters:** continuity becomes a lived history, not only a collection of traits and memories.
-- **Prerequisites:** Stage 14; accepted Checkpoint 14.2 character/provider gate; significance policy
-  evaluated; separate explicit user authorization to open the stage. The v26/v27 audits found no reason
-  to open it early because autobiographical facts do not repair the live state-to-expression bridge.
+- **Prerequisites:** Stage 14; successful Checkpoint 14.3 offline and paired provider/human gates;
+  significance policy evaluated; separate explicit user authorization to open the stage. The
+  v26/v27 audits found no reason to open it early because autobiographical facts do not repair the
+  live state-to-expression bridge.
 - **Scope:** activation event, SelfModel projection, SelfNarrativeEvents for milestones/turning points/belief changes/shared achievements, narrative context summary and revision lineage.
 - **Out of scope:** invented childhood/backstory, free-form regeneration of self each turn, emotional concepts.
 - **Deliverables:** owner/schema/projections, significance policy, autobiographical retrieval and narrative evals.

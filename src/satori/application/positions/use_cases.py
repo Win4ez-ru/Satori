@@ -444,7 +444,12 @@ class GetSatoriPositions:
         return _position_context(tuple(selected))
 
     def project_inclination_context(
-        self, *, identity_id: str, user_text: str, as_of: datetime
+        self,
+        *,
+        identity_id: str,
+        user_text: str,
+        as_of: datetime,
+        include_owned_topic: bool = False,
     ) -> SatoriInclinationsContext:
         if self.inclination_top_k < 1 or self.max_inclination_context_chars < 256:
             raise ValueError("inclination context limits are invalid")
@@ -464,13 +469,17 @@ class GetSatoriPositions:
             )
             if item.confidence < 0.55 or abs(effective) < 0.05:
                 continue
-            if not explicit_query and not (
-                _inclination_phrase_present(normalized_user, item.topic)
-                or (
-                    item.alternative_topic is not None
-                    and _inclination_phrase_present(normalized_user, item.alternative_topic)
-                )
-            ):
+            topic_relevant = _inclination_phrase_present(normalized_user, item.topic) or (
+                item.alternative_topic is not None
+                and _inclination_phrase_present(normalized_user, item.alternative_topic)
+            )
+            owned_topic_eligible = bool(
+                include_owned_topic and item.kind is InclinationKind.INTEREST and effective > 0.0
+            )
+            if include_owned_topic:
+                if not owned_topic_eligible:
+                    continue
+            elif not explicit_query and not topic_relevant:
                 continue
             eligible.append((effective, item))
         eligible.sort(
@@ -481,6 +490,7 @@ class GetSatoriPositions:
             )
         )
         selected: list[InclinationContextItem] = []
+        selection_limit = 1 if include_owned_topic else self.inclination_top_k
         for effective, item in eligible:
             preferred = None
             if item.kind is InclinationKind.PREFERENCE:
@@ -499,7 +509,7 @@ class GetSatoriPositions:
             if len(inclinations_context_json(tentative)) > self.max_inclination_context_chars:
                 continue
             selected.append(candidate)
-            if len(selected) >= self.inclination_top_k:
+            if len(selected) >= selection_limit:
                 break
         return _inclination_context(tuple(selected))
 

@@ -215,12 +215,12 @@ The later direct human review rejected the frozen V26/Terra sample: owner wiring
 the rendered inventory recognizable or natural. That evidence cannot become a preferred-phrase
 list, a personality writer or a proof of provider limits.
 
-ADR-0043 makes policy v27 the current offline candidate. The existing runtime personality
-strengths and bounded evolution cues are consumed before schema-4 movement selection, so they can
-change a licensed voice and operational impulse rather than merely annotate a decision already
-made. Affect and relationship remain separate state owners and can modulate only the current
-movement. Relationship guardedness is scoped to relevant turns; topic closure may use only bounded
-ease/reserve and continuation, never a global punishment mode.
+ADR-0043 made policy v27 the then-current offline candidate. In that now-rejected historical
+policy, the existing runtime personality strengths and bounded evolution cues are consumed before
+schema-4 movement selection, so they can change a licensed voice and operational impulse rather
+than merely annotate a decision already made. Affect and relationship remain separate state owners
+and can modulate only the current movement. Relationship guardedness is scoped to relevant turns;
+topic closure may use only bounded ease/reserve and continuation, never a global punishment mode.
 
 Canonical values are currently immutable equal-strength `1.0` entries. V27 therefore selects
 exactly one contextually relevant value guard and makes no claim that values drift. A counterfactual
@@ -232,9 +232,23 @@ renderer; there is no second personality card.
 The provider receives one compact situated movement, not a trait/value inventory or catchphrase.
 It can license dry edge, independent judgement, practical care, curiosity, reserve or warmth while
 cognition still owns truth and required content. Fixtures contain no desired/golden reply, and no
-generated prose writes personality state. No V27 provider or paid call has occurred; recognizability
-still requires a separately authorized immutable sample and direct human review. Stage 15 remains
-locked.
+generated prose writes personality state. V27 attempt 2 completed an immutable 3 × 8 production
+sample, and direct human-only review rejected its recognizable presence at 6/24. The sample is
+useful/grounded but still reads as an assistant rather than Satori; no generated output writes
+personality state. Stage 15 remains locked.
+
+ADR-0045 makes policy v28 the active Checkpoint 14.3 offline candidate. Personality no longer
+merely reranks the voice of a user-request-first movement: its canonical request-local projection
+participates in choosing a transient drive and act before cognition completion. That choice can
+be curious, independent, playful, connecting, caring, reserved or closing, but it is not a new
+trait, mood, goal or durable desire. `CharacterAgencyDecision` expires with the turn and generated
+prose cannot update personality.
+
+Traits and values license present-tense orientation only. They do not prove that Satori has a
+particular hobby, past experience or favorite topic. A concrete durable topic remains available
+only through a supplied Stage 13 inclination; clean state can express situational curiosity but
+cannot invent a taste. The v1 activation seed is unchanged, and origin-aware starting interests
+remain a separately gated Phase B rather than a hidden prompt-personality source.
 
 Fresh, developing и established state могут менять только подачу обычной реплики — степень
 лёгкости, care, openness и response-local initiative; damaged guardedness остаётся допустимой
@@ -248,7 +262,7 @@ personality; он не сохраняется и не принимает provide
 для прямых v24/v25 decisions и v26 presence projection. В исторических v19–v26 контурах один
 практический следующий ход мог быть допустим по явной просьбе, из прямо названного незавершённого
 безопасного действия либо как короткий шаг восстановления при явной обычной выжатости. Последнее
-не доказывало, что проект надо продолжать. В текущем v27 обычная выжатость при `pressure=none`
+не доказывало, что проект надо продолжать. В историческом v27 обычная выжатость при `pressure=none`
 запрещает default advice/action plan; шаг снова допустим только по явной просьбе или отдельному
 когнитивному/safety основанию.
 Просьба только выслушать и серьёзный distress снимают мотивационное давление. В v24 firm protective

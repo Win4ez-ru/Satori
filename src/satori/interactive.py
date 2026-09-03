@@ -1,20 +1,22 @@
 """Human-readable long-lived CLI chat runtime over application use cases."""
 
 import asyncio
+import hashlib
 import sys
 import traceback
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
+from itertools import cycle
 from typing import TextIO
 
 from satori.application.conversation.contracts import SatoriReply, TalkInput
-from satori.application.conversation.errors import ConversationError
+from satori.application.conversation.errors import ConversationError, UnsupportedPastClaim
 from satori.application.conversation.post_processing import PostResponseReport
 from satori.composition import ConversationServices
 from satori.core.conversation import (
     ConversationProviderError,
     ConversationProviderFailureReason,
-    ProviderUnavailable,
 )
 from satori.core.ids import IdGenerator
 from satori.core.provider_metrics import ProviderExecutionMetrics
@@ -27,21 +29,144 @@ CHAT_HELP_TEXT = """Команды:
   /new — начать новый разговор
   /exit, /quit — сохранить разговор и выйти"""
 
+_TYPING_FRAMES = (".", "..", "...")
+_RECOVERY_COPY_VERSION = "satori.interactive.recovery.v1"
+_TRANSIENT_PROVIDER_FAILURES = frozenset(
+    {
+        ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE,
+    }
+)
+_RESPONSE_RECOVERY_FAILURES = frozenset(
+    {
+        ConversationProviderFailureReason.OUTPUT_TOKEN_LIMIT,
+        ConversationProviderFailureReason.INCOMPLETE_UNKNOWN,
+        ConversationProviderFailureReason.GENERATION_FAILED,
+        ConversationProviderFailureReason.GENERATION_CANCELLED,
+        ConversationProviderFailureReason.RESPONSE_TOO_LARGE,
+        ConversationProviderFailureReason.RESPONSE_MALFORMED,
+        ConversationProviderFailureReason.MISSING_ASSISTANT_TEXT,
+        ConversationProviderFailureReason.USAGE_METADATA_INVALID,
+        ConversationProviderFailureReason.VISIBLE_OUTPUT_LIMIT_EXCEEDED,
+        ConversationProviderFailureReason.RESPONSE_CHARACTER_LIMIT_EXCEEDED,
+        ConversationProviderFailureReason.ADAPTER_CONTRACT_VIOLATION,
+    }
+)
+_EXPLICIT_PROVIDER_FAILURE_MESSAGES = {
+    ConversationProviderFailureReason.CREDENTIALS_REJECTED: (
+        "Провайдер ответа отклонил доступ. Проверьте API-ключ и права."
+    ),
+    ConversationProviderFailureReason.RESOURCE_NOT_FOUND: (
+        "Провайдер не нашёл настроенную модель."
+    ),
+    ConversationProviderFailureReason.RATE_OR_QUOTA_LIMITED: (
+        "Провайдер ответа отклонил запрос из-за лимита или баланса."
+    ),
+    ConversationProviderFailureReason.REQUEST_REJECTED: (
+        "Провайдер ответа отклонил запрос. Проверьте настройки."
+    ),
+    ConversationProviderFailureReason.RESPONSE_REFUSED: ("Сатори не ответила на этот запрос."),
+}
+_TRANSIENT_RECOVERY_MESSAGES = (
+    "Мм, связь опять решила покапризничать. Попробуй ещё раз чуть позже.",
+    "Похоже, нас перебила связь. Повтори через минуту — я никуда не делась.",
+    "На этот раз виновата связь, а не я. Попробуй ещё раз чуть позже — и не спорь.",  # noqa: RUF001
+)
+_RESPONSE_RECOVERY_MESSAGES = (
+    "Хм… сейчас ответ у меня не сложился. Повтори — попробую зайти с другой стороны.",  # noqa: RUF001
+    (
+        "Я даже не знаю, что тебе сейчас сказать: мысль рассыпалась по дороге. "
+        "Скажи ещё раз — попробую собрать её иначе."
+    ),
+    (
+        "Не хочу отдавать тебе полусобранный ответ. Повтори — я попробую ещё раз. "  # noqa: RUF001
+        "И нет, это не повод так довольно смотреть."
+    ),
+)
+
+
+def _select_recovery_message(
+    messages: Sequence[str],
+    *,
+    selection_key: str,
+    failure_bucket: str,
+) -> str:
+    """Choose stable presentation copy without user text or process-global randomness."""
+
+    if not messages:
+        raise ValueError("recovery message collection must not be empty")
+    material = f"{_RECOVERY_COPY_VERSION}\0{failure_bucket}\0{selection_key}".encode()
+    digest = hashlib.sha256(material).digest()
+    index = int.from_bytes(digest[:8], byteorder="big") % len(messages)
+    return messages[index]
+
 
 @dataclass(slots=True)
 class _ProgressIndicator:
     stream: TextIO
-    text: str = "Сатори думает…"
+    text: str = "Сатори печатает"
+    interval_seconds: float = 0.4
+    sleep: Callable[[float], Awaitable[None]] = field(
+        default=asyncio.sleep,
+        repr=False,
+    )
+    _animation_task: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
+    _active: bool = field(default=False, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.interval_seconds <= 0:
+            raise ValueError("typing indicator interval must be positive")
+
+    @property
+    def _render_width(self) -> int:
+        return len(self.text) + len(_TYPING_FRAMES[-1])
+
+    @asynccontextmanager
+    async def visible(self) -> AsyncIterator[None]:
+        self.show()
+        try:
+            yield
+        finally:
+            await self.clear()
 
     def show(self) -> None:
-        suffix = "\r" if self.stream.isatty() else "\n"
-        self.stream.write(self.text + suffix)
+        if self._active:
+            raise RuntimeError("typing indicator is already active")
+        if not self.stream.isatty():
+            self.stream.write(self.text + _TYPING_FRAMES[-1] + "\n")
+            self.stream.flush()
+            self._active = True
+            return
+        self._render(_TYPING_FRAMES[0])
+        self._animation_task = asyncio.create_task(self._animate())
+        self._active = True
+
+    async def _animate(self) -> None:
+        remaining_frames = _TYPING_FRAMES[1:] + _TYPING_FRAMES[:1]
+        for frame in cycle(remaining_frames):
+            await self.sleep(self.interval_seconds)
+            self._render(frame)
+
+    def _render(self, frame: str) -> None:
+        rendered = (self.text + frame).ljust(self._render_width)
+        self.stream.write("\r" + rendered)
         self.stream.flush()
 
-    def clear(self) -> None:
-        if self.stream.isatty():
-            self.stream.write("\r" + (" " * len(self.text)) + "\r")
-            self.stream.flush()
+    async def clear(self) -> None:
+        if not self._active:
+            return
+        self._active = False
+        task = self._animation_task
+        self._animation_task = None
+        try:
+            if task is not None:
+                task.cancel()
+                with suppress(asyncio.CancelledError, Exception):
+                    await task
+        finally:
+            if self.stream.isatty():
+                self.stream.write("\r" + (" " * self._render_width) + "\r")
+                self.stream.flush()
 
 
 @dataclass(slots=True)
@@ -123,36 +248,38 @@ class InteractiveChat:
 
                 trace_id = self.id_generator.new()
                 request_id = self.id_generator.new()
-                indicator.show()
                 try:
-                    with bind_trace_id(trace_id):
-                        reply = await self.services.talk.execute(
-                            TalkInput(
-                                user_text=line,
-                                trace_id=trace_id,
-                                client_request_id=request_id,
-                                session_id=current_session_id,
+                    async with indicator.visible():
+                        with bind_trace_id(trace_id):
+                            reply = await self.services.talk.execute(
+                                TalkInput(
+                                    user_text=line,
+                                    trace_id=trace_id,
+                                    client_request_id=request_id,
+                                    session_id=current_session_id,
+                                )
                             )
-                        )
                 except ConversationProviderError as error:
-                    indicator.clear()
-                    self._print_provider_error(error)
+                    self._print_provider_error(error, selection_key=request_id)
+                    continue
+                except UnsupportedPastClaim:
+                    self._print_recovery_message(
+                        _RESPONSE_RECOVERY_MESSAGES,
+                        selection_key=request_id,
+                        failure_bucket="grounding",
+                    )
                     continue
                 except (ConversationError, ValueError) as error:
-                    indicator.clear()
                     print(f"Реплика отклонена: {error}", file=self.stderr)
                     continue
                 except asyncio.CancelledError:
-                    indicator.clear()
                     break
                 except Exception:
-                    indicator.clear()
                     print("Не удалось сохранить ответ.", file=self.stderr)  # noqa: RUF001
                     if self.debug:
                         traceback.print_exc(file=self.stderr)
                     continue
 
-                indicator.clear()
                 print(f"Сатори: {reply.text}\n", file=self.stdout, flush=True)
                 if self.debug:
                     self._print_debug_timings(reply)
@@ -231,20 +358,32 @@ class InteractiveChat:
                     self._post_response_in_flight -= 1
                 queue.task_done()
 
-    def _print_provider_error(self, error: ConversationProviderError) -> None:
-        if error.reason is ConversationProviderFailureReason.RESOURCE_NOT_FOUND:
-            message = "Провайдер не нашёл настроенную модель."
-        elif error.reason is ConversationProviderFailureReason.CREDENTIALS_REJECTED:
-            message = "Провайдер ответа отклонил доступ. Проверьте API-ключ и права."
-        elif error.reason is ConversationProviderFailureReason.RATE_OR_QUOTA_LIMITED:
-            message = "Провайдер ответа отклонил запрос из-за лимита или баланса."
-        elif error.reason is ConversationProviderFailureReason.OUTPUT_TOKEN_LIMIT:
-            message = "Сатори не успела сформировать полный ответ."
-        elif isinstance(error, ProviderUnavailable):
-            message = "Провайдер ответа временно недоступен."
+    def _print_provider_error(
+        self,
+        error: ConversationProviderError,
+        *,
+        selection_key: str,
+    ) -> None:
+        if error.reason in _EXPLICIT_PROVIDER_FAILURE_MESSAGES:
+            message = _EXPLICIT_PROVIDER_FAILURE_MESSAGES[error.reason]
+        elif error.reason in _TRANSIENT_PROVIDER_FAILURES:
+            self._print_recovery_message(
+                _TRANSIENT_RECOVERY_MESSAGES,
+                selection_key=selection_key,
+                failure_bucket="connection",
+            )
+            message = None
+        elif error.reason in _RESPONSE_RECOVERY_FAILURES:
+            self._print_recovery_message(
+                _RESPONSE_RECOVERY_MESSAGES,
+                selection_key=selection_key,
+                failure_bucket="response",
+            )
+            message = None
         else:
-            message = "Сатори не смогла сформировать ответ."
-        print(message, file=self.stderr)
+            message = "Провайдер ответа вернул неизвестную ошибку."
+        if message is not None:
+            print(message, file=self.stderr)
         if self.debug:
             print(
                 "[provider] "
@@ -255,6 +394,20 @@ class InteractiveChat:
                 file=self.stderr,
             )
             self._print_provider_budget(error.metrics)
+
+    def _print_recovery_message(
+        self,
+        messages: Sequence[str],
+        *,
+        selection_key: str,
+        failure_bucket: str,
+    ) -> None:
+        message = _select_recovery_message(
+            messages,
+            selection_key=selection_key,
+            failure_bucket=failure_bucket,
+        )
+        print(f"[Сатори не ответила] {message}", file=self.stderr)
 
     def _print_debug_timings(self, reply: SatoriReply) -> None:
         input_tokens = reply.usage.input_tokens if reply.usage is not None else None

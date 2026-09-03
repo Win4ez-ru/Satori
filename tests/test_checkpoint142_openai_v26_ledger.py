@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import FrozenInstanceError, replace
 
 import pytest
@@ -10,22 +11,30 @@ from satori.core.conversation import (
     ConversationGenerationParameters,
     ConversationMessage,
     ConversationMessageRole,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     ConversationProviderResponse,
     ConversationUsage,
+    InvalidProviderResponse,
 )
 from satori.core.provider_metrics import ProviderExecutionMetrics
 from tests.checkpoint142_openai_v26_ledger import (
+    LEDGER_SCHEMA_VERSION,
     OPENAI_CACHED_INPUT_NANO_USD_PER_TOKEN,
     OPENAI_OUTPUT_NANO_USD_PER_TOKEN,
     OPENAI_UNCACHED_INPUT_NANO_USD_PER_TOKEN,
+    AtomicOpenAICallLedger,
     ProviderCallBudgetExhausted,
     PublicTurnScope,
-    V26AtomicOpenAICallLedger,
+    validate_exact_openai_ledger,
 )
 
 
-def _request(trace_id: str = "trace-1") -> ConversationProviderRequest:
+def _request(
+    trace_id: str = "trace-1",
+    *,
+    temperature: float = 0.3,
+) -> ConversationProviderRequest:
     return ConversationProviderRequest(
         schema_version=1,
         trace_id=trace_id,
@@ -33,7 +42,7 @@ def _request(trace_id: str = "trace-1") -> ConversationProviderRequest:
         messages=(ConversationMessage(ConversationMessageRole.USER, "public fixture"),),
         parameters=ConversationGenerationParameters(
             schema_version=1,
-            temperature=0.3,
+            temperature=temperature,
             max_output_tokens=64,
         ),
     )
@@ -63,10 +72,8 @@ def _response(
     )
 
 
-def _ledger(
-    *, required: int = 1, maximum: int = 2, cost: float = 0.15
-) -> V26AtomicOpenAICallLedger:
-    return V26AtomicOpenAICallLedger(
+def _ledger(*, required: int = 1, maximum: int = 2, cost: float = 0.15) -> AtomicOpenAICallLedger:
+    return AtomicOpenAICallLedger(
         maximum_calls=maximum,
         maximum_cost_usd=cost,
         required_base_calls=required,
@@ -100,8 +107,49 @@ def test_zero_cache_success_has_exact_integer_cost_and_valid_terminal_gate() -> 
     assert exact[0].input_tokens == 100
 
 
+def test_completed_ledger_validation_accepts_current_and_historical_schema_versions() -> None:
+    ledger = _ledger(maximum=1)
+    scope = PublicTurnScope("session-1", 1, "turn-1")
+    call = ledger.reserve(_request(), scope)
+    ledger.settle_success(call, _response())
+    sessions = [
+        {
+            "session_id": "session-1",
+            "turns": [
+                {
+                    "turn": 1,
+                    "turn_id": "turn-1",
+                    "provider_attempts": [
+                        {
+                            "max_output_tokens": 64,
+                            "input_tokens": 100,
+                            "output_tokens": 20,
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+    current = ledger.snapshot()
+    historical = copy.deepcopy(current)
+    historical["schema_version"] = 2
+    for call_record in historical["calls"]:
+        call_record.pop("provider_call_observed")
+
+    for budget in (current, historical):
+        validate_exact_openai_ledger(
+            budget,
+            sessions,
+            required_base_calls=1,
+            maximum_provider_calls=1,
+            maximum_cost_usd=0.15,
+            reasoning_token_allowance=1024,
+            visible_output_token_ceiling=768,
+        )
+
+
 @pytest.mark.parametrize(("cached", "written"), [(5, 0), (0, 5), (None, None)])
-def test_cache_or_missing_cache_breakdown_fails_closed(
+def test_cache_usage_is_priced_exactly_but_missing_breakdown_fails_closed(
     cached: int | None,
     written: int | None,
 ) -> None:
@@ -110,10 +158,15 @@ def test_cache_or_missing_cache_breakdown_fails_closed(
     ledger.settle_success(call, _response(cached=cached, written=written))
 
     snapshot = ledger.snapshot()
-    assert snapshot["usage_complete"] is False
     assert snapshot["zero_prompt_cache_verified"] is False
-    assert snapshot["within_cost_limit"] is False
     assert snapshot["gate_valid"] is False
+    if cached is None:
+        assert snapshot["usage_complete"] is False
+        assert snapshot["within_cost_limit"] is False
+    else:
+        assert snapshot["usage_complete"] is True
+        assert snapshot["exact_pricing_evidence_complete"] is True
+        assert snapshot["within_cost_limit"] is True
     if cached == 5:
         exact = (
             95 * OPENAI_UNCACHED_INPUT_NANO_USD_PER_TOKEN
@@ -142,6 +195,62 @@ def test_incomplete_finish_status_and_failed_call_are_not_terminal_evidence() ->
         failed.require_completed_scope(PublicTurnScope("session-1", 1, "turn-1"), 1)
     with pytest.raises(ProviderCallBudgetExhausted, match="irreversibly invalid"):
         failed.reserve(_request("trace-2"), PublicTurnScope("session-1", 2, "turn-2"))
+
+
+def test_post_response_failure_preserves_exact_usage_cost_without_accepting_gate() -> None:
+    ledger = _ledger(maximum=1)
+    scope = PublicTurnScope("session-1", 1, "turn-1")
+    call = ledger.reserve(_request(), scope)
+    assert ledger.provider_call_observed(scope) is False
+    error = InvalidProviderResponse(
+        "openai",
+        "gpt-5.6-terra",
+        "safe visible output limit failure",
+        reason=ConversationProviderFailureReason.VISIBLE_OUTPUT_LIMIT_EXCEEDED,
+        metrics=ProviderExecutionMetrics(
+            requested_output_token_limit=64,
+            provider_output_token_limit=1088,
+            reasoning_output_tokens=10,
+            visible_output_tokens=65,
+        ),
+        usage=ConversationUsage(
+            input_tokens=100,
+            output_tokens=75,
+            cached_input_tokens=0,
+            cache_write_input_tokens=0,
+        ),
+        provider_response_observed=True,
+        response_completed=True,
+        service_tier_verified=True,
+    )
+
+    ledger.settle_failure(call, error)
+
+    expected = (
+        100 * OPENAI_UNCACHED_INPUT_NANO_USD_PER_TOKEN + 75 * OPENAI_OUTPUT_NANO_USD_PER_TOKEN
+    )
+    snapshot = ledger.snapshot()
+    assert snapshot["schema_version"] == LEDGER_SCHEMA_VERSION
+    assert snapshot["provider_call_count"] == 1
+    assert snapshot["successful_provider_call_count"] == 0
+    assert snapshot["input_tokens"] == 100
+    assert snapshot["output_tokens"] == 75
+    assert snapshot["actual_usage_cost_nano_usd"] == expected
+    assert snapshot["guarded_cost_nano_usd"] == expected
+    assert snapshot["usage_complete"] is True
+    assert snapshot["exact_pricing_evidence_complete"] is True
+    assert snapshot["within_cost_limit"] is True
+    assert snapshot["gate_valid"] is False
+    assert ledger.provider_call_observed(scope) is True
+    recorded = snapshot["calls"][0]
+    assert recorded["status"] == "failed"
+    assert recorded["provider_call_observed"] is True
+    assert recorded["finish_status"] == "completed"
+    assert recorded["service_tier_verified_by_adapter"] is True
+    assert recorded["failure_reason"] == "visible_output_limit_exceeded"
+    assert "safe visible output limit failure" not in str(snapshot)
+    with pytest.raises(RuntimeError, match="invalid paid provider attempt"):
+        ledger.require_completed_scope(scope, 1)
 
 
 def test_retry_cannot_consume_a_call_reserved_for_mandatory_base() -> None:
@@ -194,6 +303,30 @@ def test_request_schema_drift_is_rejected_before_reservation() -> None:
     assert ledger.snapshot()["provider_call_count"] == 0
 
 
+def test_historical_temperature_contract_accepts_exact_default() -> None:
+    ledger = _ledger(maximum=1)
+
+    call = ledger.reserve(
+        _request(temperature=0.3),
+        PublicTurnScope("session-1", 1, "turn-1"),
+    )
+
+    assert call == 1
+    assert ledger.snapshot()["provider_call_count"] == 1
+
+
+def test_historical_temperature_contract_rejects_drift_before_reservation() -> None:
+    ledger = _ledger(maximum=1)
+
+    with pytest.raises(ProviderCallBudgetExhausted, match="wire contract"):
+        ledger.reserve(
+            _request(temperature=0.0),
+            PublicTurnScope("session-1", 1, "turn-1"),
+        )
+
+    assert ledger.snapshot()["provider_call_count"] == 0
+
+
 def test_completed_scope_evidence_is_ordered_and_exactly_scope_bound() -> None:
     ledger = _ledger(required=1, maximum=2)
     scope = PublicTurnScope("session-1", 1, "turn-1")
@@ -221,8 +354,8 @@ def test_completed_scope_evidence_is_ordered_and_exactly_scope_bound() -> None:
         ledger.require_completed_scope(scope, 1)
 
 
-@pytest.mark.parametrize(("cached", "written"), [(1, 0), (0, 1), (None, None)])
-def test_completed_scope_rejects_non_exact_cache_evidence(
+@pytest.mark.parametrize(("cached", "written"), [(1, 0), (0, 1)])
+def test_completed_scope_rejects_exact_nonzero_cache_evidence(
     cached: int | None,
     written: int | None,
 ) -> None:
@@ -230,6 +363,22 @@ def test_completed_scope_rejects_non_exact_cache_evidence(
     scope = PublicTurnScope("session-1", 1, "turn-1")
     call = ledger.reserve(_request(), scope)
     ledger.settle_success(call, _response(cached=cached, written=written))
+
+    snapshot = ledger.snapshot()
+    assert snapshot["exact_pricing_evidence_complete"] is True
+    assert snapshot["within_cost_limit"] is True
+    assert snapshot["gate_valid"] is False
+    with pytest.raises(RuntimeError, match="invalid paid provider attempt"):
+        ledger.require_completed_scope(scope, 1)
+    with pytest.raises(ProviderCallBudgetExhausted, match="irreversibly invalid"):
+        ledger.reserve(_request("trace-2"), PublicTurnScope("session-1", 2, "turn-2"))
+
+
+def test_completed_scope_rejects_missing_cache_evidence() -> None:
+    ledger = _ledger(maximum=1)
+    scope = PublicTurnScope("session-1", 1, "turn-1")
+    call = ledger.reserve(_request(), scope)
+    ledger.settle_success(call, _response(cached=None, written=None))
 
     with pytest.raises(RuntimeError, match="invalid paid provider attempt"):
         ledger.require_completed_scope(scope, 1)

@@ -289,6 +289,12 @@ Deterministic coverage adds:
 
 - new/resumed/rotated explicit session behavior, multiple turns in one runtime, clean/default and
   metadata-only debug output, exact command parsing, EOF and `Ctrl+C` shutdown;
+- TTY `Сатори печатает.` / `..` / `...` cycling with full-width cleanup, one stable
+  non-TTY line, animator cancellation without a late frame and no pending animator task;
+- deterministic versioned recovery-copy selection for explicitly allowlisted transport,
+  response-contract and grounding failures, with a noncanonical `[Сатори не ответила]` label;
+  exhaustive reason partitioning, actionable-error bypass and failed-history/no-affect assertions
+  prove that this text is not a reply, state, context, post-response event or hidden retry;
 - provider failure without completed reply, post-response failure without canonical damage and
   cancellation during generation leaving a pending interaction with no assistant message;
 - response visibility while a deliberately blocked episode provider proves post-response work is
@@ -1363,7 +1369,7 @@ Deterministic evidence has three independent layers:
 - the SHA-pinned eight-turn public fixture
   `checkpoint142_character_movement_v10.json` at
   `sha256:f78c105367d7ee8f4689d190261ecdc2bd91f403664e2752ba75f727009a342c`
-  traverses default production composition with visible caps `48, 48, 160, 96, 96, 384, 112,
+  traverses default production composition with visible-reply caps `48, 48, 200, 96, 96, 384, 112,
   96` and no regeneration;
 - all 40 historical public V26 scenarios traverse V27 while their V26 provider projections retain
   aggregate digest
@@ -1383,9 +1389,8 @@ layers measure 6,465 V27 characters versus 11,866 for V26 (54.48%); this is prom
 evidence, not prose quality.
 
 The V26 paid runner is retired before settings, claims, provider construction or network. Retained
-V26 artifacts validate only against their embedded frozen plan/source. V27 has made no provider or
-paid call. Its inspect-only evaluator is
-`tests/checkpoint142_openai_v27_manual_eval.py`, frozen at plan digest
+V26 artifacts validate only against their embedded frozen plan/source. V27's offline evaluator was
+frozen as `tests/checkpoint142_openai_v27_manual_eval.py` at plan digest
 `sha256:5e6bcc1fc53100e66990feb25d9448465a1a6bb1364e7b98eb6f14ddb4d94feb` and source fingerprint
 `sha256:e3546c5125adc4f8f923f359550c64a4ade0fe730745e8a18631356292b8f5e7`. The one-shot ID is
 `satori.checkpoint142.openai.v27.phase1.2026-08-30.one-shot`; it binds OpenAI
@@ -1394,10 +1399,110 @@ required and at most 30 calls, at most two attempts per turn and USD 0.15. Visib
 768/1792. The exact `/responses` wire uses service tier `default`, `store=false`, no tools or
 provider state and explicit cache reads/writes `0/0`.
 
-Execution remains unavailable until the user repeats the exact ID, digest, call ceiling and cost
-ceiling. The sample requires direct human-only all-true review; no text judge, rewrite, phrase
-matching or offline routing assertion may accept recognizable character. Until that full gate
-passes, policy v10 remains the last provider-accepted baseline and Stage 15 remains locked.
+The separately authorized attempt 1 consumed that exact one-shot plan. It made 19 base calls with
+zero retry: 18 succeeded, while replica 3 turn 3 failed because the provider reported a
+164-token non-reasoning output remainder (the historical artifact calls this `visible`) against
+its 160-token limit, plus 63 reasoning tokens under the combined 1184-token wire cap. Exact
+successful-call evidence is 18,086 input and 1,807 output tokens (854 reasoning, 953
+non-reasoning), cache `0/0` and USD 0.057856. The failed call's exact usage and cost are unknown; its USD
+0.042738 reservation puts total guarded exposure at USD 0.100594, below the USD 0.15 ceiling, but
+does not establish a billed total.
+
+The failed `0600` report and one-shot claim have file SHA-256
+`e474f21274de88def264f79428373e8ac0a468aa4c1b7e4c552accf95b909de1` and
+`5896af5337dd2ac3991ac300a89011c9e7df3fd1a6a31ebc9154f5770ab669af`. No completed
+`sample_digest`, review template or human review exists. The 18 preserved replies are partial public
+evidence only and cannot be assigned the official all-true rubric. The result is
+`INCONCLUSIVE / NOT ACCEPTED`, not a V27/Terra verdict. The evaluator evidence also cannot prove
+exact failed-call billing from the retained exception metrics. ADR-0044 clarifies that
+`output_tokens - reasoning_tokens` is a conservative non-reasoning upper bound, not an exact count
+of visible text tokens.
+
+V27 attempt 2 is now prepared offline under distinct one-shot ID
+`satori.checkpoint142.openai.v27.phase1.attempt2.2026-08-30.one-shot`, plan digest
+`sha256:a9085f80811bda520430f5340a02f73053378ec628d881937a97f2c6e75a0c78` and source fingerprint
+`sha256:6da197116e60228fe00a93faae654879d8b320f257c7f319921286e01a3d6f6a`. Only the three-facet
+broad-self-disclosure cap changes from 160 to 200; the exact vector is
+`48, 48, 200, 96, 96, 384, 112, 96`, while V25/V26 remain 160. Numeric-only post-response usage can
+now establish exact cost without accepting a failed sample; report/review paths, old authority,
+source lifecycle and human-review digest binding fail closed. The separately authorized execution
+completed all 24 base calls with zero retry, exact cache `0/0` and USD 0.078374 usage. The complete
+sample digest is `sha256:5c8163b53f1f656b64aa2cbb9658e1c712e1525c324fba031d6bd712a8d14735`.
+The immutable execution report status is `completed_awaiting_human_review`; the subsequent exact
+human-only review returns `accepted=false`: 124/168 turn decisions true,
+`G24 O23 S6 N9 L23 C15 Q24`, cross-session `FFTFTF` and attestations `TTT`. V27/Terra therefore
+fails provider-fit acceptance despite perfect sampled grounding/completeness; recognizability and
+natural delivery are the primary failed dimensions. Policy v10 remains the last provider-accepted
+baseline and Stage 15 remains locked.
+
+Checkpoint 14.3 does not treat another prompt revision as acceptance evidence. ADR-0045 requires
+an offline agency gate before any provider call. The causal path is frozen as prepared cognition
+intake → one request-local agency decision → `SafeCognitionPipeline.complete` → delivery
+compatibility → one integrated provider block. The gate covers closed decision topology and
+provenance, complete cognition-boundary preservation, relevant/irrelevant state counterfactuals,
+no invented interest, hard precedence, historical V27 isolation, byte-identical retry and no
+persistent writes. Fresh V28 generation uses manifest schema 17; historical policies through V27
+remain isolated on schema 16.
+
+The implemented offline verification bundle contains 39 evaluation units: 36 public single-turn
+scenarios in nine groups plus three real committed `Talk` flows, with 13 named state contrasts.
+The rebuilt non-editable wheel passes that exact bundle and the wider unfiltered canonical suite
+after the user-authorized conflict-copy V27 tests were removed. The corpus contains no desired
+replies, fixture assistant prose or fictional-character similarity target.
+
+After that gate, only a separately authorized paired production comparison may test language
+quality: identical V27/Terra and V28/Terra cells, three clean replicas by six turns, blinded
+pairwise review followed by decision-realization review. Grounding, safety and required
+completeness remain hard gates; recognizable original Satori presence, naturalness,
+non-replaceability by a generic helper and appropriate self-originated movement use declared
+thresholds. A stronger-model cell is diagnostic only after a sound typed decision repeatedly
+fails realization; it is not an automatic fallback or authorization.
+
+Current Checkpoint 14.3 status is an architecture-clean offline policy-v28 implementation.
+Historical paired attempt 1 consumed digest
+`sha256:f21bbced0317bf1806712c70717f8f3f36fea7b51d784d2f8684f78d6914a70c` but stopped fail-closed
+before the OpenAI delegate: production requested first-turn cap `48` while the frozen vector began
+at `64`. One local Ollama affect appraisal completed; OpenAI calls/tokens/cost were `0`, `0/0` and
+USD 0, so the attempt is `INCONCLUSIVE / NOT ACCEPTED`.
+
+Corrected attempt 2 is frozen at
+`sha256:8e6dc91d173ed83c274ef1ff0327721728630dd26c4da3f6bf81d7f4a05b5f83`: V27 and V28 each use
+three fresh six-turn replicas, 18 required/24 maximum calls and USD 0.15, for 36 required/48 maximum
+calls and USD 0.30 combined. Its production-proven cap vector is `[48, 80, 96, 96, 112, 384]`.
+Provider request context schema is 16 in both cells; safe manifests remain V27=16 and V28=17.
+Phase 1 uses a balanced runtime-random, nonce-bound assignment absent from the blind artifact and
+is durably written before phase-2 treatment evidence is revealed. Final acceptance is computed,
+not asserted, from 36/36 hard reply gates, 14/18 character and agency-realization thresholds,
+12-win/3-loss limits and all source/truth/cognition/hard/cross gates.
+
+The separately authorized attempt 2 consumed that identity and failed closed during the first
+control replica. S1T1 completed on exactly one OpenAI call with 786 input and 29 output tokens,
+cache reads/writes `0/0` and exact cost USD 0.001920. S1T2 never reached OpenAI: the evaluator
+ledger required fixed temperature `0.3`, while the real production request used `0.0`. The V28
+cell made zero calls. No sample digest, blind assignment/template, frozen phase-1 review, phase-2
+template or final review exists; the normal review validator rejects the failed report. The safe
+`0600` report contains the fixed public evaluation text and reply but no credential, raw/private
+prompt, provider message or private service context. Attempt 2 is `FAILED / INCONCLUSIVE / NOT
+ACCEPTED`, not partial A/B or provider-fit evidence.
+
+Attempt 3 is consumed `FAILED / INCONCLUSIVE / NOT ACCEPTED`. All 18 V27 control calls succeeded
+(17,007 input/1,402 output tokens, cache `0/0`, USD 0.050838), then a stale terminal validator
+rejected turn 2's correctly frozen `0.0` temperature. V28 made zero calls; no blind or review
+artifact exists. Attempt 4 fixes the exact terminal contract and is inspect-only at
+`sha256:cbea4634e2f108532d21eb0022ca1295e08655c07a894f315ac9b7945f791153` under one-shot ID
+`satori.checkpoint143.openai.v27-v28.ab4.2026-08-31.one-shot`. Its paths are absent and it has made
+zero provider calls. No paired A/B has completed, no 14.3 provider/model fit has been accepted,
+and Stage 15 remains locked.
+
+The historical V27 attempt-2 offline gate rebuilt the non-editable wheel and is clean: Ruff
+format/check on 393 files, mypy on 304 source files, full pytest `1816 passed, 4 skipped`, migration
+head, separate isolated bootstrap, lock/diff/placeholder/credential checks and exact 177/177
+installed/source parity at
+`sha256:64b87d8e161942536a877358c113ff4b56c8433f35ad2e7dc201289f64b84c3f`.
+Independent code and evaluator audits both return `ARCHITECTURE CLEAN`. These results establish
+only the historical pre-execution offline readiness; those checks themselves contained no
+provider sample and spent USD 0. The later paid V27 attempt-2 sample and rejection are recorded
+above and are not Checkpoint 14.3 usage.
 
 ## 14. Regression and release discipline
 

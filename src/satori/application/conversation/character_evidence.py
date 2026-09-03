@@ -214,6 +214,30 @@ _TOPIC_CLOSURE = (
     re.compile(r"^(?:ну\s+|ладно\s+)*(?:на\s+этом\s+все|закрыли\s+тему)[.!]?$"),
     re.compile(r"^(?:ну\s+|ладно\s+)*договорились[.!]?$"),
 )
+_ATTENTION_OPEN = r"^(?:(?:а|ну)\s+)?(?:сатори\s*[,—–:-]\s*)?"
+_ATTENTION_CLOSE = r"(?:\s*[,—–:-]\s*сатори)?[.!?…]*$"
+_CURRENT_ATTENTION_REQUEST = (
+    re.compile(
+        _ATTENTION_OPEN + r"чем\s+(?:ты\s+)?(?:сейчас\s+)?(?:занята|занимаешься)" + _ATTENTION_CLOSE
+    ),
+    re.compile(
+        _ATTENTION_OPEN + r"чем\s+(?:ты\s+)?(?:занята|занимаешься)\s+сейчас" + _ATTENTION_CLOSE
+    ),
+    re.compile(_ATTENTION_OPEN + r"ты\s+сейчас\s+чем\s+(?:занята|занимаешься)" + _ATTENTION_CLOSE),
+    re.compile(
+        _ATTENTION_OPEN
+        + r"что\s+(?:ты\s+)?(?:сейчас\s+)?(?:делаешь|обдумываешь)"
+        + _ATTENTION_CLOSE
+    ),
+    re.compile(
+        _ATTENTION_OPEN
+        + r"(?:о|над)\s+чем\s+(?:ты\s+)?(?:сейчас\s+)?(?:думаешь|размышляешь)"
+        + _ATTENTION_CLOSE
+    ),
+    re.compile(_ATTENTION_OPEN + r"что\s+у\s+тебя\s+сейчас\s+на\s+уме" + _ATTENTION_CLOSE),
+    re.compile(_ATTENTION_OPEN + r"что\s+сейчас\s+занимает\s+твое\s+внимание" + _ATTENTION_CLOSE),
+    re.compile(_ATTENTION_OPEN + r"что\s+тебе\s+сейчас\s+любопытно" + _ATTENTION_CLOSE),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -236,6 +260,7 @@ class CharacterRequestEvidence:
     explicit_repair_offer: bool
     direct_objection: bool
     topic_closure: bool
+    current_attention_request: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -362,6 +387,11 @@ def analyze_character_request_evidence(
         explicit_repair_offer=_contains_direct_user_cue(current, _REPAIR_OFFER),
         direct_objection=_states_direct_objection(current, recent),
         topic_closure=_contains_direct_user_cue(current, _TOPIC_CLOSURE),
+        current_attention_request=_contains_direct_user_cue(
+            current,
+            _CURRENT_ATTENTION_REQUEST,
+            direct_request=True,
+        ),
     )
 
 

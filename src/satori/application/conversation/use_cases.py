@@ -10,10 +10,15 @@ from satori.application.affect.use_cases import (
     PrepareAffectiveContext,
 )
 from satori.application.cognition.contracts import (
+    CognitionArtifactStatus,
     CognitionDialogueSignals,
     CognitionPipelineTrace,
 )
 from satori.application.cognition.use_cases import SafeCognitionPipeline
+from satori.application.conversation.character_agency import (
+    CharacterAgencyDecision,
+    CharacterAgencyKernel,
+)
 from satori.application.conversation.character_evidence import (
     analyze_character_request_evidence,
 )
@@ -84,6 +89,7 @@ ConversationProvider = ConversationGenerationPort[
 ]
 
 _FINAL_CHARACTER_REALIZATION_MARKERS = (
+    "Trusted current-turn agency Сатори",
     "Trusted current-turn presence Сатори / operational move v2",
     "Trusted current-turn presence Сатори",
     "Единая request-local режиссура реплики Сатори",
@@ -120,6 +126,7 @@ class TalkToSatori:
     get_current_models: GetCurrentModels | None = None
     get_positions: GetSatoriPositions | None = None
     cognition_pipeline: SafeCognitionPipeline | None = None
+    character_agency_kernel: CharacterAgencyKernel | None = None
     monotonic: Callable[[], float] = time.perf_counter
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("satori.conversation"))
 
@@ -197,6 +204,15 @@ class TalkToSatori:
         )
         dialogue_context = analyze_dialogue_coherence(command.user_text, recent_context)
         character_evidence = analyze_character_request_evidence(command.user_text, recent_context)
+        disclosure_plan = (
+            plan_conversational_disclosure(
+                command.user_text,
+                dialogue_context,
+                policy_schema_version=self.request_builder.policy.schema_version,
+            )
+            if self.request_builder.policy.schema_version >= 25
+            else None
+        )
         cognition_intake = (
             self.cognition_pipeline.prepare_intake(
                 user_text=command.user_text,
@@ -223,14 +239,8 @@ class TalkToSatori:
                     explicit_task_abandonment=(character_evidence.explicit_task_abandonment),
                     explicit_repair_offer=character_evidence.explicit_repair_offer,
                     self_disclosure_request=(
-                        self.request_builder.policy.schema_version >= 25
-                        and is_satori_self_disclosure_plan(
-                            plan_conversational_disclosure(
-                                command.user_text,
-                                dialogue_context,
-                                policy_schema_version=(self.request_builder.policy.schema_version),
-                            )
-                        )
+                        disclosure_plan is not None
+                        and is_satori_self_disclosure_plan(disclosure_plan)
                     ),
                 ),
             )
@@ -268,15 +278,29 @@ class TalkToSatori:
             if self.get_positions is not None
             else None
         )
-        inclination_context = (
-            self.get_positions.project_inclination_context(
-                identity_id=snapshot.identity.identity_id,
-                user_text=command.user_text,
-                as_of=interaction.started_at,
-            )
-            if self.get_positions is not None
-            else None
-        )
+        inclination_context = None
+        if self.get_positions is not None:
+            if self.request_builder.policy.schema_version >= 28:
+                include_owned_topic = bool(
+                    self.character_agency_kernel is not None
+                    and self.character_agency_kernel.allows_owned_topic_projection(
+                        evidence=character_evidence,
+                        dialogue=dialogue_context,
+                        relationship=relationship_context,
+                    )
+                )
+                inclination_context = self.get_positions.project_inclination_context(
+                    identity_id=snapshot.identity.identity_id,
+                    user_text=command.user_text,
+                    as_of=interaction.started_at,
+                    include_owned_topic=include_owned_topic,
+                )
+            else:
+                inclination_context = self.get_positions.project_inclination_context(
+                    identity_id=snapshot.identity.identity_id,
+                    user_text=command.user_text,
+                    as_of=interaction.started_at,
+                )
 
         memory_context = None
         if self.retrieve_memories is not None and (
@@ -310,6 +334,51 @@ class TalkToSatori:
                 memory_context=memory_context,
                 semantic_context=semantic_context,
             )
+        context_started = self.monotonic()
+        context = self.context_composer.compose(
+            snapshot,
+            retrieval_available=(
+                memory_context is not None
+                and memory_context.status is not RetrievalStatus.UNAVAILABLE
+            ),
+            semantic_retrieval_available=semantic_context is not None,
+            emotional_state_available=prepared_affect is not None,
+            relationship_state_available=relationship_context is not None,
+            recent_conversation_available=recent_context is not None,
+            user_model_available=(
+                model_context is not None and model_context.status == "available"
+            ),
+        )
+        character_agency: CharacterAgencyDecision | None = None
+        if self.request_builder.policy.schema_version >= 28:
+            if (
+                self.character_agency_kernel is None
+                or cognition_intake is None
+                or disclosure_plan is None
+            ):
+                agency_error = ValueError(
+                    "behavior policy v28 requires character agency and cognition intake"
+                )
+                self._mark_failed(interaction.interaction_id, agency_error)
+                raise agency_error
+            try:
+                character_agency = self.character_agency_kernel.select(
+                    context=context,
+                    intake=cognition_intake,
+                    evidence=character_evidence,
+                    dialogue=dialogue_context,
+                    disclosure_plan=disclosure_plan,
+                    emotional_context=(
+                        prepared_affect.expression if prepared_affect is not None else None
+                    ),
+                    relationship_context=relationship_context,
+                    position_context=position_context,
+                    inclination_context=inclination_context,
+                )
+            except Exception as error:
+                self._mark_failed(interaction.interaction_id, error)
+                raise
+        context_projection_ms = (self.monotonic() - context_started) * 1000
         cognition_trace = (
             self.cognition_pipeline.complete(
                 cognition_intake,
@@ -340,21 +409,18 @@ class TalkToSatori:
             if self.cognition_pipeline is not None and cognition_intake is not None
             else None
         )
-        context_started = self.monotonic()
-        context = self.context_composer.compose(
-            snapshot,
-            retrieval_available=(
-                memory_context is not None
-                and memory_context.status is not RetrievalStatus.UNAVAILABLE
-            ),
-            semantic_retrieval_available=semantic_context is not None,
-            emotional_state_available=prepared_affect is not None,
-            relationship_state_available=relationship_context is not None,
-            recent_conversation_available=recent_context is not None,
-            user_model_available=(
-                model_context is not None and model_context.status == "available"
-            ),
-        )
+        if (
+            self.request_builder.policy.schema_version >= 28
+            and cognition_trace is not None
+            and cognition_trace.status is CognitionArtifactStatus.FALLBACK
+        ):
+            assert self.character_agency_kernel is not None
+            assert cognition_intake is not None
+            character_agency = self.character_agency_kernel.conservative_fallback(
+                context=context,
+                intake=cognition_intake,
+            )
+        request_build_started = self.monotonic()
         try:
             provider_request, manifest = self.request_builder.build(
                 context,
@@ -373,11 +439,12 @@ class TalkToSatori:
                 dialogue_context=dialogue_context,
                 cognition_trace=cognition_trace,
                 character_evidence=character_evidence,
+                character_agency=character_agency,
             )
         except Exception as error:
             self._mark_failed(interaction.interaction_id, error)
             raise
-        context_ms = (self.monotonic() - context_started) * 1000
+        context_ms = context_projection_ms + (self.monotonic() - request_build_started) * 1000
         self.logger.debug(
             "conversation_facets_selected",
             extra=_log_fields(
@@ -793,6 +860,24 @@ class TalkToSatori:
             "cognition_template_schema_version": (
                 reply.context_manifest.cognition_template_schema_version
             ),
+            "character_agency_decision_schema_version": (
+                reply.context_manifest.character_agency_decision_schema_version
+            ),
+            "character_agency_status": reply.context_manifest.character_agency_status,
+            "character_agency_drive": reply.context_manifest.character_agency_drive,
+            "character_agency_act": reply.context_manifest.character_agency_act,
+            "character_agency_subject": reply.context_manifest.character_agency_subject,
+            "character_agency_initiative": (reply.context_manifest.character_agency_initiative),
+            "character_agency_lead": reply.context_manifest.character_agency_lead,
+            "character_agency_source_personality_codes": list(
+                reply.context_manifest.character_agency_source_personality_codes
+            ),
+            "character_agency_source_value_key": (
+                reply.context_manifest.character_agency_source_value_key
+            ),
+            "character_agency_reason_codes": list(
+                reply.context_manifest.character_agency_reason_codes
+            ),
             "character_expression_plan_schema_version": (
                 reply.context_manifest.character_expression_plan_schema_version
             ),
@@ -1195,6 +1280,7 @@ class TalkToSatori:
                             "dialogue_coherence",
                             "self_consistency_facets",
                             "cognition_response_strategy",
+                            "character_agency_decision",
                             "character_delivery_decision",
                             "character_presence_projection",
                         }

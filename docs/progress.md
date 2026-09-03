@@ -1,16 +1,53 @@
 # Project progress
 
-Last updated: 2026-08-30
+Last updated: 2026-08-31
 
 ## Current status
 
-**Checkpoint 14.2 — Grounded Natural Dialogue Calibration remains the active boundary. Behavior
-policy v10 is the last provider-accepted baseline; candidates v11 through v24 are retained as
+**Checkpoint 14.3 — Character Agency Kernel is the active boundary after explicit user
+authorization on 2026-08-31. Checkpoint 14.2 is closed as rejected provider-fit evidence, not as
+an accepted character gate. Behavior policy v10 is the last provider-accepted baseline; candidates v11 through v24 are retained as
 rejected historical evidence, v25 is historical sampled but unaccepted evidence, and the rejected
-v26/Terra sample is immutable historical evidence. Policy v27 is the current offline architecture
-candidate under ADR-0043. It makes live state select one typed conversational movement before
-compact rendering, preserves cognition-owned substance and keeps every persistent owner unchanged.
-No V27 provider or paid call has been made, and its prose/provider fit remains unaccepted. Authorized
+v26/Terra and v27/Terra samples are immutable historical evidence. Policy v28 is the active offline
+implementation candidate under ADR-0045. It selects one frozen request-local agency decision from
+prepared cognition intake and immutable live state before cognition completion; delivery then
+validates compatibility with the complete cognition contract and renders one integrated provider
+movement. Fresh V28 generation uses manifest schema 17, while historical policies through V27
+remain isolated on schema 16. No persistent owner changes.
+
+Historical policy V27 remains reproducible under ADR-0043. Its separately authorized first
+production attempt is consumed but incomplete. ADR-0044 then raised only V27's broad-self-
+disclosure cap to 200 and hardened numeric-only post-response evidence plus the one-shot lifecycle.
+The separately authorized attempt 2 completed all three fresh eight-turn
+sessions on 24/24 base calls with zero retry. Exact usage was 25,069 input and 2,353 output tokens
+(991 reasoning and a conservative 1,362 non-reasoning remainder), cache `0/0`, costing USD
+0.078374. Its sample digest is
+`sha256:5c8163b53f1f656b64aa2cbb9658e1c712e1525c324fba031d6bd712a8d14735` and the technical gate is
+valid. Direct human-only review then rejected the exact sample: `G24 O23 S6 N9 L23 C15 Q24`,
+124/168 per-turn decisions true, cross-session `FFTFTF`, attestations `TTT` and `accepted=false`.
+The model is factually grounded and complete but not recognizably Satori; provider fit remains
+unaccepted. Checkpoint 14.3 therefore changes the decision order rather than adding another style
+prompt. Phase A adds no persistent desire/goal owner, migration, provider call or seeded hobby.
+Durable topics remain existing Stage 13 inclinations under `PositionManager`; origin-aware seed
+interests are a separately gated Phase B design, not part of the active implementation. Checkpoint
+14.3 attempt 1 consumed its one-shot claim and ran one local Ollama affect appraisal, but its
+fail-closed ledger stopped before OpenAI: OpenAI calls are `0`, tokens are `0/0` and cost is USD 0.
+Corrected attempt 2 also consumed its claim and is `FAILED / INCONCLUSIVE / NOT ACCEPTED`. Control
+S1T1 used the only OpenAI call: 786 input and 29 output tokens, cache `0/0`, exact cost USD
+0.001920. Control S1T2 was rejected before OpenAI because the evaluator ledger required fixed
+temperature `0.3` while production requested `0.0`; V28 made zero calls. No blind or review
+artifact exists, and no secret/private prompt or provider context leaked into the safe report.
+Attempt 3 then consumed its claim and completed all three V27 control sessions on 18 successful
+base calls before a stale terminal validator rejected the digest-bound turn-2 temperature `0.0`
+as if every turn had to use `0.3`. Exact usage is 17,007 input and 1,402 output tokens, cache
+`0/0`, costing USD 0.050838; V28 made zero calls. No blind or review artifact exists, so attempt 3
+is `FAILED / INCONCLUSIVE / NOT ACCEPTED`. The validator now binds the exact per-turn temperature
+and cap pair, and a distinct inspect-only attempt 4 is frozen at
+`sha256:cbea4634e2f108532d21eb0022ca1295e08655c07a894f315ac9b7945f791153` under one-shot ID
+`satori.checkpoint143.openai.v27-v28.ab4.2026-08-31.one-shot`; its paths are free and it has made
+zero provider calls. The paired A/B has not completed, the checkpoint is not accepted and Stage 15
+remains locked.
+Authorized
 V26 attempts 1 and 2 made exactly zero paid OpenAI calls; attempts 3 and 4 consumed three successful
 foreground calls in total before separate post-commit evaluator failures. Attempt 4 completed two
 base calls without retry and then exposed an evaluator-only safe-manifest optionality defect, so it
@@ -313,6 +350,56 @@ three committed affect-continuity turns. Offline OpenAI-wire tests preserve exac
 The V26 runner is retired before settings, filesystem claim, provider construction or network; its
 retained attempt-5 evidence validates only against its embedded frozen source/plan. These are
 architecture and routing results, not generated-prose acceptance.
+
+The separately authorized V27 phase-1 attempt 1 consumed frozen plan
+`sha256:5e6bcc1fc53100e66990feb25d9448465a1a6bb1364e7b98eb6f14ddb4d94feb` and one-shot ID
+`satori.checkpoint142.openai.v27.phase1.2026-08-30.one-shot`. It completed the first two fresh
+replicas at 8/8 turns each and the first two turns of replica 3, then failed closed on replica 3
+turn 3 (`broad-self-disclosure`). The ledger records 19 base calls, zero validator retries and 18
+successful calls. Call 19 returned a 164-token provider-reported non-reasoning remainder (named
+`visible` in the historical artifact) against the request-local 160-token bound, with 63 reasoning
+tokens and the frozen combined wire ceiling 1184; the production adapter
+therefore raised `InvalidProviderResponse` with `visible_output_limit_exceeded` and did not return a
+committed reply.
+
+The 18 successful calls have exact cache-aware evidence: 18,086 input tokens, 1,807 output tokens
+(854 reasoning plus 953 non-reasoning), cache reads/writes `0/0` and USD 0.057856. Call 19 reached the
+provider, but its exception path retained only safe output metrics rather than exact input/cache/
+service-tier usage, so its exact cost and the billed run total are unknown and must not be inferred.
+Its conservative charged guard is USD 0.042738 and the total guarded amount is USD 0.100594, below
+the authorized USD 0.15 ceiling. The global exact-usage and within-cost booleans remain false by
+fail-closed contract because that one call is not exactly priced; they do not prove a budget
+overrun.
+
+The private `0600` one-shot claim and failed report remain the only V27 attempt-1 artifacts. Their
+file SHA-256 values are respectively
+`5896af5337dd2ac3991ac300a89011c9e7df3fd1a6a31ebc9154f5770ab669af` and
+`e474f21274de88def264f79428373e8ac0a468aa4c1b7e4c552accf95b909de1`. No completed
+`sample_digest`, human-review template or review exists; the 18 preserved public replies therefore
+cannot be turned into an official partial rubric. Attempt 1 is `INCONCLUSIVE / NOT ACCEPTED`, not a
+V27/Terra provider-fit verdict. ADR-0044 records the two evaluator-evidence corrections: the
+provider-reported non-reasoning remainder is a conservative upper bound rather than exact visible
+text tokenization, and a post-response typed failure can now retain numeric-only exact usage. The
+failed turn's initial `provider_call_observed=false` means no `SatoriReply` was returned, while the
+atomic ledger remains authoritative that delegate attempt 19 terminally settled.
+
+V27 attempt 2 was prepared offline with the distinct one-shot ID
+`satori.checkpoint142.openai.v27.phase1.attempt2.2026-08-30.one-shot`, plan digest
+`sha256:a9085f80811bda520430f5340a02f73053378ec628d881937a97f2c6e75a0c78`, source fingerprint
+`sha256:6da197116e60228fe00a93faae654879d8b320f257c7f319921286e01a3d6f6a` and exact cap vector
+`[48, 48, 200, 96, 96, 384, 112, 96]`. Attempt 1 is non-executable; old authority, cap/scope drift,
+unsafe artifact paths, source/Settings failure and circular review binding all fail closed. The
+later exact authorization completed 24/24 base calls without retry for exact USD 0.078374 and
+produced a complete digest-bound sample. Direct human-only review rejected it at
+`G24 O23 S6 N9 L23 C15 Q24`, cross-session `FFTFTF` and `accepted=false`. Stage 15 remains locked.
+
+The final attempt-2 rebuilt-wheel gate is clean: Ruff format/check across 393 files, mypy across
+304 source files, full pytest `1816 passed, 4 skipped`, fresh migration through
+`0013_conversation_failure_reason`, separate clean bootstrap, lock/diff/placeholder/credential and
+artifact checks, and exact 177/177 installed/source parity at
+`sha256:64b87d8e161942536a877358c113ff4b56c8433f35ad2e7dc201289f64b84c3f`. The post-gate plan
+digest, source fingerprint and evaluator bundle remain unchanged. Both independent scoped audits
+report `ARCHITECTURE CLEAN`; that offline gate made no network/provider call.
 
 The local privacy hardening is provider-free: file-backed SQLite and runtime JSONL files are
 created as `0600`; parent directories created by Satori use `0700`; existing directory modes are
@@ -1813,7 +1900,7 @@ Stage 15 remains locked and must not begin automatically after Stage 14.
   dimension totals `G23 O22 S11 N10 L15 C2 Q24`, cross-session `TFTFTF` and attestations `TTT`.
   Treat this as rejection of the frozen V26/Terra configuration and sample, not proof of Terra's
   model ceiling.
-- [x] Accept ADR-0043 and make policy v27 the current offline candidate with decision/presence
+- [x] Accept ADR-0043 and make policy v27 the then-current offline candidate with decision/presence
   schemas 4/2, live-state-first movement selection and one cognition-complete compact operational
   renderer; keep V26 byte-stable and Stage 15 locked.
 - [x] Add typed objection/topic-closure movement, pressure-free ordinary depletion, exact schema
@@ -1830,8 +1917,140 @@ Stage 15 remains locked and must not begin automatically after Stage 14.
   `sha256:5e6bcc1fc53100e66990feb25d9448465a1a6bb1364e7b98eb6f14ddb4d94feb`, with source
   fingerprint `sha256:e3546c5125adc4f8f923f359550c64a4ade0fe730745e8a18631356292b8f5e7`.
   Do not call a provider until that exact plan receives explicit authorization.
+- [x] Execute the separately authorized V27 phase-1 attempt 1: consume its one-shot claim, complete
+  18/19 base calls with zero retry, preserve exact successful-call usage and fail closed when
+  replica 3 turn 3 returns a 164-token provider-reported non-reasoning remainder against its
+  160-token limit. Record the result as `INCONCLUSIVE / NOT ACCEPTED`; no completed sample digest
+  or human review exists.
+- [x] Address the V27 attempt-1 evaluator boundary under ADR-0044: interpret the derived output
+  split conservatively, retain numeric-only post-response usage/cost, raise only the V27
+  three-facet self-disclosure cap to 200, retire attempt 1 and harden one-shot/report/review
+  lifecycle regressions without a provider call.
+- [x] Freeze the distinct inspect-only V27 attempt-2 plan at
+  `sha256:a9085f80811bda520430f5340a02f73053378ec628d881937a97f2c6e75a0c78` under ID
+  `satori.checkpoint142.openai.v27.phase1.attempt2.2026-08-30.one-shot`; exact vector
+  `[48, 48, 200, 96, 96, 384, 112, 96]`, 24 required/30 maximum calls and USD 0.15.
+- [x] Complete the attempt-2 rebuilt-wheel and repository/security gate: Ruff format/check clean on
+  393 files, mypy clean on 304 source files, full pytest `1816 passed, 4 skipped`, migrations,
+  isolated bootstrap, lock/diff/placeholder/credential checks and exact 177/177 installed/source
+  parity. Preserve the unchanged plan digest and record independent `ARCHITECTURE CLEAN` verdicts.
+- [x] Execute the separately authorized V27 attempt 2 under the exact frozen ID/digest: complete
+  three fresh eight-turn sessions on 24/24 base calls, zero retry, exact usage/cache/tier/cost
+  evidence and a digest-bound sample; keep the result `completed_awaiting_human_review` until the
+  direct all-true rubric is supplied.
+- [x] Bind the user's direct human-only review to the exact V27 attempt-2 sample and reject the
+  frozen V27/Terra configuration: 124/168 per-turn decisions true,
+  `G24 O23 S6 N9 L23 C15 Q24`, cross-session `FFTFTF`, attestations `TTT`. Preserve the central
+  diagnosis: useful/grounded assistant behavior passed, recognizable Satori identity did not.
+- [x] Add the presentation-only interactive UX follow-up: animate `Сатори печатает.` / `..` /
+  `...` only on TTY, emit one stable non-TTY line, and show deterministic noncanonical
+  `[Сатори не ответила]` recovery copy only for a closed allowlist. Prove cleanup,
+  exhaustive reason partitioning, actionable-error bypass and no history/affect/post-response
+  contamination without a provider call, state owner, migration or retry/fallback. Final
+  rebuilt-wheel gate: Ruff format/check clean on 393 files, mypy clean on 304 source files, full
+  pytest `1826 passed, 4 skipped`, migration at `0013_conversation_failure_reason`, isolated
+  bootstrap, lock/dependency/diff/marker/credential checks and typed attempt-2 report validation
+  clean.
 
-Stage 15 remains locked and must not begin automatically after checkpoint 14.2.
+Stage 15 remains locked and must not begin automatically after Checkpoint 14.3; even a successful
+14.3 exit still requires a separate explicit user command.
+
+## Checkpoint 14.3 Character Agency Kernel
+
+- [x] Open Checkpoint 14.3 by explicit user authorization on 2026-08-31 without opening Stage 15.
+- [x] Complete three read-only architecture audits covering state ownership, foreground pipeline
+  placement and a falsifiable offline/production evaluation gate.
+- [x] Keep Phase A request-local: no `AgencyState`, persistent desire/goal/thread, database
+  migration, generated-prose authority, second interest owner, extra provider call, judge or
+  output rewrite.
+- [x] Preserve durable interests exclusively as Stage 13 `SatoriInclination` state under
+  `PositionManager`; do not modify the v1 activation seed or invent concrete hobbies for a clean
+  identity.
+- [x] Accept ADR-0045 and implement the offline policy-v28 candidate with a typed
+  `CharacterAgencyDecision` selected before cognition completion, then merged with cognition
+  obligations into exactly one provider movement; isolate fresh manifest schema 17 from historical
+  schema 16.
+- [x] Add a bounded read of an owner-approved interest only for an eligible in-reply adjacent
+  topic move; absence of an inclination must fail closed to current-topic exploration or a natural
+  stop.
+- [x] Assemble and execute the public-input-only offline bundle of 39 evaluation units: 36 single-turn
+  scenarios in nine groups plus three committed multi-turn flows, with 13 controlled contrasts,
+  historical V27 isolation, retry identity and no-state-write proofs.
+- [x] Complete the implementation-isolated non-editable-wheel gate: Ruff format/check clean on 404
+  files; mypy clean on 311 canonical source/test files; pytest `1882 passed, 4 skipped`; migration
+  head, isolated bootstrap, lock, diff, placeholder and credential/generated-artifact checks
+  clean; fresh installed/source parity exact for 178/178 files at
+  `sha256:8e6876f0c7d4e9bc1fd62c6bbb9f92ef09ab160132a56260101bbe8c2401ba8c`.
+- [x] Remove the two explicitly user-authorized untracked V27 conflict-copy tests and clean 173
+  source-like plus 47 bytecode Finder/cloud conflict copies from the ignored installed `.venv`
+  package without deleting canonical source or tracked user files.
+- [x] Freeze attempt 1 of the executable inspect-first paired V27/V28 OpenAI plan under digest
+  `sha256:f21bbced0317bf1806712c70717f8f3f36fea7b51d784d2f8684f78d6914a70c` and one-shot ID
+  `satori.checkpoint143.openai.v27-v28.ab1.2026-08-31.one-shot`.
+- [x] Execute the user-authorized attempt 1. Its claim was consumed, one local Ollama affect
+  appraisal completed, and the foreground ledger rejected the first control request before the
+  OpenAI delegate because production requested cap `48` while the plan required `64`. OpenAI calls
+  and tokens are `0` and `0/0`, cost is USD 0, and the attempt is `INCONCLUSIVE / NOT ACCEPTED`.
+- [x] Prepare corrected attempt 2 with real-`Talk` proof of the exact cap vector
+  `[48, 80, 96, 96, 112, 384]` in both cells. Provider request context schema is 16 in both cells;
+  safe report manifest schemas remain V27=16 and V28=17. Private agency provenance IDs are
+  validated then reduced to count/presence metadata. Phase 1 uses a balanced random nonce-bound
+  assignment, is persisted as `0600` before reveal, and final acceptance is computed from exact
+  36/36, 14/18, 12-win/3-loss, realization, hard and cross-session gates. Attempt-2 digest is
+  `sha256:8e6dc91d173ed83c274ef1ff0327721728630dd26c4da3f6bf81d7f4a05b5f83`; one-shot ID is
+  `satori.checkpoint143.openai.v27-v28.ab2.2026-08-31.one-shot`.
+- [x] Complete the final corrected-attempt-2 repository-wide rebuilt-wheel Foundation gate: Ruff
+  format/check clean on 406 files; unfiltered mypy clean on 315 source/test files; unfiltered pytest
+  `1898 passed, 4 skipped`; migration head, isolated bootstrap, lock, diff, marker and credential
+  checks clean; installed/source parity exact for 178/178 files. The project `.venv` reproduced
+  Finder/cloud conflict copies during reinstall, so they were cleaned again and the identical
+  digest/parity was independently verified in a clean `/tmp` runtime. Do not execute the A/B
+  without a separate exact authorization repeating the digest, ID, 48-call ceiling and USD 0.30
+  budget.
+- [x] Execute the exact separately authorized attempt 2 and preserve its fail-closed evidence. Its
+  claim is consumed. Control S1T1 completed on the sole OpenAI call with 786 input and 29 output
+  tokens, cache `0/0` and exact cost USD 0.001920. Control S1T2 was rejected before the delegate
+  because the evaluator assumed temperature `0.3` for every turn while production requested
+  `0.0`; the V28 cell made zero calls. No sample digest, blind template or phase-1, phase-2 or final
+  review was created, so the result is `FAILED / INCONCLUSIVE / NOT ACCEPTED`, not an A/B verdict.
+  The `0600` failed report contains no credential, raw/private prompt, provider message or private
+  service context.
+- [x] Prepare and execute a distinct attempt 3 with exact runtime temperature vector
+  `[0.3, 0.0, 0.3, 0.3, 0.3, 0.3]` and output-cap vector `[48, 80, 96, 96, 112, 384]`. Both V27 and
+  V28 six-turn paths now cross the actual budget wrapper, scope binding and per-cell ledger before
+  an offline fake delegate; temperature/cap/schema drift is rejected before the delegate. The
+  inspect-only plan digest is
+  `sha256:8c4a862e55cc92644cb904da134d343c0d7f2fe761a181f3dbf9c9afe110fb06`, source fingerprint is
+  `sha256:7b15dea53938a27548f4b150b4faf9636f8499dd1f31d10d5156ebbff064421e`, and proposed one-shot ID is
+  `satori.checkpoint143.openai.v27-v28.ab3.2026-08-31.one-shot`. All fixed attempt-3 artifact paths
+  were free before execution. The claim is now consumed. All 18 V27 control calls succeeded with
+  17,007 input/1,402 output tokens, cache `0/0` and USD 0.050838 exact cost, but the stale shared
+  terminal validator rejected turn 2's valid `0.0` temperature after the cell completed. V28 made
+  zero calls; no blind/review artifact exists; verdict `FAILED / INCONCLUSIVE / NOT ACCEPTED`.
+- [x] Harden terminal evidence and prepare isolated attempt 4. One typed per-turn request contract
+  now feeds plan, admission and terminal validation; exact temperatures and caps are checked after
+  every six-turn replica. A full offline 3 × 6 × 2 fake-provider execution traverses the production
+  runtime and validates both terminal cells. Inspect digest is
+  `sha256:cbea4634e2f108532d21eb0022ca1295e08655c07a894f315ac9b7945f791153`, source fingerprint
+  `sha256:2b46bc3ebc1aa21c5996e5e0cc1d307294ff6fce525ed5c689dea0b105f08188`, and one-shot ID
+  `satori.checkpoint143.openai.v27-v28.ab4.2026-08-31.one-shot`. All six fixed paths are free; no
+  attempt-4 provider call has run.
+- [x] Complete the post-attempt-2 rebuilt-wheel Foundation gate: Ruff format/check clean on 408
+  files, mypy clean on 317 source/test files, pytest `1911 passed, 4 skipped`, migration head,
+  isolated bootstrap, lock, diff, marker, credential and generated-artifact checks clean, and
+  installed/source parity exact for 178/178 files. Reappearing Finder/cloud conflict copies under
+  ignored `.venv` were removed without touching canonical source or user files.
+
+Current execution status: attempts 1, 2 and 3 have consumed their claims. Cumulative Checkpoint
+14.3 OpenAI usage is 19 calls, 17,793 input/1,431 output tokens, cache `0/0`, exact cost USD
+0.052758; V28 has still made zero calls. Attempt 3 produced no blind/review artifact and remains
+`FAILED / INCONCLUSIVE / NOT ACCEPTED`. Attempt 4 is inspect-only ready, unexecuted and awaits a
+separate exact authorization. The paired paid A/B has not completed, Checkpoint 14.3 is not
+accepted and Stage 15 remains locked.
+
+Checkpoint 14.3 Phase B (origin-aware seeded interests) remains a decision gate, not active scope.
+It would require a superseding inclination-origin ADR, explicit adoption semantics and a DDL-only
+migration; it must never be smuggled into prompt prose or the existing seed hash.
 
 ## Known risks carried forward
 

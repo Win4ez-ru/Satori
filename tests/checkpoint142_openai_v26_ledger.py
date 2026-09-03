@@ -12,7 +12,7 @@ import math
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from satori.application.conversation.use_cases import ConversationProvider
 from satori.core.conversation import (
@@ -22,6 +22,8 @@ from satori.core.conversation import (
 )
 
 MAX_ATTEMPTS_PER_TURN = 2
+HISTORICAL_LEDGER_SCHEMA_VERSION = 2
+LEDGER_SCHEMA_VERSION = 3
 EXPECTED_REASONING_TOKEN_ALLOWANCE = 1024
 EXPECTED_PROVIDER_REQUEST_SCHEMA_VERSION = 1
 EXPECTED_CONTEXT_SCHEMA_VERSION = 16
@@ -87,7 +89,7 @@ _TERMINAL_LEDGER_KEYS = {
     "gate_valid",
     "calls",
 }
-_TERMINAL_LEDGER_CALL_KEYS = {
+_HISTORICAL_TERMINAL_LEDGER_CALL_KEYS = {
     "call_number",
     "session_id",
     "turn",
@@ -118,6 +120,7 @@ _TERMINAL_LEDGER_CALL_KEYS = {
     "service_tier_verified_by_adapter",
     "provider_metrics",
 }
+_TERMINAL_LEDGER_CALL_KEYS = _HISTORICAL_TERMINAL_LEDGER_CALL_KEYS | {"provider_call_observed"}
 
 
 class ProviderCallBudgetExhausted(RuntimeError):
@@ -236,10 +239,13 @@ class TurnScopeBinding:
 class V26AtomicOpenAICallLedger:
     """Atomically reserve and settle every possible V26 paid attempt."""
 
+    ledger_schema_version: ClassVar[int] = HISTORICAL_LEDGER_SCHEMA_VERSION
+
     maximum_calls: int
     maximum_cost_usd: float
     required_base_calls: int
     reasoning_token_allowance: int
+    expected_context_schema_version: int = EXPECTED_CONTEXT_SCHEMA_VERSION
     on_change: Callable[[], None] | None = field(default=None, repr=False)
     _calls: list[dict[str, Any]] = field(default_factory=list, repr=False)
     _attempts_by_scope: dict[PublicTurnScope, tuple[str, int]] = field(
@@ -267,6 +273,10 @@ class V26AtomicOpenAICallLedger:
             raise ValueError("maximum_cost_usd must be exactly representable in nano-dollars")
         if self.reasoning_token_allowance != EXPECTED_REASONING_TOKEN_ALLOWANCE:
             raise ValueError("reasoning_token_allowance must equal the V26 plan")
+        _strict_positive_int(
+            self.expected_context_schema_version,
+            "expected_context_schema_version",
+        )
         self._maximum_cost_nano_usd = rounded_nano
 
     @staticmethod
@@ -290,12 +300,17 @@ class V26AtomicOpenAICallLedger:
         )
         return guarded_input_tokens, guarded_output_tokens, projected_nano_usd
 
+    def _temperature_is_valid(self, temperature: float) -> bool:
+        """Preserve the exact historical V26 temperature contract."""
+
+        return temperature == EXPECTED_TEMPERATURE
+
     def reserve(self, request: ConversationProviderRequest, scope: PublicTurnScope) -> int:
         if (
             request.schema_version != EXPECTED_PROVIDER_REQUEST_SCHEMA_VERSION
-            or request.context_schema_version != EXPECTED_CONTEXT_SCHEMA_VERSION
+            or request.context_schema_version != self.expected_context_schema_version
             or request.parameters.schema_version != EXPECTED_GENERATION_PARAMETERS_SCHEMA_VERSION
-            or request.parameters.temperature != EXPECTED_TEMPERATURE
+            or not self._temperature_is_valid(request.parameters.temperature)
             or not 1 <= request.parameters.max_output_tokens <= MAXIMUM_VISIBLE_OUTPUT_TOKENS
         ):
             raise ProviderCallBudgetExhausted(
@@ -309,7 +324,13 @@ class V26AtomicOpenAICallLedger:
         with self._lock:
             if any(
                 call.get("status") == "failed"
-                or (call.get("status") == "succeeded" and call.get("usage_complete") is not True)
+                or (
+                    call.get("status") == "succeeded"
+                    and (
+                        call.get("usage_complete") is not True
+                        or call.get("zero_prompt_cache_verified") is not True
+                    )
+                )
                 for call in self._calls
             ):
                 raise ProviderCallBudgetExhausted(
@@ -356,6 +377,7 @@ class V26AtomicOpenAICallLedger:
                     "turn_id": scope.turn_id,
                     "attempt_kind": "validator_retry" if is_retry else "base",
                     "status": "in_flight",
+                    "provider_call_observed": False,
                     "requested_visible_output_token_limit": request.parameters.max_output_tokens,
                     "guarded_input_token_limit": guarded_input,
                     "guarded_output_token_limit": guarded_output,
@@ -406,16 +428,15 @@ class V26AtomicOpenAICallLedger:
             )
             output_guard_valid = type(output_tokens) is int and output_tokens <= guarded_output
             finish_completed = response.finish_status == "completed"
-            exact_evidence = (
+            exact_pricing = (
                 details_complete
                 and actual_nano is not None
-                and zero_cache
                 and standard_context
                 and output_guard_valid
                 and finish_completed
             )
             guard_projection_valid = (
-                exact_evidence and actual_nano is not None and actual_nano <= projected_nano
+                exact_pricing and actual_nano is not None and actual_nano <= projected_nano
             )
             # Unknown or invalid usage stays charged at the prior conservative reservation.
             charged_nano = (
@@ -426,6 +447,7 @@ class V26AtomicOpenAICallLedger:
             record.update(
                 {
                     "status": "succeeded",
+                    "provider_call_observed": True,
                     "finish_status": response.finish_status,
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
@@ -440,7 +462,7 @@ class V26AtomicOpenAICallLedger:
                     "standard_context_pricing_verified": standard_context,
                     "output_token_guard_verified": output_guard_valid,
                     "finish_status_completed": finish_completed,
-                    "usage_complete": exact_evidence,
+                    "usage_complete": exact_pricing,
                     "guard_projection_valid": guard_projection_valid,
                     "charged_guard_cost_nano_usd": charged_nano,
                     "charged_guard_cost_usd": _usd_from_nano(charged_nano),
@@ -455,39 +477,117 @@ class V26AtomicOpenAICallLedger:
         self._notify()
 
     def settle_failure(self, call_number: int, error: BaseException) -> None:
+        typed_error = error if isinstance(error, ConversationProviderError) else None
         metrics = (
-            safe_provider_metrics(error.metrics.as_log_fields())
-            if isinstance(error, ConversationProviderError) and error.metrics is not None
+            safe_provider_metrics(typed_error.metrics.as_log_fields())
+            if typed_error is not None and typed_error.metrics is not None
             else None
         )
+        usage = typed_error.usage if typed_error is not None else None
+        input_tokens = usage.input_tokens if usage is not None else None
+        output_tokens = usage.output_tokens if usage is not None else None
+        cached_tokens = usage.cached_input_tokens if usage is not None else None
+        cache_write_tokens = usage.cache_write_input_tokens if usage is not None else None
+        details_complete = all(
+            type(value) is int
+            for value in (input_tokens, output_tokens, cached_tokens, cache_write_tokens)
+        )
+        actual_nano: int | None = None
+        if details_complete:
+            assert input_tokens is not None
+            assert output_tokens is not None
+            assert cached_tokens is not None
+            assert cache_write_tokens is not None
+            uncached_tokens = input_tokens - cached_tokens - cache_write_tokens
+            if uncached_tokens >= 0:
+                actual_nano = (
+                    uncached_tokens * OPENAI_UNCACHED_INPUT_NANO_USD_PER_TOKEN
+                    + cached_tokens * OPENAI_CACHED_INPUT_NANO_USD_PER_TOKEN
+                    + cache_write_tokens * OPENAI_CACHE_WRITE_INPUT_NANO_USD_PER_TOKEN
+                    + output_tokens * OPENAI_OUTPUT_NANO_USD_PER_TOKEN
+                )
         with self._lock:
             record = self._in_flight_record(call_number)
+            guarded_input = cast(int, record["guarded_input_token_limit"])
+            guarded_output = cast(int, record["guarded_output_token_limit"])
+            projected_nano = cast(int, record["projected_guard_cost_nano_usd"])
+            zero_cache = details_complete and cached_tokens == 0 and cache_write_tokens == 0
+            standard_context = (
+                type(input_tokens) is int
+                and input_tokens <= OPENAI_LONG_CONTEXT_INPUT_TOKEN_THRESHOLD
+                and input_tokens <= guarded_input
+            )
+            output_guard_valid = type(output_tokens) is int and output_tokens <= guarded_output
+            exact_pricing = (
+                details_complete
+                and actual_nano is not None
+                and standard_context
+                and output_guard_valid
+                and typed_error is not None
+                and typed_error.provider_response_observed
+                and typed_error.service_tier_verified
+            )
+            guard_projection_valid = (
+                exact_pricing and actual_nano is not None and actual_nano <= projected_nano
+            )
+            charged_nano = (
+                actual_nano
+                if guard_projection_valid and actual_nano is not None
+                else projected_nano
+            )
             record.update(
                 {
                     "status": "failed",
+                    "provider_call_observed": True,
                     "error_type": type(error).__name__,
                     "failure_reason": (
-                        error.reason.value if isinstance(error, ConversationProviderError) else None
+                        typed_error.reason.value if typed_error is not None else None
                     ),
-                    "finish_status": None,
-                    "input_tokens": None,
-                    "output_tokens": None,
-                    "cached_input_tokens": None,
-                    "cache_write_input_tokens": None,
-                    "actual_cost_nano_usd": None,
-                    "actual_cost_usd": None,
-                    "input_token_details_complete": False,
-                    "zero_prompt_cache_verified": False,
-                    "standard_context_pricing_verified": False,
-                    "output_token_guard_verified": False,
-                    "finish_status_completed": False,
-                    "usage_complete": False,
-                    "guard_projection_valid": False,
-                    "service_tier_verified_by_adapter": False,
+                    "finish_status": (
+                        "completed"
+                        if typed_error is not None and typed_error.response_completed
+                        else None
+                    ),
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "cached_input_tokens": cached_tokens,
+                    "cache_write_input_tokens": cache_write_tokens,
+                    "actual_cost_nano_usd": actual_nano,
+                    "actual_cost_usd": (
+                        _usd_from_nano(actual_nano) if actual_nano is not None else None
+                    ),
+                    "input_token_details_complete": details_complete,
+                    "zero_prompt_cache_verified": zero_cache,
+                    "standard_context_pricing_verified": standard_context,
+                    "output_token_guard_verified": output_guard_valid,
+                    "finish_status_completed": (
+                        typed_error.response_completed if typed_error is not None else False
+                    ),
+                    "usage_complete": exact_pricing,
+                    "guard_projection_valid": guard_projection_valid,
+                    "service_tier_verified_by_adapter": (
+                        typed_error.service_tier_verified if typed_error is not None else False
+                    ),
+                    "charged_guard_cost_nano_usd": charged_nano,
+                    "charged_guard_cost_usd": _usd_from_nano(charged_nano),
                     "provider_metrics": metrics,
                 }
             )
         self._notify()
+
+    def provider_call_observed(self, scope: PublicTurnScope) -> bool:
+        """Return whether one reserved call for the public scope reached a terminal settlement."""
+
+        if not isinstance(scope, PublicTurnScope):
+            raise ValueError("scope must be a PublicTurnScope")
+        with self._lock:
+            return any(
+                call.get("session_id") == scope.session_id
+                and call.get("turn") == scope.turn
+                and call.get("turn_id") == scope.turn_id
+                and call.get("provider_call_observed") is True
+                for call in self._calls
+            )
 
     def _in_flight_record(self, call_number: int) -> dict[str, Any]:
         if type(call_number) is not int or not 1 <= call_number <= len(self._calls):
@@ -521,6 +621,7 @@ class V26AtomicOpenAICallLedger:
                 call.get("status") == "succeeded"
                 and call.get("finish_status") == "completed"
                 and call.get("usage_complete") is True
+                and call.get("zero_prompt_cache_verified") is True
                 and call.get("guard_projection_valid") is True
                 and all(
                     type(call.get(key)) is int
@@ -553,45 +654,52 @@ class V26AtomicOpenAICallLedger:
         with self._lock:
             calls = copy.deepcopy(self._calls)
             base_count = len(self._attempts_by_scope)
+        if self.ledger_schema_version == HISTORICAL_LEDGER_SCHEMA_VERSION:
+            for call in calls:
+                call.pop("provider_call_observed", None)
         successful = [call for call in calls if call.get("status") == "succeeded"]
         charged_nano = sum(cast(int, call["charged_guard_cost_nano_usd"]) for call in calls)
         actual_nano = sum(
             cast(int, call["actual_cost_nano_usd"])
-            for call in successful
+            for call in calls
             if type(call.get("actual_cost_nano_usd")) is int
         )
-        exact_complete = (
-            bool(calls)
-            and len(successful) == len(calls)
-            and all(
-                call.get("usage_complete") is True
-                and call.get("zero_prompt_cache_verified") is True
-                and call.get("standard_context_pricing_verified") is True
-                and call.get("output_token_guard_verified") is True
-                and call.get("finish_status_completed") is True
-                and call.get("guard_projection_valid") is True
-                and call.get("service_tier_verified_by_adapter") is True
-                for call in calls
-            )
+        exact_pricing_complete = bool(calls) and all(
+            call.get("usage_complete") is True
+            and call.get("standard_context_pricing_verified") is True
+            and call.get("output_token_guard_verified") is True
+            and call.get("guard_projection_valid") is True
+            and call.get("service_tier_verified_by_adapter") is True
+            for call in calls
         )
+        zero_prompt_cache_verified = bool(calls) and all(
+            call.get("zero_prompt_cache_verified") is True for call in calls
+        )
+        service_tier_verified = bool(calls) and all(
+            call.get("service_tier_verified_by_adapter") is True for call in calls
+        )
+        guard_projection_valid = bool(calls) and all(
+            call.get("guard_projection_valid") is True for call in calls
+        )
+        all_calls_succeeded = len(successful) == len(calls)
         within_cost = charged_nano <= self._maximum_cost_nano_usd
         within_calls = len(calls) <= self.maximum_calls
         mandatory_complete = base_count == self.required_base_calls
         return {
-            "schema_version": 2,
+            "schema_version": self.ledger_schema_version,
             "required_base_calls": self.required_base_calls,
             "maximum_provider_calls": self.maximum_calls,
             "maximum_attempts_per_turn": MAX_ATTEMPTS_PER_TURN,
             "base_call_count": base_count,
             "provider_call_count": len(calls),
             "successful_provider_call_count": len(successful),
-            "input_tokens": sum(cast(int, call.get("input_tokens") or 0) for call in successful),
-            "output_tokens": sum(cast(int, call.get("output_tokens") or 0) for call in successful),
+            "input_tokens": sum(cast(int, call.get("input_tokens") or 0) for call in calls),
+            "output_tokens": sum(cast(int, call.get("output_tokens") or 0) for call in calls),
             "cached_input_tokens": sum(
-                cast(int, call.get("cached_input_tokens") or 0) for call in successful
+                cast(int, call.get("cached_input_tokens") or 0) for call in calls
             ),
             "cache_write_input_tokens": sum(
-                cast(int, call.get("cache_write_input_tokens") or 0) for call in successful
+                cast(int, call.get("cache_write_input_tokens") or 0) for call in calls
             ),
             "maximum_cost_nano_usd": self._maximum_cost_nano_usd,
             "maximum_cost_usd": _usd_from_nano(self._maximum_cost_nano_usd),
@@ -599,11 +707,11 @@ class V26AtomicOpenAICallLedger:
             "actual_usage_cost_usd": _usd_from_nano(actual_nano),
             "guarded_cost_nano_usd": charged_nano,
             "guarded_cost_usd": _usd_from_nano(charged_nano),
-            "usage_complete": exact_complete,
-            "exact_pricing_evidence_complete": exact_complete,
-            "zero_prompt_cache_verified": exact_complete,
-            "service_tier_verified": exact_complete,
-            "guard_projection_valid": exact_complete,
+            "usage_complete": exact_pricing_complete,
+            "exact_pricing_evidence_complete": exact_pricing_complete,
+            "zero_prompt_cache_verified": zero_prompt_cache_verified,
+            "service_tier_verified": service_tier_verified,
+            "guard_projection_valid": guard_projection_valid,
             "pricing": {
                 "currency": "USD",
                 "uncached_input_nano_usd_per_token": (OPENAI_UNCACHED_INPUT_NANO_USD_PER_TOKEN),
@@ -620,9 +728,17 @@ class V26AtomicOpenAICallLedger:
                 "fx_conversion_used": False,
             },
             "within_call_limit": within_calls,
-            "within_cost_limit": within_cost and exact_complete,
+            "within_cost_limit": within_cost and exact_pricing_complete,
             "mandatory_base_calls_complete": mandatory_complete,
-            "gate_valid": (exact_complete and within_calls and within_cost and mandatory_complete),
+            "gate_valid": (
+                exact_pricing_complete
+                and all_calls_succeeded
+                and all(call.get("finish_status_completed") is True for call in calls)
+                and zero_prompt_cache_verified
+                and within_calls
+                and within_cost
+                and mandatory_complete
+            ),
             "calls": calls,
         }
 
@@ -668,6 +784,12 @@ def validate_exact_openai_ledger(
 
     if set(budget) != _TERMINAL_LEDGER_KEYS:
         raise ValueError("budget schema drift")
+    schema_version = budget.get("schema_version")
+    if type(schema_version) is not int or schema_version not in {
+        HISTORICAL_LEDGER_SCHEMA_VERSION,
+        LEDGER_SCHEMA_VERSION,
+    }:
+        raise ValueError("budget schema version is unsupported")
     calls = budget.get("calls")
     if not isinstance(calls, list):
         raise ValueError("budget calls must be an array")
@@ -706,7 +828,12 @@ def validate_exact_openai_ledger(
     total_output = 0
     maximum_cost_nano = round(maximum_cost_usd * NANO_USD_PER_USD)
     for number, (raw_call, scope) in enumerate(zip(calls, attempt_scopes, strict=True), start=1):
-        if not isinstance(raw_call, dict) or set(raw_call) != _TERMINAL_LEDGER_CALL_KEYS:
+        expected_call_keys = (
+            _HISTORICAL_TERMINAL_LEDGER_CALL_KEYS
+            if schema_version == HISTORICAL_LEDGER_SCHEMA_VERSION
+            else _TERMINAL_LEDGER_CALL_KEYS
+        )
+        if not isinstance(raw_call, dict) or set(raw_call) != expected_call_keys:
             raise ValueError("ledger call must be an exact object")
         call = cast(dict[str, Any], raw_call)
         session_id, turn_number, turn_id, attempt_number, attempt = scope
@@ -718,6 +845,10 @@ def validate_exact_openai_ledger(
             or call.get("turn") != turn_number
             or call.get("turn_id") != turn_id
             or call.get("attempt_kind") != ("base" if attempt_number == 1 else "validator_retry")
+            or (
+                schema_version == LEDGER_SCHEMA_VERSION
+                and call.get("provider_call_observed") is not True
+            )
             or call.get("status") != "succeeded"
             or call.get("finish_status") != "completed"
             or call.get("input_token_details_complete") is not True
@@ -810,7 +941,7 @@ def validate_exact_openai_ledger(
         "fx_conversion_used": False,
     }
     scalars: dict[str, object] = {
-        "schema_version": 2,
+        "schema_version": schema_version,
         "required_base_calls": required_base_calls,
         "maximum_provider_calls": maximum_provider_calls,
         "maximum_attempts_per_turn": MAX_ATTEMPTS_PER_TURN,
@@ -847,7 +978,9 @@ def validate_exact_openai_ledger(
         raise ValueError("ledger terminal scalar evidence drift")
 
 
-# The ledger contract is version-neutral at the wire/cost boundary.  Keep the historical public
-# name for the archived V26 evaluator while giving successors an honest shared name instead of
-# duplicating the atomic reservation and exact-usage logic.
-AtomicOpenAICallLedger = V26AtomicOpenAICallLedger
+class AtomicOpenAICallLedger(V26AtomicOpenAICallLedger):
+    """Current exact-accounting ledger used by successor evaluators."""
+
+    __slots__ = ()
+
+    ledger_schema_version = LEDGER_SCHEMA_VERSION

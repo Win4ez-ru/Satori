@@ -263,6 +263,9 @@ class OpenAIConversationAdapter:
                     self.model,
                     "OpenAI returned inconsistent usage metadata",
                     reason=ConversationProviderFailureReason.USAGE_METADATA_INVALID,
+                    provider_response_observed=True,
+                    response_completed=parsed.status == "completed",
+                    service_tier_verified=True,
                 ) from None
             if parsed.status == "incomplete":
                 incomplete_reason = _safe_incomplete_reason(parsed.incomplete_details)
@@ -277,6 +280,9 @@ class OpenAIConversationAdapter:
                     f"OpenAI response ended with status incomplete; reason={incomplete_reason}",
                     reason=failure_reason,
                     metrics=metrics,
+                    usage=usage,
+                    provider_response_observed=True,
+                    service_tier_verified=True,
                 )
             if parsed.status in {"failed", "cancelled", "queued", "in_progress"}:
                 failure_reason = (
@@ -290,6 +296,9 @@ class OpenAIConversationAdapter:
                     f"OpenAI response ended with status {parsed.status}",
                     reason=failure_reason,
                     metrics=metrics,
+                    usage=usage,
+                    provider_response_observed=True,
+                    service_tier_verified=True,
                 )
             text_parts: list[str] = []
             for raw_item in parsed.output:
@@ -302,6 +311,10 @@ class OpenAIConversationAdapter:
                         "OpenAI returned an unsupported output item",
                         reason=ConversationProviderFailureReason.RESPONSE_MALFORMED,
                         metrics=metrics,
+                        usage=usage,
+                        provider_response_observed=True,
+                        response_completed=True,
+                        service_tier_verified=True,
                     )
                 try:
                     item = _OpenAIOutputMessage.model_validate(raw_item)
@@ -312,6 +325,10 @@ class OpenAIConversationAdapter:
                         "OpenAI returned a malformed assistant output item",
                         reason=ConversationProviderFailureReason.RESPONSE_MALFORMED,
                         metrics=metrics,
+                        usage=usage,
+                        provider_response_observed=True,
+                        response_completed=True,
+                        service_tier_verified=True,
                     ) from None
                 if any(isinstance(part, _OpenAIRefusalContent) for part in item.content):
                     raise GenerationFailed(
@@ -320,6 +337,10 @@ class OpenAIConversationAdapter:
                         "OpenAI refused to generate a conversational response",
                         reason=ConversationProviderFailureReason.RESPONSE_REFUSED,
                         metrics=metrics,
+                        usage=usage,
+                        provider_response_observed=True,
+                        response_completed=True,
+                        service_tier_verified=True,
                     )
                 text_parts.extend(
                     part.text for part in item.content if isinstance(part, _OpenAITextContent)
@@ -332,6 +353,10 @@ class OpenAIConversationAdapter:
                     "OpenAI response contains no assistant output_text",
                     reason=ConversationProviderFailureReason.MISSING_ASSISTANT_TEXT,
                     metrics=metrics,
+                    usage=usage,
+                    provider_response_observed=True,
+                    response_completed=True,
+                    service_tier_verified=True,
                 )
             if self.reasoning_effort != "none" and self.reasoning_token_allowance > 0:
                 if visible_output_tokens is None:
@@ -341,6 +366,10 @@ class OpenAIConversationAdapter:
                         "OpenAI usage required to enforce the visible output limit",
                         reason=ConversationProviderFailureReason.USAGE_METADATA_INVALID,
                         metrics=metrics,
+                        usage=usage,
+                        provider_response_observed=True,
+                        response_completed=True,
+                        service_tier_verified=True,
                     )
                 if visible_output_tokens > requested_output_limit:
                     raise InvalidProviderResponse(
@@ -349,6 +378,10 @@ class OpenAIConversationAdapter:
                         "OpenAI visible output exceeded the requested output limit",
                         reason=(ConversationProviderFailureReason.VISIBLE_OUTPUT_LIMIT_EXCEEDED),
                         metrics=metrics,
+                        usage=usage,
+                        provider_response_observed=True,
+                        response_completed=True,
+                        service_tier_verified=True,
                     )
             return ConversationProviderResponse(
                 text=text,

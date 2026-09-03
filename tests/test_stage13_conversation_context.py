@@ -21,7 +21,7 @@ from satori.application.conversation.contracts import (
     RuntimeCharacterContext,
     TalkInput,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V9
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V9, BEHAVIOR_POLICY_V27
 from satori.application.positions.contracts import (
     InclinationContextItem,
     SatoriInclinationsContext,
@@ -322,10 +322,12 @@ class _CountingPositionsProjection:
         identity_id: str,
         user_text: str,
         as_of: datetime,
+        include_owned_topic: bool = False,
     ) -> SatoriInclinationsContext:
         assert identity_id
         assert "джаз" in user_text.casefold()
         assert as_of == AS_OF
+        assert include_owned_topic is False
         self.inclination_reads += 1
         return self.inclination_context
 
@@ -387,6 +389,7 @@ def test_metadata_roundtrip_and_replay_preserve_exact_projection_without_extra_c
         clock=FrozenClock(AS_OF),
         id_generator=id_sequence("stage13-conversation-context"),
         appraisal_provider=appraisal,
+        behavior_policy=BEHAVIOR_POLICY_V27,
     )
     projection = _CountingPositionsProjection(_available_context())
     services.talk.get_positions = cast(GetSatoriPositions, projection)

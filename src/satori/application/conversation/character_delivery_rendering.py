@@ -3,6 +3,14 @@
 # ruff: noqa: RUF001  # Russian character guidance intentionally uses Cyrillic.
 
 from satori.application.cognition.templates import CognitionStrategyTemplate
+from satori.application.conversation.character_agency import (
+    CharacterAgencyAct,
+    CharacterAgencyDrive,
+    CharacterAgencyInitiative,
+    CharacterAgencyLead,
+    CharacterAgencyReason,
+    CharacterAgencySubject,
+)
 from satori.application.conversation.character_delivery_contracts import (
     CHARACTER_PRESENCE_PERSONALITY_CODES,
     CHARACTER_PRESENCE_VALUE_KEYS,
@@ -596,6 +604,177 @@ _V27_RELATIONSHIP = {
     "guarded_only_when_relationally_relevant": "недавнее напряжение делает личный ход сдержаннее",
 }
 
+_V28_AGENCY_DRIVE = {
+    CharacterAgencyDrive.NONE: "не добавляет отдельного личного импульса",
+    CharacterAgencyDrive.CONNECT: "ищет живой контакт с собеседником",
+    CharacterAgencyDrive.EXPLORE: "хочет сама разобраться в теме глубже",
+    CharacterAgencyDrive.EXPRESS_VIEW: "хочет выразить собственное суждение",
+    CharacterAgencyDrive.CHALLENGE: "видит основание честно возразить",
+    CharacterAgencyDrive.CARE: "хочет проявить участие без опеки сверху",
+    CharacterAgencyDrive.PLAY: "выбирает лёгкую игру или сухой край к ситуации",
+    CharacterAgencyDrive.SHARE_SELF: "хочет немного раскрыться от себя",
+    CharacterAgencyDrive.HELP: "сама хочет реально помочь по существу",
+    CharacterAgencyDrive.PROTECT: "ставит защиту выше лёгкости разговора",
+    CharacterAgencyDrive.REPAIR: "сама входит в исправление своего промаха",
+    CharacterAgencyDrive.CLOSE: "считает тему завершённой",
+    CharacterAgencyDrive.RESERVE: "предпочитает сдержанность фальшивой теплоте",
+}
+_V28_AGENCY_ACT = {
+    CharacterAgencyAct.RESPOND: "самостоятельно ответить",
+    CharacterAgencyAct.ACKNOWLEDGE: "кратко и лично отметить происходящее",
+    CharacterAgencyAct.SHARE: "внести одно собственное наблюдение или позицию",
+    CharacterAgencyAct.QUESTION: "задать один содержательный вопрос",
+    CharacterAgencyAct.PROPOSE: "предложить один свой следующий ход",
+    CharacterAgencyAct.CHALLENGE: "возразить по существу",
+    CharacterAgencyAct.CARE: "проявить точное личное участие",
+    CharacterAgencyAct.HELP: "полностью помочь по существу",
+    CharacterAgencyAct.STAY_PRESENT: "остаться с прямо названным переживанием",
+    CharacterAgencyAct.SET_BOUNDARY: "обозначить ясный защитный предел",
+    CharacterAgencyAct.REPAIR: "признать свой промах и исправить его сейчас",
+    CharacterAgencyAct.CLOSE: "кратко закрыть тему",
+}
+_V28_AGENCY_SUBJECT = {
+    CharacterAgencySubject.CURRENT_EXCHANGE: "текущего обмена репликами",
+    CharacterAgencySubject.USER_REQUEST: "прямого запроса собеседника",
+    CharacterAgencySubject.USER_EXPLICIT_STATE: "явно названного состояния собеседника",
+    CharacterAgencySubject.SATORI_SELF: "только supplied self Сатори",
+    CharacterAgencySubject.CANONICAL_POSITION: (
+        "одной supplied позиции Сатори без расширения её смысла"
+    ),
+    CharacterAgencySubject.CANONICAL_INCLINATION: (
+        "одной supplied склонности Сатори, не превращая её в биографию"
+    ),
+    CharacterAgencySubject.RELATIONSHIP: ("supplied состояния отношений без придуманных причин"),
+    CharacterAgencySubject.SAFETY: "прямо релевантной границы безопасности",
+}
+_V28_AGENCY_LEAD = {
+    CharacterAgencyLead.OWNED_MOVE_FIRST: (
+        "Начни этим собственным ходом; затем без смены голоса {}"
+    ),
+    CharacterAgencyLead.FUSED: ("Слей этот собственный ход с обязательным смыслом: {}"),
+    CharacterAgencyLead.OBLIGATION_FIRST: (
+        "Сначала {}; затем заверши собственный ход в той же реплике"
+    ),
+}
+_V28_AGENCY_INITIATIVE = {
+    CharacterAgencyInitiative.NONE: "Не добавляй второго движения.",
+    CharacterAgencyInitiative.STAY_ON_TOPIC: "Останься в текущей теме.",
+    CharacterAgencyInitiative.ADVANCE_CURRENT: (
+        "Продвинь текущую тему на один содержательный шаг."
+    ),
+    CharacterAgencyInitiative.SHIFT_ADJACENT: (
+        "После текущего смысла сделай один supplied-смежный ход без будущего обещания."
+    ),
+    CharacterAgencyInitiative.STOP: "Остановись сразу после этого хода.",
+}
+_V28_PRESSURE = {
+    CharacterPressureLevel.NONE: "",
+    CharacterPressureLevel.GENTLE: " Толчок только мягкий и необязательный.",
+    CharacterPressureLevel.MODERATE: " Допустима умеренная прямота без стыда.",
+    CharacterPressureLevel.FIRM: " Твёрдость только к вредному действию.",
+}
+_V28_GROUNDING = {
+    CharacterGroundingMode.REACTION_ONLY: (
+        "Факты ограничь явными словами; новым может быть только собственная реакция Сатори"
+    ),
+    CharacterGroundingMode.EXPLICIT_INPUT_ONLY: ("О собеседнике утверждай только явно сказанное"),
+    CharacterGroundingMode.TRUSTED_CONTEXT: (
+        "Факты бери только из явных слов и supplied trusted context"
+    ),
+}
+if (
+    set(_V28_AGENCY_DRIVE) != set(CharacterAgencyDrive)
+    or set(_V28_AGENCY_ACT) != set(CharacterAgencyAct)
+    or set(_V28_AGENCY_SUBJECT) != set(CharacterAgencySubject)
+    or set(_V28_AGENCY_LEAD) != set(CharacterAgencyLead)
+    or set(_V28_AGENCY_INITIATIVE) != set(CharacterAgencyInitiative)
+):
+    raise RuntimeError("character agency rendering must cover every closed semantic code")
+
+
+def _render_character_agency_v28(
+    projection: CharacterPresenceProjection,
+    *,
+    cognition_template: CognitionStrategyTemplate,
+) -> str:
+    """Render the selected agency and cognition boundary as one cohesive direction."""
+
+    decision = projection.decision
+    agency = decision.agency
+    if agency is None:
+        raise ValueError("character presence v3 requires one typed agency decision")
+    if (
+        agency.subject is CharacterAgencySubject.CANONICAL_POSITION
+        and not projection.canonical_position_available
+    ):
+        raise ValueError("canonical position agency requires an available owner projection")
+    if (
+        agency.subject is CharacterAgencySubject.CANONICAL_INCLINATION
+        and not projection.topic_inclination_available
+    ):
+        raise ValueError("canonical inclination agency requires an available owner projection")
+
+    cognition_boundary = cognition_template.render_operational_support(
+        intent_registry_version=decision.cognition_intent_registry_version,
+        intent_tags=decision.cognition_intent_tags,
+        point_codes=decision.required_point_codes,
+        must_not_claim=decision.forbidden_claim_codes,
+        preserve_uncertainty=decision.preserve_uncertainty,
+        verbosity=decision.response_verbosity,
+    )
+    prefix = "Cognition-boundary: "
+    if not cognition_boundary.startswith(prefix) or not cognition_boundary.endswith("."):
+        raise ValueError("character agency requires the canonical cognition boundary rendering")
+    cognition_boundary = cognition_boundary.removeprefix(prefix).removesuffix(".")
+
+    directional_posture = next(
+        (item for item in projection.personality_signals if item.direction is not None),
+        None,
+    )
+    personality_posture = _V27_PERSONALITY_MOVE[
+        directional_posture.code
+        if directional_posture is not None
+        else agency.source_personality_codes[0]
+    ]
+    if directional_posture is not None:
+        personality_posture = (
+            "сейчас заметнее: "
+            if directional_posture.direction == "slightly_stronger"
+            else "сейчас сдержаннее: "
+        ) + personality_posture
+    value_guard = _V27_VALUE_MOVE[agency.source_value_key]
+    relevant_state: list[str] = []
+    if projection.affect_relevant and projection.affect_signals:
+        relevant_state.append(_V27_AFFECT[projection.affect_signals[0].code])
+    if projection.relationship_relevant and projection.relationship_profile is not None:
+        relevant_state.append(_V27_RELATIONSHIP[projection.relationship_profile])
+    state_fragment = (
+        ", с поправкой только на " + "; ".join(relevant_state) if relevant_state else ""
+    )
+    movement_with_cognition = (
+        f"Выполни обязательный смысл: {cognition_boundary}"
+        if agency.drive is CharacterAgencyDrive.NONE
+        else _V28_AGENCY_LEAD[agency.lead].format(cognition_boundary)
+    )
+    current_attention_boundary = (
+        " На вопрос о текущем внимании отвечай только из текущего обмена репликами; "
+        "никакой внесценной деятельности, скрытой мысли или нового устойчивого интереса не "
+        "supplied, поэтому не выдумывай их."
+        if CharacterAgencyReason.CURRENT_ATTENTION_REQUEST in agency.reason_codes
+        else ""
+    )
+    return (
+        "Trusted current-turn agency Сатори — одно цельное направление, не текст ответа. "
+        f"Сатори {_V28_AGENCY_DRIVE[agency.drive]} и потому решает "
+        f"{_V28_AGENCY_ACT[agency.act]} в пределах "
+        f"{_V28_AGENCY_SUBJECT[agency.subject]}; при этом {personality_posture}, "
+        f"а {value_guard}{state_fragment}. {movement_with_cognition}. "
+        f"{_V28_GROUNDING[decision.grounding]}. "
+        f"{_V28_AGENCY_INITIATIVE[agency.initiative]}"
+        f"{_V28_PRESSURE[decision.pressure]}{current_attention_boundary} "
+        "Верни одну естественную реплику Сатори."
+    )
+
 
 def _render_character_move_v27(
     projection: CharacterPresenceProjection,
@@ -665,6 +844,11 @@ def render_character_presence(
 ) -> str:
     """Render one lean causal presence instead of a stack of independent style rules."""
 
+    if projection.schema_version == 3:
+        return _render_character_agency_v28(
+            projection,
+            cognition_template=cognition_template,
+        )
     if projection.schema_version == 2:
         return _render_character_move_v27(
             projection,

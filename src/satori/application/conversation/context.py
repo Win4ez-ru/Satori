@@ -22,11 +22,14 @@ from satori.application.cognition.templates import (
     COGNITION_TEMPLATE_REGISTRY_V3,
     CognitionTemplateRegistry,
 )
+from satori.application.conversation.character_agency import CharacterAgencyDecision
 from satori.application.conversation.character_delivery import (
     CHARACTER_DELIVERY_DECISION_V2_SCHEMA_VERSION,
     CHARACTER_DELIVERY_DECISION_V3_SCHEMA_VERSION,
     CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION,
+    CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION,
     CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION,
+    CHARACTER_PRESENCE_PROJECTION_V3_SCHEMA_VERSION,
     CharacterDeliveryDecision,
     CharacterDeliveryGoal,
     CharacterPresenceProjection,
@@ -126,6 +129,7 @@ from satori.domain.initial_self import InitialSelfSnapshot
 
 RUNTIME_CHARACTER_CONTEXT_SCHEMA_VERSION = 16
 CONTEXT_MANIFEST_SCHEMA_VERSION = 16
+CONTEXT_MANIFEST_V17_SCHEMA_VERSION = 17
 PROVIDER_REQUEST_SCHEMA_VERSION = 1
 GENERATION_PARAMETERS_SCHEMA_VERSION = 1
 PERSONALITY_EXPRESSION_PROJECTION_SCHEMA_VERSION = 2
@@ -774,13 +778,24 @@ def _analyze_satori_self_request(normalized: str) -> _SatoriSelfRequestScope:
     )
 
 
-def _is_social_only_message(normalized: str) -> bool:
+def _is_social_only_message(
+    normalized: str,
+    *,
+    allow_named_greeting: bool = False,
+) -> bool:
     without_greeting = re.sub(
         r"^(?:ну\s+)?(?:привет(?:ик)?|здравствуй)(?:те)?(?:[\s,.!?…—–:-]+|$)",
         "",
         normalized,
         count=1,
     ).strip()
+    if allow_named_greeting:
+        without_greeting = re.sub(
+            r"^сатори(?:[\s,.!?…—–:-]+|$)",
+            "",
+            without_greeting,
+            count=1,
+        ).strip()
     return (
         not without_greeting
         or _is_direct_state_check_in(without_greeting)
@@ -1007,7 +1022,15 @@ def _classify_primary_mode(
         return ConversationalDisclosureMode.GENERAL
     simple_check_in = _is_direct_state_check_in(normalized)
     if (
-        (v25_routing and _is_social_only_message(normalized))
+        (
+            v25_routing
+            and _is_social_only_message(
+                normalized,
+                allow_named_greeting=(
+                    policy_schema_version is not None and policy_schema_version >= 28
+                ),
+            )
+        )
         or (not v25_routing and ("привет" in normalized or simple_check_in))
         or (v25_routing and _is_reciprocal_warmth(normalized))
     ):
@@ -1287,6 +1310,7 @@ class ConversationRequestBuilder:
         dialogue_context: DialogueCoherenceContext | None = None,
         cognition_trace: CognitionPipelineTrace | None = None,
         character_evidence: CharacterRequestEvidence | None = None,
+        character_agency: CharacterAgencyDecision | None = None,
     ) -> tuple[ConversationProviderRequest, ConversationContextManifest]:
         """Create one bounded single-turn request and its non-sensitive manifest."""
 
@@ -1382,6 +1406,12 @@ class ConversationRequestBuilder:
                 raise ValueError(
                     "behavior policy v24 requires applied or fallback cognition artifacts"
                 )
+            if (self.policy.schema_version >= 28) is not isinstance(
+                character_agency, CharacterAgencyDecision
+            ):
+                raise ValueError(
+                    "behavior policy v28 requires exactly one typed character agency decision"
+                )
             expected_evidence_signals = {
                 PerceptionSignal.EXPLICIT_LISTEN_REQUEST: (
                     character_evidence.explicit_listen_request
@@ -1447,7 +1477,9 @@ class ConversationRequestBuilder:
                 direct_objection=character_evidence.direct_objection,
                 topic_closure=character_evidence.topic_closure,
                 decision_schema_version=(
-                    CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION
+                    CHARACTER_DELIVERY_DECISION_V5_SCHEMA_VERSION
+                    if self.policy.schema_version >= 28
+                    else CHARACTER_DELIVERY_DECISION_V4_SCHEMA_VERSION
                     if self.policy.schema_version >= 27
                     else CHARACTER_DELIVERY_DECISION_V3_SCHEMA_VERSION
                     if self.policy.schema_version == 26
@@ -1467,6 +1499,7 @@ class ConversationRequestBuilder:
                 ),
                 live_traits=context.traits if self.policy.schema_version >= 27 else None,
                 live_values=context.values if self.policy.schema_version >= 27 else None,
+                agency=character_agency,
             )
             if self.policy.schema_version >= 26:
                 memory_use_licensed = bool(
@@ -1496,7 +1529,9 @@ class ConversationRequestBuilder:
                         and inclination_context.status == "available"
                     ),
                     projection_schema_version=(
-                        CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION
+                        CHARACTER_PRESENCE_PROJECTION_V3_SCHEMA_VERSION
+                        if self.policy.schema_version >= 28
+                        else CHARACTER_PRESENCE_PROJECTION_V2_SCHEMA_VERSION
                         if self.policy.schema_version >= 27
                         else 1
                     ),
@@ -1984,7 +2019,11 @@ class ConversationRequestBuilder:
             ),
         )
         manifest = ConversationContextManifest(
-            schema_version=CONTEXT_MANIFEST_SCHEMA_VERSION,
+            schema_version=(
+                CONTEXT_MANIFEST_V17_SCHEMA_VERSION
+                if self.policy.schema_version >= 28
+                else CONTEXT_MANIFEST_SCHEMA_VERSION
+            ),
             policy_id=self.policy.policy_id,
             policy_schema_version=self.policy.schema_version,
             character_context_schema_version=context.schema_version,
@@ -2015,6 +2054,7 @@ class ConversationRequestBuilder:
                         section == "cognition_response_strategy"
                         and cognition_strategy_content is None
                     )
+                    or (section == "character_agency_decision" and character_agency is None)
                     or (
                         section == "character_delivery_decision"
                         and character_delivery_decision is None
@@ -2225,6 +2265,44 @@ class ConversationRequestBuilder:
             cognition_template_schema_version=(
                 cognition_templates.active.schema_version if cognition_trace is not None else None
             ),
+            character_agency_decision_schema_version=(
+                character_agency.schema_version if character_agency is not None else None
+            ),
+            character_agency_status=(
+                character_agency.status.value if character_agency is not None else None
+            ),
+            character_agency_drive=(
+                character_agency.drive.value if character_agency is not None else None
+            ),
+            character_agency_act=(
+                character_agency.act.value if character_agency is not None else None
+            ),
+            character_agency_subject=(
+                character_agency.subject.value if character_agency is not None else None
+            ),
+            character_agency_initiative=(
+                character_agency.initiative.value if character_agency is not None else None
+            ),
+            character_agency_lead=(
+                character_agency.lead.value if character_agency is not None else None
+            ),
+            character_agency_source_personality_codes=(
+                character_agency.source_personality_codes if character_agency is not None else ()
+            ),
+            character_agency_source_value_key=(
+                character_agency.source_value_key if character_agency is not None else None
+            ),
+            character_agency_reason_codes=(
+                tuple(reason.value for reason in character_agency.reason_codes)
+                if character_agency is not None
+                else ()
+            ),
+            character_agency_source_refs=(
+                character_agency.source_refs if character_agency is not None else ()
+            ),
+            character_agency_subject_ref=(
+                character_agency.subject_ref if character_agency is not None else None
+            ),
             character_expression_plan_schema_version=(
                 character_expression_plan.schema_version
                 if character_expression_plan is not None and self.policy.schema_version >= 15
@@ -2432,7 +2510,10 @@ class ConversationRequestBuilder:
             }
             and len(plan.required_facets) >= 3
         ):
-            return 160
+            # V27's three-facet self-disclosure move needs a little more conservative
+            # non-reasoning-output headroom under reasoning-enabled providers. Keep the frozen
+            # historical V25/V26 request contract at its original 160-token ceiling.
+            return 200 if self.policy.schema_version >= 27 else 160
         if completed_achievement and (
             mode is ConversationalDisclosureMode.SOCIAL or self.policy.schema_version >= 25
         ):

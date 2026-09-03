@@ -58,6 +58,7 @@ EXPECTED_DATACLASS_FIELDS = {
     "response_verbosity",
     "required_disclosure_facets",
     "source_personality_codes",
+    "agency",
 }
 EXPECTED_GROUPS = {
     "achievement",

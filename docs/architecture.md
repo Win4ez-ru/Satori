@@ -245,6 +245,16 @@ queues only new non-replayed completed interactions and drains the in-process qu
 shutdown. Each derived owner retains its source/version terminal decision and Unit of Work, so
 failure cannot roll back or corrupt the response. No external queue or service is involved.
 
+The interactive indicator is presentation-only: a TTY cycles `Сатори печатает.`, `..`,
+`...` while the foreground turn is pending, while a redirected/non-TTY stream emits one stable
+line. Cancellation and every exception path stop and clear the animator before any later output.
+For an exact allowlist of transient transport, response-contract and grounding failures the CLI
+may print versioned deterministic `[Сатори не ответила]` recovery copy. This is UI chrome,
+not a `SatoriReply`: it never enters history, recent context, affect, evidence or post-response
+work and never causes provider retry/fallback. Credential, model, quota, rejected request/refusal,
+unknown and persistence failures remain explicit; an exhaustive enum-partition test fails closed
+when a new provider reason is not deliberately classified.
+
 Recent session context is a bounded read projection, not persistent memory state. It reads only
 completed canonical user/assistant pairs, preserves role separation and whole-turn ordering, and
 drops oldest pairs under turn/character bounds. Full history remains stored but is never stuffed
@@ -559,17 +569,25 @@ roles, maps an adapter-local reasoning effort and sets `store=false`. ADR-0032 k
 turn-specific `max_output_tokens` as the application-visible reply cap but, when reasoning is
 enabled, derives the OpenAI wire cap by adding a bounded provider-local reasoning allowance.
 Completed reasoning-enabled Responses must expose a consistent usage breakdown; the adapter
-derives visible tokens from total output minus reasoning tokens and fails closed if the visible
-cap cannot be enforced or is exceeded. Total output remains the billing usage value. The two caps
-and token split are transient metadata-only provider metrics, not persistent state or a new owner.
+derives a conservative non-reasoning output remainder from total output minus reasoning tokens and
+fails closed if that upper bound cannot be enforced or exceeds the visible-reply cap. ADR-0044
+clarifies that this is not proof of exact visible-text tokenization; the historical
+`visible_output_tokens` metric name remains a compatibility key. Total output remains the billing
+usage value. The two caps and token split are transient metadata-only provider metrics, not
+persistent state or a new owner. A parsed post-response failure may cross the typed error boundary
+with immutable numeric usage and closed observed/completed/tier facts for exact cost accounting,
+but never with output text, body, prompt, credentials or raw reasoning; failed calls remain invalid
+sample evidence.
 Temperature is mapped only when reasoning is `none`; reasoning-enabled calls omit that
 provider-incompatible sampling field. An incomplete Response remains fail-closed; only the typed
 allowlisted reason `max_output_tokens` or a safe `unknown` value can cross the adapter boundary,
 never partial output or an arbitrary provider detail. OpenAI provider conversation state, tools,
 streaming and raw reasoning output are unused. The credential is pinned to
 `https://api.openai.com/v1`; background capabilities and all
-canonical owners remain local/Ollama-only. There is still no automatic fallback or hidden retry,
-and `gpt-5.6-terra` remains an unaccepted candidate until the frozen v16 semantic gate passes.
+canonical owners remain local/Ollama-only. There is still no automatic fallback or hidden retry.
+The immutable digest-bound V27/Terra sample failed direct human provider-fit review; Terra remains
+unaccepted rather than awaiting a rerun of that consumed gate. Its next possible evidence is a
+paired V27/V28 Checkpoint 14.3 comparison that must be separately planned and authorized.
 
 Stage 4 использует отдельный `StructuredGenerationPort[EpisodeFormationRequest, EpisodeFormationProviderResponse]`. Infrastructure adapter отправляет только одну completed interaction как untrusted data в Ollama `/api/chat`, задаёт JSON Schema через documented `format`, `stream=false`, `think=false`, temperature `0` и strict Pydantic parsing. Proposal содержит create/skip, summary, importance, confidence и exact evidence spans. Provider не получает repository/UoW и не принимает final memory decision; `MemoryManager` валидирует proposal детерминированно.
 
@@ -916,9 +934,10 @@ added.
 The separately authorized attempt-5 sample later rejected the frozen V26/Terra composition. It is
 historical provider evidence, not a phrase target or proof of a Terra model ceiling.
 
-ADR-0043 makes policy v27 the current offline production-composition candidate while remaining
-inside Checkpoint 14.2. It advances the transient decision/presence schemas to 4/2 and reverses the
-V26 explanation-after-selection order: cognition, complete validated runtime personality/values,
+ADR-0043 made policy v27 the then-current offline production-composition candidate inside
+Checkpoint 14.2. That now-rejected historical policy advances the transient decision/presence
+schemas to 4/2 and reverses the V26 explanation-after-selection order: cognition, complete
+validated runtime personality/values,
 current affect, scoped relationship and narrow request evidence select one movement before any
 provider prose is rendered. Canonical values remain equal immutable guards; live variation is not
 falsely attributed to value drift. Personality/value operational meanings are defined once in the
@@ -938,11 +957,35 @@ and one ending. Across six identical public inputs it is 6,465 characters versus
 (54.48%). All 40 historical V26 public projections remain byte-stable as an aggregate, and the
 historical paid runner is retired before settings, claims, provider construction or network.
 V27 changes no foreground port, persistence owner, mutation path, validator reason or retry count.
-No V27 provider or paid call has occurred; only a separately authorized immutable sample with
-direct human review can accept provider fit.
+The separately authorized V27 attempt-2 sample completed 24/24 base calls without retry. Direct
+human-only review rejected it: sampled grounding/completeness are strong, but recognizable Satori
+presence passes only 6/24 and natural delivery 9/24. Technical correctness does not accept provider
+fit.
 
 Stage 15 remains locked: autobiographical state would add another fact source but would not repair
 the expression bridge.
+
+ADR-0045 opens Checkpoint 14.3 after that rejection. Policy v28 inserts a pure typed
+`CharacterAgencyDecision` between immutable state reads and cognition completion. The decision
+selects one current drive, act, subject, initiative scope and lead order from personality/values,
+current affect/relationship, prepared cognition intake and supplied owner-approved
+position/inclination state. It is neither a persistent goal nor evidence, has no repository, and
+expires with the foreground interaction. Cognition still owns every required point, forbidden
+claim, safety boundary, stance and uncertainty; delivery schema 5 merges those obligations with
+the already selected agency act into one presence-schema-3 provider movement. Retry reuses the
+same bytes and provider output cannot feed back into either decision or state.
+
+If cognition completion itself enters fallback after an applied intake, policy v28 replaces the
+earlier move before rendering with its only conservative fallback agency topology. Delivery
+selection and manifest schema 17 require exact cognition/agency status parity; the fallback does
+not erase cognition-owned safety, repetition or uncertainty obligations.
+
+For a complete-topic turn only, v28 may broaden the existing inclination read to at most the
+bounded strongest positive owner-approved `interest`. The exact inclination ID and supplied state
+remain the only license for an adjacent owned topic; no inclination means current-topic engagement
+or a natural stop, never an invented hobby. Activation seed v1, Stage 13 formation rules and every
+persistent table remain unchanged. Seed-origin interests require a separate Phase B decision and
+are not part of this architecture.
 
 ## 8. Deterministic vs LLM responsibilities
 
@@ -955,8 +998,8 @@ the expression bridge.
 | Candidate retrieval/filtering | Yes | No | Semantic vector may be model-produced |
 | Retrieval ranking | Yes | No | Optional reranker только после eval/ADR |
 | Situation classification | Partial | Yes | Hybrid: rules + structured model |
-| Stage 10 perception/need mix/position/intent/strategy | Yes | No | Replaceable planner port; intent V1 retained for v10/v19–v23, intent V2 for v24–v27; substance template V2 for v24 and V3 for v25–v27; V27 renders its complete validated V3 support compactly inside one move; explicit conservative fallback |
-| Current-turn character presence | Yes | No | V27 derives one request-local schema-2 proof from existing owned personality, one contextual value guard, affect, scoped relationship, exact retrieved-memory/trusted-grounding license and bounded support availability after those inputs select schema-4 movement; no state write or provider judgement |
+| Stage 10 perception/need mix/position/intent/strategy | Yes | No | Replaceable planner port; intent V1 retained for v10/v19–v23, intent V2 for v24–v28; substance template V2 for v24 and V3 for v25–v28; v28 preserves its complete validated support after an upstream request-local agency choice; explicit conservative fallback |
+| Current-turn character agency/presence | Yes | No | V28 selects one transient schema-1 agency decision before cognition completion, then merges it with unchanged cognition obligations in delivery/presence schemas 5/3; existing personality/value/affect/relationship/position/inclination owners remain authoritative; no state write, extra provider call or provider judgement |
 | Dialogue coherence signals | Yes | No | Pure bounded recent/current projection; no persistence |
 | Semantic appraisal | No | Yes | Typed output, deterministic validation |
 | Emotion delta proposal | Partial | Yes | Owner clamps/applies deterministically |
@@ -1057,6 +1100,13 @@ Checkpoint 14.2 v27 manifests version the same transient boundary as decision/pr
 require exactly one bounded value guard and retain the exact memory-use-license parity. They store
 neither the rendered operational-move block nor generated prose and cannot replay a fresh
 generation or mutate an owner.
+
+Checkpoint 14.3 fresh policy-v28 generation advances only the manifest boundary to schema 17 and
+records the schema-1 agency decision metadata together with delivery/presence schemas 5/3. The
+manifest carries closed drive/act/subject/initiative/lead/reason codes and exact selected canonical
+source references, never prompt prose or a new state snapshot. Historical policies through V27
+remain on manifest schema 16 and reject schema-17 agency authority; non-generation replay may omit
+the complete transient agency/delivery/presence set but cannot synthesize it.
 
 ## 10. Security and privacy
 

@@ -239,10 +239,7 @@ def test_golden_history_and_episode_survive_full_restart(
     assert request_messages[-1].role.value == "user"
     assert request_messages[-1].content == interaction.user_message.content
     assert (
-        sum(
-            "Trusted current-turn presence Сатори" in message.content
-            for message in request_messages
-        )
+        sum("Trusted current-turn agency Сатори" in message.content for message in request_messages)
         == 1
     )
     assert all(

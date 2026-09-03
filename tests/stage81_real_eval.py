@@ -189,6 +189,8 @@ class RecordingConversationProvider:
         try:
             response = await self.delegate.generate(request)
         except Exception as error:
+            typed_error = error if isinstance(error, ConversationProviderError) else None
+            usage = typed_error.usage if typed_error is not None else None
             self.attempts.append(
                 ProviderAttempt(
                     wall_ms=round((time.perf_counter() - started) * 1000, 3),
@@ -199,15 +201,18 @@ class RecordingConversationProvider:
                     request_content_chars=sum(len(message.content) for message in request.messages),
                     temperature=request.parameters.temperature,
                     max_output_tokens=request.parameters.max_output_tokens,
-                    input_tokens=None,
-                    output_tokens=None,
+                    input_tokens=(usage.input_tokens if usage is not None else None),
+                    output_tokens=(usage.output_tokens if usage is not None else None),
                     provider_metrics=(
-                        error.metrics.as_log_fields()
-                        if isinstance(error, ConversationProviderError)
-                        and error.metrics is not None
+                        typed_error.metrics.as_log_fields()
+                        if typed_error is not None and typed_error.metrics is not None
                         else None
                     ),
-                    finish_status=None,
+                    finish_status=(
+                        "completed"
+                        if typed_error is not None and typed_error.response_completed
+                        else None
+                    ),
                     succeeded=False,
                     error_type=type(error).__name__,
                 )

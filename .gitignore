@@ -11,8 +11,4 @@ htmlcov/
 build/
 dist/
 *.egg-info/
-var/*.db
-var/*.db-*
-var/*.jsonl
-var/evaluation-authorizations/
-var/evaluations/
+var/

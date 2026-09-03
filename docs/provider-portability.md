@@ -17,8 +17,11 @@ echoing but does not reliably produce recognizable character or one strictly gro
 move. Stage 15 remains locked.
 
 The later V26 attempt-5 run remained transport-clean but failed direct character review. ADR-0043
-therefore makes V27 the current offline application-composition candidate; it changes no provider
-wire and has made no provider or paid call.
+therefore makes V27 the current application-composition candidate; it changes no provider wire.
+Its separately authorized first production attempt consumed 19 base calls with zero retry and
+stopped after 18 successes on an application-visible output-boundary failure. It is incomplete and
+has no provider-fit verdict. ADR-0044 now prepares a distinct attempt 2 offline; it has no
+authorization, provider calls or cost.
 
 ## Purpose and boundary
 
@@ -118,8 +121,10 @@ review. The later v24 `core_emotional` gate was also rejected. The v25 exact-man
 9/9 first-attempt turns; its recorded token totals give a repository standard-rate estimate of
 USD 0.036292, not a cache-detail-verified exact invoice. It proved the typed social/self-disclosure
 wire but did not accept character quality. ADR-0042's V26 attempt-5 sample was later rejected by
-direct human review. ADR-0043 now defines V27 as the current offline architecture candidate; no
-V27 provider-quality evidence exists.
+direct human review. ADR-0043 defines V27 as the current architecture candidate. Its incomplete
+attempt 1 is not a provider-quality verdict. ADR-0044's separately authorized attempt 2 completed
+its technical sample and was rejected by direct human-only review at `S=6/24`, `N=9/24` and
+cross-session `FFTFTF` despite `G=24/24` and `Q=24/24`.
 
 OpenAI sampling temperature is sent only with `SATORI_OPENAI_REASONING_EFFORT=none`. With `low` or
 higher reasoning the adapter omits temperature, because the Responses API rejects that
@@ -127,8 +132,9 @@ combination. The provider-neutral turn-specific output bound remains the maximum
 With reasoning enabled, ADR-0032 adds the bounded provider-local allowance above to derive the
 wire `max_output_tokens`; with `none`, wire and visible limits are identical. A completed
 reasoning-enabled Response must include a consistent reasoning-token breakdown so the adapter can
-enforce the original visible cap. Debug/evaluation metadata may report both caps and the
-reasoning/visible split, but never prompt text, partial output, response bodies or raw reasoning.
+conservatively enforce the original visible-reply cap. The derived total-minus-reasoning value is a
+non-reasoning upper bound, not exact visible-text tokenization. Compatibility metrics may report it
+as `visible_output_tokens`, but never prompt text, partial output, response bodies or raw reasoning.
 
 The 2026-08-27 bounded production follow-up set the process-level conversation ceiling to 2048
 while keeping `gpt-5.6-terra`, `reasoning=low`, accepted behavior policy v10 and one-call
@@ -144,7 +150,8 @@ The separately authorized 2026-08-27 ADR-0032 production probe then used one fre
 database, accepted policy v10, `gpt-5.6-terra`, `reasoning=low` and the default 1024-token
 reasoning allowance. Exactly one foreground call completed: the application-visible cap was 48,
 the wire cap was 1072, and reported output split into 58 reasoning plus 47 visible tokens (105
-total). Provider wall time was 5028 ms and committed-reply time was 14187 ms. No retry or second
+total). Under ADR-0044, the historical 47-token field is interpreted as the provider-reported
+non-reasoning remainder. Provider wall time was 5028 ms and committed-reply time was 14187 ms. No retry or second
 paid call occurred. The completed public reply was:
 
 > Привет! Поздравляю с завершением сложной части проекта — это заметная веха. Теперь стоит
@@ -275,8 +282,9 @@ rows remain valid with null reason/provider/model.
 
 OpenAI `status=incomplete` with `incomplete_details.reason=max_output_tokens` maps to
 `output_token_limit`; absent or unsupported details map to `incomplete_unknown`. The official
-OpenAI documentation states that [`max_output_tokens` includes reasoning and visible output and may
-produce `incomplete` before visible text](https://developers.openai.com/api/docs/guides/reasoning#allocating-space-for-reasoning).
+OpenAI documentation states that [`max_output_tokens` includes all generated output, including
+reasoning and other potentially non-visible tokens, and may produce `incomplete` before visible
+text](https://developers.openai.com/api/docs/guides/reasoning#allocating-space-for-reasoning).
 The adapter therefore continues to discard partial text and fail closed. Other adapters map only
 their established transport, terminal and response-contract conditions to the same closed enum.
 Neither reason persistence nor the v25 delivery change adds automatic provider retry or fallback.
@@ -394,10 +402,11 @@ canonical position. Topic closure allows only bounded ease/reserve and continuat
 
 Offline adapter coverage sends the exact composed messages with `store=false`, no tools,
 `previous_response_id`, `conversation` or provider state. The wire maximum is the application
-visible cap plus only the configured reasoning allowance; service tier and explicit cache options
-are preserved. Runtime regressions prove normal one-call completion, exactly one retry after a
-validator violation and no third call after a repeated violation. No actual provider request is
-made by those tests.
+visible-reply cap plus only the configured reasoning allowance; the provider-reported
+non-reasoning remainder is used as a conservative post-response guard. Service tier and explicit
+cache options are preserved. Runtime regressions prove normal one-call completion, exactly one
+retry after a validator violation and no third call after a repeated violation. No actual provider
+request is made by those tests.
 
 The historical V26 paid entrypoint is now retired before settings, filesystem claim, source
 fingerprint, provider construction or network. Retained V26 evidence remains inspectable only
@@ -407,8 +416,31 @@ against its embedded frozen plan/source. The V27 production plan is immutable at
 `medium`, allowance 1024, three clean sessions × eight fixed turns, 24 required/30 maximum calls,
 at most two attempts per turn and USD 0.15. The `/responses` request is stateless, `store=false`,
 tool-free and explicit-cache `0/0`; visible/provider caps are 768/1792. No prior V26 authorization
-can be reused. Execution awaits the exact V27 authorization; provider calls remain zero and provider
-fit remains unaccepted.
+can be reused. That exact V27 authorization was later consumed by attempt 1. It completed 18 of 19
+base calls with no retry before replica 3 turn 3 returned a 164-token provider-reported
+non-reasoning remainder (the historical metric is named `visible`) against its 160-token limit,
+plus 63 reasoning tokens under the combined 1184-token wire cap. The adapter rejected the
+response as `visible_output_limit_exceeded`.
+
+The 18 exact successes used 18,086 input and 1,807 output tokens (854 reasoning, 953 non-reasoning),
+cache `0/0` and USD 0.057856. Failed-call usage and cost are not exact in the retained exception
+evidence; its USD 0.042738 guard gives a total guarded amount of USD 0.100594 below the authorized
+USD 0.15, not a billed-total claim. The incomplete report has no sample digest or review and is
+`INCONCLUSIVE / NOT ACCEPTED`.
+
+ADR-0044 keeps the wire formula but treats `output_tokens - reasoning_tokens` as a conservative
+non-reasoning upper bound rather than exact visible-text tokenization. Only V27's three-facet broad
+self-disclosure bound rises to 200; V25/V26 remain 160. Numeric-only post-response failure evidence
+can now retain exact cache-aware cost without accepting the failed call or sample. The distinct
+attempt-2 plan is
+`sha256:a9085f80811bda520430f5340a02f73053378ec628d881937a97f2c6e75a0c78` under ID
+`satori.checkpoint142.openai.v27.phase1.attempt2.2026-08-30.one-shot`, with vector
+`[48, 48, 200, 96, 96, 384, 112, 96]` and the same 24 required/30 maximum calls and USD 0.15.
+Attempt 1 cannot execute. The separately authorized attempt 2 completed 24/24 base calls with zero
+retry, 25,069 input and 2,353 output tokens, cache `0/0` and exact USD 0.078374. Its technical gate
+is valid and its digest-bound sample is complete. Direct human-only review rejects the frozen
+configuration at `G24 O23 S6 N9 L23 C15 Q24`, cross-session `FFTFTF` and `accepted=false`.
+Provider fit remains unaccepted and Stage 15 remains locked.
 
 ## Credentialed smoke evidence
 

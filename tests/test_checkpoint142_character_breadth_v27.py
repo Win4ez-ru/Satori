@@ -458,7 +458,11 @@ def test_v27_sequential_affect_is_committed_and_carried_into_later_movements(
     appraisal = FakeAffectiveAppraisalProvider(
         response_factory=lambda request: proposal_for(request.interaction_id)
     )
-    services, generator, initial_self = build_affect_services(migrated_database, appraisal)
+    services, generator, initial_self = build_affect_services(
+        migrated_database,
+        appraisal,
+        behavior_policy=BEHAVIOR_POLICY_V27,
+    )
     replies = [
         run_talk(
             services,

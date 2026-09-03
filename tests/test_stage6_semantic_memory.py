@@ -643,10 +643,7 @@ def test_semantic_recall_is_separate_untrusted_grounded_and_not_new_evidence(
     assert request_messages[-1].role.value == "user"
     assert request_messages[-1].content == recall_text
     assert (
-        sum(
-            "Trusted current-turn presence Сатори" in message.content
-            for message in request_messages
-        )
+        sum("Trusted current-turn agency Сатори" in message.content for message in request_messages)
         == 1
     )
     semantic_message = next(

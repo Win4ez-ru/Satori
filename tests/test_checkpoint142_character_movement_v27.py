@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -39,7 +39,11 @@ from satori.application.conversation.policy import BEHAVIOR_POLICY_V26, BEHAVIOR
 from satori.application.conversation.response_validation import ResponseRegenerationReason
 from satori.application.conversation.use_cases import TalkToSatori
 from satori.composition import build_conversation_services, build_initial_self_services
-from satori.core.conversation import ConversationProviderRequest
+from satori.core.conversation import (
+    ConversationProviderFailureReason,
+    ConversationProviderRequest,
+    InvalidProviderResponse,
+)
 from satori.infrastructure.persistence.database import Database
 from satori.infrastructure.providers.openai import OpenAIConversationAdapter
 from tests.test_checkpoint142_character_delivery_v9 import (
@@ -70,8 +74,15 @@ INVENTORY_LABELS = ("Устойчивый центр:", "Текущие знач
 class _CapturingOpenAITransport:
     """Exercise the real adapter contract without opening a network connection."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        visible_output_tokens: int = 2,
+        reasoning_output_tokens: int = 2,
+    ) -> None:
         self.calls: list[tuple[str, dict[str, object], float, int]] = []
+        self.visible_output_tokens = visible_output_tokens
+        self.reasoning_output_tokens = reasoning_output_tokens
 
     def post_json(
         self,
@@ -106,9 +117,11 @@ class _CapturingOpenAITransport:
                         "cached_tokens": 0,
                         "cache_write_tokens": 0,
                     },
-                    "output_tokens": 4,
-                    "output_tokens_details": {"reasoning_tokens": 2},
-                    "total_tokens": 104,
+                    "output_tokens": (self.visible_output_tokens + self.reasoning_output_tokens),
+                    "output_tokens_details": {"reasoning_tokens": self.reasoning_output_tokens},
+                    "total_tokens": (
+                        100 + self.visible_output_tokens + self.reasoning_output_tokens
+                    ),
                 },
             }
         ).encode()
@@ -584,6 +597,34 @@ def test_v27_all_forty_historical_public_scenarios_cross_the_new_boundary() -> N
         assert "character_expression_plan" not in observation.manifest.included_sections
 
 
+def test_v27_all_forty_historical_provider_requests_remain_byte_stable() -> None:
+    scenarios = cast(list[dict[str, Any]], _load_v26_corpus()["scenarios"])
+    requests: list[dict[str, object]] = []
+
+    for scenario in scenarios:
+        state = cast(dict[str, str], scenario["state"])
+        observation = _observe_v27(
+            str(scenario["user_text"]),
+            affect=state["affect"],
+            relationship=state["relationship"],
+            memory_name=state.get("memory"),
+            position_name=state.get("position"),
+            inclination_name=state.get("inclination"),
+        )
+        requests.append(cast(dict[str, object], asdict(observation.request)))
+
+    encoded = json.dumps(
+        requests,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode()
+    assert hashlib.sha256(encoded).hexdigest() == (
+        "29f21808b391a00bc160bc94e74f41211014dd7614ff0967bb24cc30707c8010"
+    )
+
+
 def test_v27_safety_listen_repetition_and_guardedness_precede_objection() -> None:
     recent_position = _recent_position()
     safety = _observe_v27(
@@ -706,6 +747,7 @@ def test_v27_full_runtime_never_exceeds_one_retry(
         provider,
         skip_episode_provider(),
         conversation_settings(),
+        behavior_policy=BEHAVIOR_POLICY_V27,
     )
 
     reply = asyncio.run(
@@ -753,6 +795,7 @@ def test_v27_exact_eight_turns_cross_default_production_composition(
         provider,
         skip_episode_provider(),
         conversation_settings(),
+        behavior_policy=BEHAVIOR_POLICY_V27,
     )
     session_id = services.start_session.execute().session_id
     replies: list[SatoriReply] = []
@@ -792,7 +835,7 @@ def test_v27_exact_eight_turns_cross_default_production_composition(
     assert [request.parameters.max_output_tokens for request in provider.requests] == [
         48,
         48,
-        160,
+        200,
         96,
         96,
         384,
@@ -813,3 +856,59 @@ def test_v27_exact_eight_turns_cross_default_production_composition(
         assert prompt.count(MOVE_MARKER) == 1
         assert all(label not in prompt for label in INVENTORY_LABELS)
         assert request.messages[-1].content == turn["user_text"]
+
+
+def test_v27_three_facet_disclosure_cap_does_not_change_v26_history() -> None:
+    v26_scenario = next(
+        scenario
+        for scenario in cast(list[dict[str, Any]], _load_v26_corpus()["scenarios"])
+        if scenario["id"] == "broad_self_disclosure_without_inclination"
+    )
+    user_text = str(v26_scenario["user_text"])
+
+    historical = _observe_v26(v26_scenario)
+    current = _observe_v27(user_text)
+
+    assert historical.request.parameters.max_output_tokens == 160
+    assert current.request.parameters.max_output_tokens == 200
+
+
+@pytest.mark.parametrize(
+    ("visible_output_tokens", "accepted"),
+    [(164, True), (201, False)],
+)
+def test_v27_openai_three_facet_disclosure_enforces_200_visible_tokens(
+    visible_output_tokens: int,
+    accepted: bool,
+) -> None:
+    user_text = "слушай, а расскажи о себе, кто ты, чем увлекаешься, как себя чувствуешь вообще"
+    request = _observe_v27(user_text).request
+    transport = _CapturingOpenAITransport(
+        visible_output_tokens=visible_output_tokens,
+        reasoning_output_tokens=63,
+    )
+    provider = OpenAIConversationAdapter(
+        base_url="https://api.openai.com/v1",
+        api_key="private-test-key",
+        model="gpt-5.6-terra",
+        timeout_seconds=30.0,
+        reasoning_effort="medium",
+        reasoning_token_allowance=1024,
+        http_client=transport,
+    )
+
+    if accepted:
+        response = asyncio.run(provider.generate(request))
+        assert response.metrics is not None
+        assert response.metrics.visible_output_tokens == 164
+    else:
+        with pytest.raises(InvalidProviderResponse) as failure:
+            asyncio.run(provider.generate(request))
+        assert (
+            failure.value.reason is ConversationProviderFailureReason.VISIBLE_OUTPUT_LIMIT_EXCEEDED
+        )
+        assert failure.value.metrics is not None
+        assert failure.value.metrics.visible_output_tokens == 201
+
+    assert request.parameters.max_output_tokens == 200
+    assert transport.calls[0][1]["max_output_tokens"] == 1224

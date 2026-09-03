@@ -48,7 +48,9 @@ ADR file unchanged and identifies that only the scope named by the newer ADR was
 | [0039](0039-practical-care-and-lean-provider-projection.md) | Superseded in part | Practical care for ordinary depletion and one lean action/evidence/voice/stop provider projection |
 | [0040](0040-direct-character-delivery-decision.md) | Superseded in part | Direct v24 character-delivery decision with one cohesive baseline and one late provider director |
 | [0041](0041-v25-social-disclosure-and-failure-observability.md) | Superseded in part | Historical v25 social/self-disclosure delivery; accepted privacy-safe provider failure reasons and explicit relationship recovery |
-| [0042](0042-unified-causal-character-presence.md) | Superseded in part | Historical v26 causal presence and accepted owner bridge; current selection/rendering replaced by ADR-0043 |
-| [0043](0043-live-state-selected-character-movement.md) | Accepted | V27 live-state-selected operational character movement with compact cognition-preserving rendering |
+| [0042](0042-unified-causal-character-presence.md) | Superseded in part | Historical v26 causal presence and accepted owner bridge; its selection/rendering was replaced by ADR-0043 |
+| [0043](0043-live-state-selected-character-movement.md) | Superseded in part | Historical V27 live-state-selected operational movement remains immutable; active selection/rendering is replaced by ADR-0045 |
+| [0044](0044-v27-output-evidence-and-attempt-isolation.md) | Accepted | Conservative OpenAI output evidence, exact post-response cost accounting and isolated V27 attempts |
+| [0045](0045-character-agency-kernel.md) | Accepted | Request-local Character Agency Kernel with unchanged persistent owners and historical V27 isolation |
 
 Open implementation choices are tracked in `../open-questions.md`; do not create a fictional ADR where evidence is not yet available.

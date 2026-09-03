@@ -64,6 +64,17 @@ engaged treatment of the current topic, but cannot force a question, change the 
 override the user's need or enable autonomous initiation. Preferences may inform an honest
 comparison but do not increase curiosity by themselves.
 
+Checkpoint 14.3 Phase A adds one narrow read-only exception for an already requested reply: when
+the current topic is explicitly complete and the agency policy is eligible to choose one adjacent
+in-reply move, the projection may include a bounded strongest positive canonical `interest` even
+when the closing words do not repeat its label. This does not write, rescore or create an
+inclination and does not authorize later/out-of-band initiation. The selected agency source must
+carry that exact inclination ID; absence fails closed to the current topic or a natural stop.
+
+Traits/values alone may produce situational curiosity but cannot supply a concrete stable topic.
+The activation seed remains unchanged. Any future seed-origin inclination requires a separate
+origin/provenance policy under the same `PositionManager` owner and is outside Phase A.
+
 Inclinations are deliberately absent from affect appraisal, retrieval, relationship appraisal and
 future evidence formation. The generated response is not evidence.
 
@@ -78,5 +89,7 @@ semigroup/restart tests, transaction recovery, export integrity, behavior releva
 longitudinal corpus in which opposite user tastes produce the same Satori trajectory when the
 owner-approved experience trajectory is identical.
 
-Personality/value mutation, semantic topic expansion, proactive initiation and Stage 14 are out of
-scope.
+Stage 14 personality/value mutation, semantic topic expansion and proactive initiation remain out
+of the inclination-owner scope. The Checkpoint 14.3 complete-topic exception above is a read-only
+projection for one already requested reply; it does not reopen Stage 13 formation or authorize a
+new inclination mutation path.
