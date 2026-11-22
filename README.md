@@ -66,7 +66,8 @@ uv sync --frozen --all-groups --no-editable --reinstall-package satori-core
 uv run --no-sync ruff format --check .
 uv run --no-sync ruff check .
 uv run --no-sync mypy src tests
-QT_QPA_PLATFORM=offscreen uv run --no-sync pytest
+QT_QPA_PLATFORM=offscreen uv run --no-sync pytest --ignore=tests/test_voice_engines.py
+QT_QPA_PLATFORM=offscreen uv run --no-sync pytest tests/test_voice_engines.py
 ```
 
 The automated checks run against synthetic data without cloud credentials. Live model

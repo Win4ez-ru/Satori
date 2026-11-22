@@ -223,7 +223,8 @@ def test_constructor_and_inspection_never_read_key_or_open_http(
     path = api.write_reviewed_openai_config(root, config)
     client = PublicHTTP()
     local_credential = root / ".env"
-    local_credential.touch(mode=0o600)
+    local_credential.write_text("SATORI_OPENAI_API_KEY=" + PUBLIC_KEY + "\n")
+    local_credential.chmod(0o600)
 
     def forbidden(_reference: object) -> object:
         pytest.fail("credential read before explicitly configured start")
