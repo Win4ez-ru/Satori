@@ -1,10 +1,16 @@
 """Application-owned persistence ports for Stage 11 positions and Stage 13 inclinations."""
 
+from datetime import datetime
 from typing import Protocol
 
 from satori.application.unit_of_work import UnitOfWork
 from satori.core.inclinations import InclinationStateReference
 from satori.core.positions import PositionSourceMessage, PositionValueReference
+from satori.domain.erasure_knowledge import (
+    ErasedKnowledgeHeader,
+    KnowledgeBodyKind,
+    KnowledgeBodyTarget,
+)
 from satori.domain.inclinations import InclinationEvaluation, SatoriInclination
 from satori.domain.positions import (
     PositionFormationDecision,
@@ -16,6 +22,25 @@ from satori.domain.reflection import ReflectionOutcome
 
 
 class PositionsRepository(Protocol):
+    def erase_knowledge_bodies(
+        self, targets: tuple[KnowledgeBodyTarget, ...], *, action_id: str
+    ) -> None:
+        """Apply an exact approved owner body transition in the current transaction."""
+
+    def get_erased_knowledge_header(
+        self, kind: KnowledgeBodyKind, aggregate_id: str
+    ) -> ErasedKnowledgeHeader | None:
+        """Read retained terminal metadata; this grants no live-content eligibility."""
+
+    def withdraw_source_support(
+        self,
+        *,
+        excluded_message_ids: frozenset[str],
+        request_id: str,
+        policy_generation: int,
+        now: datetime,
+    ) -> None: ...
+
     def get_decision(self, idempotency_key: str) -> PositionFormationDecision | None: ...
 
     def get_source_messages(
@@ -29,6 +54,8 @@ class PositionsRepository(Protocol):
     ) -> tuple[SatoriPosition, ...]: ...
 
     def get_position(self, position_id: str) -> SatoriPosition | None: ...
+
+    def list_held_inclination_keys(self, *, identity_id: str) -> frozenset[str]: ...
 
     def list_inclination_references(
         self, *, identity_id: str
@@ -48,6 +75,7 @@ class PositionsRepository(Protocol):
         plan: PositionFormationPlan,
         *,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool: ...
 
     def record_reflection_decision(
@@ -58,6 +86,7 @@ class PositionsRepository(Protocol):
         identity_id: str,
         trace_id: str,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool: ...
 
     def record_inclination_reflection_decision(
@@ -68,6 +97,7 @@ class PositionsRepository(Protocol):
         identity_id: str,
         trace_id: str,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool: ...
 
 

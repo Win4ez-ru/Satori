@@ -1,6 +1,6 @@
 # ADR 0015: Affective state, appraisal, decay and mood
 
-- Status: Accepted
+- Status: Superseded in part by ADR-0064's opt-in previous-exchange input; owners/dynamics retained
 - Date: 2026-07-30
 - Supersedes: none
 - Related: ADR 0002, ADR 0003, ADR 0004, ADR 0006, ADR 0007, ADR 0012, ADR 0014

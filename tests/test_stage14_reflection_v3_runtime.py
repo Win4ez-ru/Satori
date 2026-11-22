@@ -26,6 +26,7 @@ from satori.core.reflection import (
     ReflectionSourceKind,
     ReflectionTargetOwner,
 )
+from satori.domain.erasure_reflection import ReflectionBodyTarget, ReflectionProposalHeader
 from satori.domain.personality_evolution import PERSONALITY_EVIDENCE_RESERVOIR_LIMIT
 from satori.domain.reflection import (
     ReflectionAttempt,
@@ -83,6 +84,16 @@ class _Repository:
     requested_limits: list[int] = field(default_factory=list)
     returned_source_ids: tuple[str, ...] = ()
 
+    def withdraw_source_support(
+        self,
+        *,
+        excluded_message_ids: frozenset[str],
+        request_id: str,
+        policy_generation: int,
+        now: datetime,
+    ) -> None:
+        raise AssertionError("unmanaged V3 runtime fixture does not reconcile source exclusions")
+
     def list_runs(
         self,
         *,
@@ -136,6 +147,19 @@ class _Repository:
     def list_proposals(self, run_id: str) -> tuple[ReflectionProposal, ...]:
         return self.proposals.get(run_id, ())
 
+    def list_proposal_ids(self, run_id: str) -> tuple[str, ...]:
+        return tuple(item.proposal_id for item in self.list_proposals(run_id))
+
+    def list_unavailable_proposal_headers(
+        self, run_id: str
+    ) -> tuple[ReflectionProposalHeader, ...]:
+        return ()
+
+    def erase_payload_bodies(
+        self, targets: tuple[ReflectionBodyTarget, ...], *, action_id: str
+    ) -> None:
+        raise AssertionError("unmanaged V3 runtime fixture does not erase persistent bodies")
+
     def list_outcomes(self, run_id: str) -> tuple[ReflectionOutcome, ...]:
         return ()
 
@@ -157,6 +181,7 @@ class _Repository:
         proposals: tuple[ReflectionProposal, ...],
         *,
         expected_run_version: int,
+        source_input_id: str | None = None,
     ) -> None:
         assert run.aggregate_version == expected_run_version + 1
         self.runs[run.run_id] = run

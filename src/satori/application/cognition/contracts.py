@@ -12,7 +12,10 @@ APPRAISAL_ARTIFACT_SCHEMA_VERSION = 1
 INTERNAL_POSITION_SCHEMA_VERSION = 1
 INTENT_SCHEMA_VERSION = 1
 RESPONSE_STRATEGY_SCHEMA_VERSION = 1
-INTENT_REGISTRY_VERSION = 1
+INTENT_REGISTRY_VERSION_V1 = 1
+INTENT_REGISTRY_VERSION_V2 = 2
+# Historical callers keep the Stage 10 registry unless they opt into the v24 pipeline.
+INTENT_REGISTRY_VERSION = INTENT_REGISTRY_VERSION_V1
 
 
 def _non_blank(value: str, field_name: str, *, maximum: int = 280) -> str:
@@ -98,6 +101,13 @@ class PerceptionSignal(StrEnum):
     UNCERTAINTY_LANGUAGE = "uncertainty_language"
     CHALLENGE_REQUEST = "challenge_request"
     REPEATED_TURN = "repeated_turn"
+    EXPLICIT_LISTEN_REQUEST = "explicit_listen_request"
+    HIGH_DISTRESS = "high_distress"
+    HARMFUL_OVEREXTENSION = "harmful_overextension"
+    EXPLICIT_MOTIVATION_REQUEST = "explicit_motivation_request"
+    EXPLICIT_TASK_ABANDONMENT = "explicit_task_abandonment"
+    EXPLICIT_REPAIR_OFFER = "explicit_repair_offer"
+    SELF_DISCLOSURE_REQUEST = "self_disclosure_request"
 
 
 class NeedDimension(StrEnum):
@@ -131,6 +141,16 @@ class PositionStance(StrEnum):
     ACKNOWLEDGE = "acknowledge"
 
 
+_PRIMARY_INTENT_BY_POSITION_STANCE = {
+    PositionStance.ANSWER: "answer_directly",
+    PositionStance.LISTEN: "listen_and_reflect",
+    PositionStance.CHALLENGE: "challenge_gently",
+    PositionStance.UNCERTAIN: "clarify_uncertainty",
+    PositionStance.COLLABORATE: "support_decision",
+    PositionStance.ACKNOWLEDGE: "acknowledge_correction",
+}
+
+
 class ResponseTone(StrEnum):
     """Bounded expression tone selected after position."""
 
@@ -149,7 +169,7 @@ class ResponseVerbosity(StrEnum):
     DETAILED = "detailed"
 
 
-KNOWN_INTENT_TAGS = frozenset(
+KNOWN_INTENT_TAGS_V1 = frozenset(
     {
         "answer_directly",
         "listen_and_reflect",
@@ -163,6 +183,29 @@ KNOWN_INTENT_TAGS = frozenset(
         "ask_specific_follow_up",
     }
 )
+KNOWN_INTENT_TAGS_V2 = KNOWN_INTENT_TAGS_V1 | {
+    "notice_repetition",
+    "hold_safety_boundary",
+    "receive_repair",
+}
+V2_META_INTENT_TAGS = frozenset({"notice_repetition", "hold_safety_boundary", "receive_repair"})
+V2_ACTION_INTENT_TAGS = frozenset(
+    {*_PRIMARY_INTENT_BY_POSITION_STANCE.values(), *V2_META_INTENT_TAGS}
+)
+V2_SUPPLEMENTAL_POINT_CODES = frozenset(
+    {
+        "address_current_request",
+        "state_uncertainty",
+        "presence_before_advice",
+        "topic_relevant_inclination",
+    }
+)
+V2_RESPONSE_POINT_CODES = V2_ACTION_INTENT_TAGS | V2_SUPPLEMENTAL_POINT_CODES
+KNOWN_INTENT_TAGS = KNOWN_INTENT_TAGS_V1
+_KNOWN_INTENT_TAGS_BY_REGISTRY = {
+    INTENT_REGISTRY_VERSION_V1: KNOWN_INTENT_TAGS_V1,
+    INTENT_REGISTRY_VERSION_V2: KNOWN_INTENT_TAGS_V2,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,6 +216,13 @@ class CognitionDialogueSignals:
     correction_active: bool = False
     no_routine_questions: bool = False
     current_activity: bool = False
+    explicit_listen_request: bool = False
+    high_distress: bool = False
+    harmful_overextension: bool = False
+    explicit_motivation_request: bool = False
+    explicit_task_abandonment: bool = False
+    explicit_repair_offer: bool = False
+    self_disclosure_request: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -293,6 +343,21 @@ class PreparedCognitionIntake:
             "fallback_reasons",
             _unique_strings(self.fallback_reasons, "intake fallback_reasons", maximum_items=4),
         )
+        statuses = (
+            self.perception.status,
+            self.need_mix.status,
+            self.retrieval_plan.status,
+        )
+        if len(set(statuses)) != 1:
+            raise ValueError("cognition intake artifacts must share one status")
+        if (statuses[0] is CognitionArtifactStatus.FALLBACK) is not bool(self.fallback_reasons):
+            raise ValueError("cognition intake fallback status and reasons must agree")
+        if (
+            self.perception.owner is not CognitionOwner.COGNITION
+            or self.need_mix.owner is not CognitionOwner.COGNITION
+            or self.retrieval_plan.owner is not CognitionOwner.MEMORY_QUERY
+        ):
+            raise ValueError("cognition intake artifact owner is invalid")
         for field_name in ("perception_ms", "need_mix_ms", "retrieval_plan_ms"):
             value = getattr(self, field_name)
             if isinstance(value, bool) or not math.isfinite(value) or value < 0.0:
@@ -347,6 +412,8 @@ class InternalPosition:
 
     def __post_init__(self) -> None:
         _positive_version(self.schema_version, "internal position schema_version")
+        if type(self.requires_uncertainty) is not bool:
+            raise ValueError("internal position requires_uncertainty must be boolean")
         object.__setattr__(
             self,
             "summary",
@@ -398,7 +465,10 @@ class IntentSelection:
 
     def __post_init__(self) -> None:
         _positive_version(self.schema_version, "intent schema_version")
-        _positive_version(self.registry_version, "intent registry_version")
+        registry_version = _positive_version(self.registry_version, "intent registry_version")
+        registered_tags = _KNOWN_INTENT_TAGS_BY_REGISTRY.get(registry_version)
+        if registered_tags is None:
+            raise ValueError("intent registry_version is not supported")
         primary = _non_blank(self.primary_tag, "intent primary_tag", maximum=64)
         tags = _unique_strings(
             self.tags,
@@ -407,11 +477,15 @@ class IntentSelection:
             maximum_items=8,
             maximum_chars=64,
         )
-        unknown = set(tags).difference(KNOWN_INTENT_TAGS)
+        unknown = set(tags).difference(registered_tags)
         if unknown:
             raise ValueError(f"intent tags are not registered: {sorted(unknown)}")
         if primary not in tags:
             raise ValueError("intent primary_tag must be present in tags")
+        if registry_version == INTENT_REGISTRY_VERSION_V2 and (
+            set(tags).intersection(V2_ACTION_INTENT_TAGS) != {primary}
+        ):
+            raise ValueError("v2 intent tags must contain exactly the primary action")
         _unit_interval(self.priority, "intent priority")
         object.__setattr__(self, "primary_tag", primary)
         object.__setattr__(self, "tags", tags)
@@ -442,6 +516,8 @@ class ResponseStrategy:
 
     def __post_init__(self) -> None:
         _positive_version(self.schema_version, "response strategy schema_version")
+        if type(self.preserve_uncertainty) is not bool:
+            raise ValueError("response strategy preserve_uncertainty must be boolean")
         _unit_interval(self.humor, "response strategy humor")
         _unit_interval(self.softness, "response strategy softness")
         if (
@@ -531,8 +607,58 @@ class CognitionPipelineTrace:
             "fallback_reasons",
             _unique_strings(self.fallback_reasons, "pipeline fallback_reasons", maximum_items=8),
         )
+        if (self.status is CognitionArtifactStatus.FALLBACK) is not bool(self.fallback_reasons):
+            raise ValueError("cognition fallback status and reasons must agree")
+        status_artifacts = (
+            self.perception,
+            self.need_mix,
+            self.retrieval_plan,
+            self.internal_position,
+            self.intent,
+            self.response_strategy,
+        )
+        if any(artifact.status is not self.status for artifact in status_artifacts):
+            raise ValueError("cognition pipeline decision artifacts must share one status")
+        if (
+            self.perception.owner is not CognitionOwner.COGNITION
+            or self.need_mix.owner is not CognitionOwner.COGNITION
+            or self.retrieval_plan.owner is not CognitionOwner.MEMORY_QUERY
+            or self.appraisal.owner is not CognitionOwner.EMOTION_MANAGER
+            or self.internal_position.owner is not CognitionOwner.COGNITION
+            or self.intent.owner is not CognitionOwner.COGNITION
+            or self.response_strategy.owner is not CognitionOwner.COGNITION
+        ):
+            raise ValueError("cognition pipeline decision artifact owner is invalid")
         if self.response_strategy.position_stance is not self.internal_position.stance:
             raise ValueError("response strategy cannot reverse the internal position stance")
+        stance = self.internal_position.stance
+        primary_intent = self.intent.primary_tag
+        if self.intent.registry_version == INTENT_REGISTRY_VERSION_V2:
+            point_codes = set(self.response_strategy.point_codes)
+            if not point_codes <= V2_RESPONSE_POINT_CODES:
+                raise ValueError("v2 response strategy contains an unsupported point code")
+            if point_codes.intersection(V2_ACTION_INTENT_TAGS) != {primary_intent}:
+                raise ValueError(
+                    "v2 response strategy must contain exactly the primary action point"
+                )
+            if primary_intent in V2_META_INTENT_TAGS:
+                if point_codes != {primary_intent}:
+                    raise ValueError("v2 meta intent requires a singleton action point")
+            elif "address_current_request" not in point_codes:
+                raise ValueError("v2 non-meta intent must address the current request")
+        if primary_intent == "receive_repair":
+            if stance is not PositionStance.ANSWER:
+                raise ValueError("repair cognition intent requires answer stance")
+        elif primary_intent == "hold_safety_boundary":
+            if stance not in {PositionStance.ANSWER, PositionStance.LISTEN}:
+                raise ValueError("safety cognition intent cannot reverse the internal position")
+        elif (
+            primary_intent != "notice_repetition"
+            and primary_intent != (_PRIMARY_INTENT_BY_POSITION_STANCE[stance])
+        ):
+            raise ValueError("cognition intent cannot reverse the internal position stance")
+        if primary_intent not in self.response_strategy.point_codes:
+            raise ValueError("response strategy must preserve the primary cognition intent")
         if (
             self.internal_position.requires_uncertainty
             and not self.response_strategy.preserve_uncertainty

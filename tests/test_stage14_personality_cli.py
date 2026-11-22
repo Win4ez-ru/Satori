@@ -10,6 +10,7 @@ from satori.application.personality.use_cases import GetPersonalityEvolution
 from satori.config import Environment, LogLevel, Settings
 from satori.infrastructure.persistence.database import Database
 from tests.fakes import FrozenClock
+from tests.source_policy_support import enroll_for_cli
 from tests.test_stage12_reflection_integration import FakeReflectionProvider
 from tests.test_stage14_personality_persistence import (
     NOW,
@@ -23,6 +24,7 @@ def _settings(database: Database) -> Settings:
     return Settings(
         environment=Environment.TEST,
         database_url=str(database.engine.url),
+        source_policy_directory=enroll_for_cli(database),
         log_level=LogLevel.WARNING,
     )
 

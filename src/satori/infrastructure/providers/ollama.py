@@ -9,8 +9,10 @@ from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from satori.application.source_policy.dispatch import admit_provider_dispatch
 from satori.core.conversation import (
     ConversationMessageRole,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     ConversationProviderResponse,
     ConversationUsage,
@@ -116,6 +118,7 @@ class OllamaConversationAdapter:
         }
         try:
             if self.http_client is not None:
+                admit_provider_dispatch()
                 body = self.http_client.post_json(
                     "/api/chat",
                     payload,
@@ -129,6 +132,7 @@ class OllamaConversationAdapter:
                     headers={"Content-Type": "application/json", "Accept": "application/json"},
                     method="POST",
                 )
+                admit_provider_dispatch()
                 with urlopen(http_request, timeout=self.timeout_seconds) as response:
                     body = response.read(MAX_HTTP_RESPONSE_BYTES + 1)
         except HTTPError as error:
@@ -137,6 +141,11 @@ class OllamaConversationAdapter:
                 OLLAMA_PROVIDER_NAME,
                 self.model,
                 f"Ollama returned HTTP {error.code}",
+                reason=(
+                    ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE
+                    if error.code >= 500
+                    else ConversationProviderFailureReason.REQUEST_REJECTED
+                ),
             ) from error
         except OllamaHttpStatusError as error:
             error_type = ProviderUnavailable if error.status >= 500 else GenerationFailed
@@ -144,12 +153,18 @@ class OllamaConversationAdapter:
                 OLLAMA_PROVIDER_NAME,
                 self.model,
                 f"Ollama returned HTTP {error.status}",
+                reason=(
+                    ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE
+                    if error.status >= 500
+                    else ConversationProviderFailureReason.REQUEST_REJECTED
+                ),
             ) from error
         except (URLError, TimeoutError, OSError) as error:
             raise ProviderUnavailable(
                 OLLAMA_PROVIDER_NAME,
                 self.model,
                 "Ollama is unavailable or timed out",
+                reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
             ) from error
 
         if len(body) > MAX_HTTP_RESPONSE_BYTES:
@@ -157,6 +172,7 @@ class OllamaConversationAdapter:
                 OLLAMA_PROVIDER_NAME,
                 self.model,
                 "Ollama response exceeded the adapter byte limit",
+                reason=ConversationProviderFailureReason.RESPONSE_TOO_LARGE,
             )
         try:
             raw: object = json.loads(body.decode("utf-8"))
@@ -166,12 +182,32 @@ class OllamaConversationAdapter:
                 OLLAMA_PROVIDER_NAME,
                 self.model,
                 "Ollama returned malformed chat JSON",
+                reason=ConversationProviderFailureReason.RESPONSE_MALFORMED,
             ) from error
+        metrics = ProviderExecutionMetrics(
+            total_duration_ns=parsed.total_duration,
+            load_duration_ns=parsed.load_duration,
+            prompt_eval_duration_ns=parsed.prompt_eval_duration,
+            eval_duration_ns=parsed.eval_duration,
+            prompt_eval_count=parsed.prompt_eval_count,
+            eval_count=parsed.eval_count,
+        )
         if not parsed.done:
             raise InvalidProviderResponse(
                 OLLAMA_PROVIDER_NAME,
                 self.model,
                 "Ollama returned an incomplete non-streaming response",
+                reason=ConversationProviderFailureReason.RESPONSE_MALFORMED,
+                metrics=metrics,
+            )
+        finish_status = parsed.done_reason or "completed"
+        if finish_status.casefold() == "length":
+            raise GenerationFailed(
+                OLLAMA_PROVIDER_NAME,
+                self.model,
+                "Ollama response ended at the output-token limit",
+                reason=ConversationProviderFailureReason.OUTPUT_TOKEN_LIMIT,
+                metrics=metrics,
             )
 
         try:
@@ -185,22 +221,16 @@ class OllamaConversationAdapter:
                 text=parsed.message.content,
                 provider=OLLAMA_PROVIDER_NAME,
                 model=parsed.model,
-                finish_status=parsed.done_reason or "completed",
+                finish_status=finish_status,
                 usage=usage,
-                metrics=ProviderExecutionMetrics(
-                    total_duration_ns=parsed.total_duration,
-                    load_duration_ns=parsed.load_duration,
-                    prompt_eval_duration_ns=parsed.prompt_eval_duration,
-                    eval_duration_ns=parsed.eval_duration,
-                    prompt_eval_count=parsed.prompt_eval_count,
-                    eval_count=parsed.eval_count,
-                ),
+                metrics=metrics,
             )
         except ValueError as error:
             raise InvalidProviderResponse(
                 OLLAMA_PROVIDER_NAME,
                 self.model,
                 "Ollama response violates the provider-neutral contract",
+                reason=ConversationProviderFailureReason.RESPONSE_MALFORMED,
             ) from error
 
     @staticmethod

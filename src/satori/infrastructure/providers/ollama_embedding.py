@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from satori.application.source_policy.dispatch import admit_provider_dispatch
 from satori.core.embedding import (
     EmbeddingGenerationFailed,
     EmbeddingProviderUnavailable,
@@ -86,6 +87,7 @@ class OllamaEmbeddingAdapter:
         }
         try:
             if self.http_client is not None:
+                admit_provider_dispatch()
                 body = self.http_client.post_json(
                     "/api/embed",
                     payload,
@@ -99,6 +101,7 @@ class OllamaEmbeddingAdapter:
                     headers={"Content-Type": "application/json", "Accept": "application/json"},
                     method="POST",
                 )
+                admit_provider_dispatch()
                 with urlopen(http_request, timeout=self.timeout_seconds) as response:
                     body = response.read(MAX_EMBEDDING_RESPONSE_BYTES + 1)
         except HTTPError as error:

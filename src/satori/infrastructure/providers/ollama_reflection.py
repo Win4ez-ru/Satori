@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from satori.application.source_policy.dispatch import admit_provider_dispatch
 from satori.core.inclinations import InclinationKind
 from satori.core.personality import (
     PersonalityCitationRole,
@@ -221,41 +222,14 @@ class OllamaReflectionAdapter:
             return await asyncio.to_thread(self._generate_sync, request)
 
     def _generate_sync(self, request: ReflectionGenerationRequest) -> ReflectionProviderResponse:
-        source_ids = {item.source_id for item in request.sources}
-        affective_source_ids = {
-            item.source_id for item in request.sources if item.affective is not None
-        }
-        document_model: (
-            type[_ProposalDocument] | type[_ProposalDocumentV2] | type[_ProposalDocumentV3]
-        )
-        formation_method: str
-        if request.schema_version == 1:
-            document_model = _ProposalDocument
-            formation_method = FORMATION_METHOD_V1
-        elif request.schema_version == 2:
-            document_model = _ProposalDocumentV2
-            formation_method = FORMATION_METHOD_V2
-        else:
-            document_model = _ProposalDocumentV3
-            formation_method = FORMATION_METHOD_V3
+        _, formation_method = reflection_document_model(request)
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": self._policy(request)},
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        self._request_payload(request),
-                        ensure_ascii=False,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    ),
-                },
-            ],
+            "messages": reflection_messages(request),
             "stream": False,
             "think": False,
             "keep_alive": self.keep_alive,
-            "format": document_model.model_json_schema(),
+            "format": reflection_schema(request),
             "options": {"temperature": 0.0, "num_predict": self.max_output_tokens},
         }
         try:
@@ -264,23 +238,8 @@ class OllamaReflectionAdapter:
             response = _OllamaResponse.model_validate(raw)
             if not response.done:
                 raise ValueError("incomplete non-streaming response")
-            document = document_model.model_validate_json(response.message.content)
-            candidates = tuple(self._map_candidate(item) for item in document.proposals)
-            cited = (
-                set().union(*(self._source_ids(item) for item in candidates))
-                if candidates
-                else set()
-            )
-            if not cited <= source_ids:
-                raise ValueError("proposal cites source outside fixed run set")
-            if any(
-                isinstance(item, ReflectionInclinationCandidate)
-                and not set(item.source_ids) <= affective_source_ids
-                for item in candidates
-            ):
-                raise ValueError("inclination proposal cites source without affect attachment")
             return ReflectionProviderResponse(
-                document=ReflectionProposalDocument(request.schema_version, candidates),
+                document=parse_reflection_document(response.message.content, request),
                 provider=OLLAMA_PROVIDER_NAME,
                 model=response.model,
                 formation_method=formation_method,
@@ -301,6 +260,7 @@ class OllamaReflectionAdapter:
     def _post(self, payload: dict[str, object]) -> bytes:
         try:
             if self.http_client is not None:
+                admit_provider_dispatch()
                 body = self.http_client.post_json(
                     "/api/chat",
                     payload,
@@ -314,6 +274,7 @@ class OllamaReflectionAdapter:
                     headers={"Content-Type": "application/json", "Accept": "application/json"},
                     method="POST",
                 )
+                admit_provider_dispatch()
                 with urlopen(request, timeout=self.timeout_seconds) as response:
                     body = response.read(MAX_HTTP_RESPONSE_BYTES + 1)
         except HTTPError as error:
@@ -544,3 +505,66 @@ class OllamaReflectionAdapter:
 
     def _error(self, message: str) -> ReflectionProviderError:
         return ReflectionProviderError(OLLAMA_PROVIDER_NAME, self.model, message)
+
+
+def reflection_document_model(
+    request: ReflectionGenerationRequest,
+) -> tuple[type[_ProposalDocument] | type[_ProposalDocumentV2] | type[_ProposalDocumentV3], str]:
+    document_model: type[_ProposalDocument] | type[_ProposalDocumentV2] | type[_ProposalDocumentV3]
+    formation_method: str
+    if request.schema_version == 1:
+        document_model = _ProposalDocument
+        formation_method = FORMATION_METHOD_V1
+    elif request.schema_version == 2:
+        document_model = _ProposalDocumentV2
+        formation_method = FORMATION_METHOD_V2
+    else:
+        document_model = _ProposalDocumentV3
+        formation_method = FORMATION_METHOD_V3
+    return document_model, formation_method
+
+
+def reflection_messages(request: ReflectionGenerationRequest) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": OllamaReflectionAdapter._policy(request)},
+        {
+            "role": "user",
+            "content": json.dumps(
+                OllamaReflectionAdapter._request_payload(request),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        },
+    ]
+
+
+def reflection_schema(request: ReflectionGenerationRequest) -> dict[str, object]:
+    document_model, _ = reflection_document_model(request)
+    return document_model.model_json_schema()
+
+
+def parse_reflection_document(
+    content: str, request: ReflectionGenerationRequest
+) -> ReflectionProposalDocument:
+    source_ids = {item.source_id for item in request.sources}
+    affective_source_ids = {
+        item.source_id for item in request.sources if item.affective is not None
+    }
+    document_model, _ = reflection_document_model(request)
+    document = document_model.model_validate_json(content)
+    candidates = tuple(OllamaReflectionAdapter._map_candidate(item) for item in document.proposals)
+    cited = (
+        set().union(*(OllamaReflectionAdapter._source_ids(item) for item in candidates))
+        if candidates
+        else set()
+    )
+    if not cited <= source_ids:
+        raise ValueError("proposal cites source outside fixed run set")
+    if any(
+        isinstance(item, ReflectionInclinationCandidate)
+        and not set(item.source_ids) <= affective_source_ids
+        for item in candidates
+    ):
+        raise ValueError("inclination proposal cites source without affect attachment")
+    return ReflectionProposalDocument(request.schema_version, candidates)

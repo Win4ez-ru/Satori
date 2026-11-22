@@ -1,7 +1,10 @@
 # ADR-0012: Durable conversation history and derived episodic formation
 
-- Status: Accepted
+- Status: Superseded in part
 - Date: 2026-07-28
+- Superseded only for ACTIVE-only episode lifecycle by
+  [ADR-0056](0056-owner-controlled-episodic-archival.md). Raw history, formation, evidence and
+  existing transaction/owner policies remain accepted.
 
 ## Context
 

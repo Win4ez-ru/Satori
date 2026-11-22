@@ -133,6 +133,31 @@ def test_exact_topic_phrase_is_relevant_but_inflection_and_unrelated_turn_are_no
     assert unrelated.status == "empty"
 
 
+def test_owned_topic_read_is_explicit_bounded_and_interest_only() -> None:
+    references = (
+        reference("interest-space", topic="космос", score=0.42),
+        reference("interest-history", topic="история", score=0.31),
+        reference(
+            "preference-tea",
+            kind=InclinationKind.PREFERENCE,
+            topic="чай",
+            alternative="кофе",
+            score=0.70,
+        ),
+    )
+    projection = reader(references).project_inclination_context(
+        identity_id=IDENTITY_ID,
+        user_text="Ладно, с этим разобрались.",
+        as_of=AS_OF,
+        include_owned_topic=True,
+    )
+    historical_default = project(references, "Ладно, с этим разобрались.")
+
+    assert projection.inclination_ids == ("interest-space",)
+    assert projection.inclinations[0].kind == InclinationKind.INTEREST.value
+    assert historical_default.status == "empty"
+
+
 @pytest.mark.parametrize(
     "explicit_query",
     [

@@ -11,6 +11,11 @@ from satori.application.semantic.contracts import (
     semantic_context_json,
 )
 from satori.application.semantic.ports import SemanticMemoryUnitOfWork
+from satori.application.source_policy.admission import prepare_source_input, require_source_inputs
+from satori.application.source_policy.dispatch import (
+    admit_provider_dispatch,
+    source_dispatch_admission,
+)
 from satori.core.clock import Clock
 from satori.core.ids import IdGenerator
 from satori.core.ports.providers import StructuredGenerationPort
@@ -20,6 +25,7 @@ from satori.core.semantic import (
     SemanticSourceEvidence,
     SemanticSourceMemory,
 )
+from satori.domain.memory_scope import MemoryScope
 from satori.domain.semantic_memory import (
     SEMANTIC_FORMATION_POLICY_VERSION,
     SEMANTIC_FORMATION_VERSION,
@@ -29,6 +35,7 @@ from satori.domain.semantic_memory import (
     SemanticMemoryManager,
     semantic_idempotency_key,
 )
+from satori.domain.source_policy import PayloadRef
 
 SEMANTIC_REQUEST_SCHEMA_VERSION = 1
 SemanticUnitOfWorkFactory = Callable[[], SemanticMemoryUnitOfWork]
@@ -39,6 +46,11 @@ SemanticFormationProvider = StructuredGenerationPort[
 
 def _log_fields(**fields: object) -> dict[str, object]:
     return {"satori_fields": fields}
+
+
+def _require_scope(scope: MemoryScope) -> None:
+    if not isinstance(scope, MemoryScope):
+        raise ValueError("memory_scope_required")
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,15 +78,36 @@ class FormSemanticMemory:
     monotonic: Callable[[], float] = time.perf_counter
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("satori.semantic"))
 
-    async def execute(self, source_memory_id: str, *, trace_id: str) -> SemanticFormationDecision:
+    async def execute(
+        self,
+        source_memory_id: str,
+        *,
+        trace_id: str,
+        scope: MemoryScope | None = None,
+    ) -> SemanticFormationDecision:
         """Apply or replay exactly one terminal v1 decision for an episodic source."""
 
         key = semantic_idempotency_key(source_memory_id, SEMANTIC_FORMATION_VERSION)
         with self.unit_of_work_factory() as unit_of_work:
+            canonical_scope = unit_of_work.semantic_memory.resolve_source_scope(source_memory_id)
+            if canonical_scope is None:
+                raise ValueError("semantic_source_ineligible")
+            if scope is not None and scope != canonical_scope:
+                raise ValueError("semantic_source_scope_mismatch")
+            scope = canonical_scope
             existing = unit_of_work.semantic_memory.get_decision(key)
             source_memories = unit_of_work.semantic_memory.get_source_memories(
-                source_memory_id, limit=self.max_source_memories
+                source_memory_id, scope=scope, limit=self.max_source_memories
             )
+            input_id = None
+            if existing is None and source_memories:
+                input_id = prepare_source_input(
+                    unit_of_work,
+                    payload_refs=tuple(
+                        PayloadRef("episode", memory.memory_id, memory.aggregate_version)
+                        for memory in source_memories
+                    ),
+                )
         if existing is not None:
             return existing
         if not source_memories:
@@ -114,10 +147,20 @@ class FormSemanticMemory:
         )
         started = self.monotonic()
         try:
-            response = await self.provider.generate_structured(request)
+            with source_dispatch_admission(self.unit_of_work_factory, input_id):
+                admit_provider_dispatch()
+                response = await self.provider.generate_structured(request)
             decision_id = self.id_generator.new()
             with self.unit_of_work_factory() as unit_of_work:
-                current = unit_of_work.semantic_memory.list_claims()
+                require_source_inputs(unit_of_work, input_id)
+                if unit_of_work.semantic_memory.resolve_source_scope(source_memory_id) != scope:
+                    raise ValueError("semantic_source_changed")
+                current_sources = unit_of_work.semantic_memory.get_source_memories(
+                    source_memory_id, scope=scope, limit=self.max_source_memories
+                )
+                if current_sources != source_memories:
+                    raise ValueError("semantic_sources_changed")
+                current = unit_of_work.semantic_memory.list_claims(scope=scope)
                 plan = self.manager.evaluate(
                     response.proposal,
                     source_memory_id=source_memory_id,
@@ -128,6 +171,7 @@ class FormSemanticMemory:
                     decision_id=decision_id,
                     formation_method=response.formation_method,
                     new_id=self.id_generator.new,
+                    scope=scope,
                 )
                 decision = SemanticFormationDecision(
                     decision_id=decision_id,
@@ -152,7 +196,10 @@ class FormSemanticMemory:
                 recorded = unit_of_work.semantic_memory.record_decision(
                     decision,
                     plan,
+                    scope=scope,
+                    source_memories=source_memories,
                     audit_event_id=self.id_generator.new(),
+                    input_id=input_id,
                 )
                 if recorded:
                     unit_of_work.commit()
@@ -202,15 +249,22 @@ class BackfillSemanticMemory:
     unit_of_work_factory: SemanticUnitOfWorkFactory
     form_semantic: FormSemanticMemory
 
-    async def execute(self, *, trace_id: str, limit: int) -> SemanticBackfillReport:
+    async def execute(
+        self, *, scope: MemoryScope, trace_id: str, limit: int
+    ) -> SemanticBackfillReport:
+        _require_scope(scope)
         if limit < 1:
             raise ValueError("semantic backfill limit must be positive")
         with self.unit_of_work_factory() as unit_of_work:
-            memory_ids = unit_of_work.semantic_memory.list_unprocessed_memory_ids(limit=limit)
+            memory_ids = unit_of_work.semantic_memory.list_unprocessed_memory_ids(
+                scope=scope, limit=limit
+            )
         applied = skipped = rejected = failed = 0
         for memory_id in memory_ids:
             try:
-                decision = await self.form_semantic.execute(memory_id, trace_id=trace_id)
+                decision = await self.form_semantic.execute(
+                    memory_id, scope=scope, trace_id=trace_id
+                )
             except Exception:
                 failed += 1
                 continue
@@ -230,18 +284,20 @@ class GetSemanticClaims:
     unit_of_work_factory: SemanticUnitOfWorkFactory
 
     def list(
-        self, *, active_only: bool = True, predicate: str | None = None
+        self, *, scope: MemoryScope, active_only: bool = True, predicate: str | None = None
     ) -> tuple[SemanticClaim, ...]:
+        _require_scope(scope)
         with self.unit_of_work_factory() as unit_of_work:
             return unit_of_work.semantic_memory.list_claims(
-                active_only=active_only, predicate=predicate
+                scope=scope, active_only=active_only, predicate=predicate
             )
 
     def inspect(
-        self, claim_id: str
+        self, claim_id: str, *, scope: MemoryScope
     ) -> tuple[SemanticClaim, tuple[SemanticClaimRevision, ...]] | None:
+        _require_scope(scope)
         with self.unit_of_work_factory() as unit_of_work:
-            claim = unit_of_work.semantic_memory.get_claim(claim_id)
+            claim = unit_of_work.semantic_memory.get_claim(claim_id, scope=scope)
             if claim is None:
                 return None
             return claim, unit_of_work.semantic_memory.list_revisions(claim_id)
@@ -255,12 +311,15 @@ class RetrieveSemanticClaims:
     top_k: int
     max_context_chars: int
 
-    def execute(self, memory_ids: tuple[str, ...]) -> RetrievedSemanticContext:
+    def execute(
+        self, memory_ids: tuple[str, ...], *, scope: MemoryScope
+    ) -> RetrievedSemanticContext:
+        _require_scope(scope)
         if not memory_ids:
             return RetrievedSemanticContext(status="no_result", claims=())
         relevant = set(memory_ids)
         with self.unit_of_work_factory() as unit_of_work:
-            claims = unit_of_work.semantic_memory.list_claims(active_only=True)
+            claims = unit_of_work.semantic_memory.list_claims(scope=scope, active_only=True)
         ranked = sorted(
             (
                 claim
@@ -274,6 +333,7 @@ class RetrieveSemanticClaims:
             ),
         )
         selected: list[RetrievedSemanticClaim] = []
+        selected_refs: list[PayloadRef] = []
         for claim in ranked[: self.top_k]:
             candidate = RetrievedSemanticClaim(
                 claim_id=claim.claim_id,
@@ -297,7 +357,11 @@ class RetrieveSemanticClaims:
             if len(semantic_context_json(trial)) > self.max_context_chars:
                 break
             selected.append(candidate)
+            selected_refs.append(
+                PayloadRef("semantic_claim", claim.claim_id, claim.aggregate_version)
+            )
         return RetrievedSemanticContext(
             status="retrieved" if selected else "no_result",
             claims=tuple(selected),
+            source_payload_refs=tuple(selected_refs),
         )

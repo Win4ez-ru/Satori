@@ -19,6 +19,11 @@ from satori.application.affect.ports import (
 )
 from satori.application.retrieval.contracts import RetrievedMemoryContext
 from satori.application.semantic.contracts import RetrievedSemanticContext
+from satori.application.source_policy.admission import prepare_source_input, require_source_inputs
+from satori.application.source_policy.dispatch import (
+    admit_provider_dispatch,
+    source_dispatch_admission,
+)
 from satori.core.affect import (
     AffectiveAppraisalProviderError,
     AffectiveAppraisalProviderResponse,
@@ -26,6 +31,7 @@ from satori.core.affect import (
     AppraisalEpisodicContext,
     AppraisalFastState,
     AppraisalMoodState,
+    AppraisalPreviousExchange,
     AppraisalSemanticContext,
     AppraisalTrait,
     AppraisalValue,
@@ -43,6 +49,7 @@ from satori.domain.affect import (
     initial_affective_state,
     materialize_affective_state,
 )
+from satori.domain.affect_history import AffectiveTransitionHistory
 from satori.domain.conversation_history import (
     ConversationInteraction,
     HistoricalMessage,
@@ -52,6 +59,7 @@ from satori.domain.conversation_history import (
     SessionKind,
 )
 from satori.domain.initial_self import InitialSelfSnapshot
+from satori.domain.source_policy import PayloadRef, SourcePolicyError
 
 AFFECTIVE_APPRAISAL_REQUEST_SCHEMA_VERSION = 1
 AffectiveStateUnitOfWorkFactory = Callable[[], AffectiveStateUnitOfWork]
@@ -101,7 +109,7 @@ class GetAffectiveStatus:
         now = self.clock.now()
         stored = self.ensure_state.execute(identity_id, initialized_at=now)
         with self.unit_of_work_factory() as unit_of_work:
-            transitions = tuple(unit_of_work.affective_state.list_transitions(limit=1))
+            transitions = tuple(unit_of_work.affective_state.list_transition_headers(limit=1))
         current = materialize_affective_state(stored, at=now)
         return AffectiveStatus(
             state=current,
@@ -116,9 +124,9 @@ class GetAffectiveHistory:
 
     unit_of_work_factory: AffectiveStateUnitOfWorkFactory
 
-    def execute(self, *, limit: int | None = None) -> Sequence[AffectiveTransition]:
+    def execute(self, *, limit: int | None = None) -> Sequence[AffectiveTransitionHistory]:
         with self.unit_of_work_factory() as unit_of_work:
-            return tuple(unit_of_work.affective_state.list_transitions(limit=limit))
+            return tuple(unit_of_work.affective_state.list_numerical_history(limit=limit))
 
 
 @dataclass(slots=True)
@@ -141,6 +149,7 @@ class PrepareAffectiveContext:
         trace_id: str,
         memory_context: RetrievedMemoryContext | None,
         semantic_context: RetrievedSemanticContext | None,
+        previous_exchange: AppraisalPreviousExchange | None = None,
     ) -> PreparedAffectiveContext:
         """Use only the current user event and already-selected bounded context."""
 
@@ -177,7 +186,27 @@ class PrepareAffectiveContext:
             materialized=materialized,
             memory_context=memory_context,
             semantic_context=semantic_context,
+            previous_exchange=previous_exchange,
         )
+        actual_roots = (
+            interaction.user_message.message_id,
+            *((previous_exchange.user_message_id,) if previous_exchange is not None else ()),
+        )
+        actual_refs = (
+            *(memory_context.source_payload_refs if memory_context is not None else ()),
+            *(semantic_context.source_payload_refs if semantic_context is not None else ()),
+            *(
+                (PayloadRef("assistant_reply", previous_exchange.interaction_id),)
+                if previous_exchange is not None
+                else ()
+            ),
+        )
+        with self.ensure_state.unit_of_work_factory() as unit:
+            input_id = prepare_source_input(
+                unit,
+                root_message_ids=actual_roots,
+                payload_refs=actual_refs,
+            )
         request_build_ms = (self.monotonic() - request_build_started) * 1000
         self.logger.info(
             "emotion_appraisal_attempted",
@@ -189,7 +218,9 @@ class PrepareAffectiveContext:
         )
         started = self.monotonic()
         try:
-            response = await self.provider.generate_structured(request)
+            with source_dispatch_admission(self.ensure_state.unit_of_work_factory, input_id):
+                admit_provider_dispatch()
+                response = await self.provider.generate_structured(request)
         except AffectiveAppraisalProviderError as error:
             self.logger.warning(
                 "emotion_appraisal_failed",
@@ -209,8 +240,13 @@ class PrepareAffectiveContext:
                 materialization_latency_ms=materialization_ms,
                 request_build_latency_ms=request_build_ms,
                 appraisal_latency_ms=(self.monotonic() - started) * 1000,
+                source_input_id=input_id if previous_exchange is not None else None,
+                actual_input_root_message_ids=actual_roots if previous_exchange is not None else (),
+                actual_input_payload_refs=actual_refs if previous_exchange is not None else (),
             )
         except Exception as error:
+            if previous_exchange is not None and isinstance(error, SourcePolicyError):
+                raise
             self.logger.warning(
                 "emotion_appraisal_failed",
                 extra=_log_fields(
@@ -228,6 +264,9 @@ class PrepareAffectiveContext:
                 materialization_latency_ms=materialization_ms,
                 request_build_latency_ms=request_build_ms,
                 appraisal_latency_ms=(self.monotonic() - started) * 1000,
+                source_input_id=input_id if previous_exchange is not None else None,
+                actual_input_root_message_ids=actual_roots if previous_exchange is not None else (),
+                actual_input_payload_refs=actual_refs if previous_exchange is not None else (),
             )
 
         allowed_refs = (
@@ -283,6 +322,9 @@ class PrepareAffectiveContext:
             request_build_latency_ms=request_build_ms,
             appraisal_latency_ms=appraisal_ms,
             provider_metrics=response.metrics,
+            source_input_id=input_id,
+            actual_input_root_message_ids=actual_roots if previous_exchange is not None else (),
+            actual_input_payload_refs=actual_refs if previous_exchange is not None else (),
         )
 
     @staticmethod
@@ -296,9 +338,12 @@ class PrepareAffectiveContext:
         materialized: AffectiveStateSnapshot,
         memory_context: RetrievedMemoryContext | None,
         semantic_context: RetrievedSemanticContext | None,
+        previous_exchange: AppraisalPreviousExchange | None = None,
     ) -> AffectiveAppraisalRequest:
         return AffectiveAppraisalRequest(
-            schema_version=AFFECTIVE_APPRAISAL_REQUEST_SCHEMA_VERSION,
+            schema_version=(
+                2 if previous_exchange is not None else AFFECTIVE_APPRAISAL_REQUEST_SCHEMA_VERSION
+            ),
             trace_id=trace_id,
             interaction_id=interaction.interaction_id,
             appraised_at=appraised_at,
@@ -336,6 +381,7 @@ class PrepareAffectiveContext:
                 )
                 for claim in (semantic_context.claims if semantic_context is not None else ())
             ),
+            previous_exchange=previous_exchange,
         )
 
     @classmethod
@@ -348,6 +394,9 @@ class PrepareAffectiveContext:
         materialization_latency_ms: float,
         request_build_latency_ms: float = 0.0,
         appraisal_latency_ms: float = 0.0,
+        source_input_id: str | None = None,
+        actual_input_root_message_ids: tuple[str, ...] = (),
+        actual_input_payload_refs: tuple[PayloadRef, ...] = (),
     ) -> PreparedAffectiveContext:
         return PreparedAffectiveContext(
             expression=cls._expression(state, status),
@@ -358,6 +407,9 @@ class PrepareAffectiveContext:
             materialization_latency_ms=materialization_latency_ms,
             request_build_latency_ms=request_build_latency_ms,
             appraisal_latency_ms=appraisal_latency_ms,
+            source_input_id=source_input_id,
+            actual_input_root_message_ids=actual_input_root_message_ids,
+            actual_input_payload_refs=actual_input_payload_refs,
         )
 
     @staticmethod
@@ -392,6 +444,7 @@ class FinalizeAffectiveInteraction:
         assistant_text: str,
         provider_metadata: InteractionProviderMetadata,
         prepared: PreparedAffectiveContext,
+        source_input_id: str | None = None,
     ) -> ConversationInteraction:
         completed_at = self.clock.now()
         assistant_message = HistoricalMessage(
@@ -432,6 +485,9 @@ class FinalizeAffectiveInteraction:
 
         try:
             with self.unit_of_work_factory() as unit_of_work:
+                require_source_inputs(unit_of_work, source_input_id)
+                if prepared.transition is not None or prepared.actual_input_root_message_ids:
+                    require_source_inputs(unit_of_work, prepared.source_input_id)
                 current = unit_of_work.conversation_history.get_interaction(
                     interaction.interaction_id
                 )
@@ -451,6 +507,7 @@ class FinalizeAffectiveInteraction:
                     recorded = unit_of_work.affective_state.apply_transition(
                         transition,
                         audit_event_id=self.id_generator.new(),
+                        source_input_id=prepared.source_input_id,
                     )
                     if not recorded:
                         raise RuntimeError(
@@ -462,6 +519,7 @@ class FinalizeAffectiveInteraction:
                     completed_at=completed_at,
                     provider_metadata=provider_metadata,
                     close_session=session.kind is SessionKind.IMPLICIT,
+                    **({"source_input_id": source_input_id} if source_input_id is not None else {}),
                 )
                 unit_of_work.commit()
         except AffectiveStateConflict:

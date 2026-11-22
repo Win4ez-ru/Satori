@@ -20,6 +20,11 @@ from satori.application.positions.contracts import (
     positions_context_json,
 )
 from satori.application.positions.ports import PositionsUnitOfWork
+from satori.application.source_policy.admission import prepare_source_input, require_source_inputs
+from satori.application.source_policy.dispatch import (
+    admit_provider_dispatch,
+    source_dispatch_admission,
+)
 from satori.core.clock import Clock
 from satori.core.ids import IdGenerator
 from satori.core.inclinations import InclinationKind, InclinationStateReference
@@ -46,6 +51,7 @@ from satori.domain.positions import (
     SatoriPosition,
     position_idempotency_key,
 )
+from satori.domain.source_policy import PayloadRef
 from satori.domain.validation import aware_utc
 
 POSITION_REQUEST_SCHEMA_VERSION = 1
@@ -81,16 +87,24 @@ class FormSatoriPositions:
             messages = unit_of_work.positions.get_source_messages(
                 source_interaction_id, limit=self.max_source_messages
             )
-        if prior is not None:
-            return prior
         if not messages:
             raise ValueError("position source completed interaction does not exist")
+        if prior is not None:
+            return prior
         current = next(item for item in messages if item.interaction_id == source_interaction_id)
         with self.unit_of_work_factory() as unit_of_work:
             existing = unit_of_work.positions.list_positions(
                 identity_id=current.identity_id, current_only=True
             )
             values = unit_of_work.positions.get_value_references(current.identity_id)
+            input_id = prepare_source_input(
+                unit_of_work,
+                root_message_ids=tuple(item.message_id for item in messages),
+                payload_refs=tuple(
+                    PayloadRef("position", item.position_id, item.aggregate_version)
+                    for item in existing
+                ),
+            )
         request = PositionFormationRequest(
             schema_version=POSITION_REQUEST_SCHEMA_VERSION,
             trace_id=trace_id,
@@ -124,10 +138,13 @@ class FormSatoriPositions:
                 current_position_count=len(existing),
             ),
         )
-        response = await self.provider.generate_structured(request)
+        with source_dispatch_admission(self.unit_of_work_factory, input_id):
+            admit_provider_dispatch()
+            response = await self.provider.generate_structured(request)
         decision_id = self.id_generator.new()
         now = self.clock.now()
         with self.unit_of_work_factory() as unit_of_work:
+            require_source_inputs(unit_of_work, input_id)
             latest = unit_of_work.positions.list_positions(
                 identity_id=current.identity_id, current_only=False
             )
@@ -181,7 +198,7 @@ class FormSatoriPositions:
                 model=response.model,
             )
             recorded = unit_of_work.positions.record_decision(
-                decision, plan, audit_event_id=self.id_generator.new()
+                decision, plan, audit_event_id=self.id_generator.new(), source_input_id=input_id
             )
             if recorded:
                 unit_of_work.commit()
@@ -444,7 +461,12 @@ class GetSatoriPositions:
         return _position_context(tuple(selected))
 
     def project_inclination_context(
-        self, *, identity_id: str, user_text: str, as_of: datetime
+        self,
+        *,
+        identity_id: str,
+        user_text: str,
+        as_of: datetime,
+        include_owned_topic: bool = False,
     ) -> SatoriInclinationsContext:
         if self.inclination_top_k < 1 or self.max_inclination_context_chars < 256:
             raise ValueError("inclination context limits are invalid")
@@ -464,13 +486,17 @@ class GetSatoriPositions:
             )
             if item.confidence < 0.55 or abs(effective) < 0.05:
                 continue
-            if not explicit_query and not (
-                _inclination_phrase_present(normalized_user, item.topic)
-                or (
-                    item.alternative_topic is not None
-                    and _inclination_phrase_present(normalized_user, item.alternative_topic)
-                )
-            ):
+            topic_relevant = _inclination_phrase_present(normalized_user, item.topic) or (
+                item.alternative_topic is not None
+                and _inclination_phrase_present(normalized_user, item.alternative_topic)
+            )
+            owned_topic_eligible = bool(
+                include_owned_topic and item.kind is InclinationKind.INTEREST and effective > 0.0
+            )
+            if include_owned_topic:
+                if not owned_topic_eligible:
+                    continue
+            elif not explicit_query and not topic_relevant:
                 continue
             eligible.append((effective, item))
         eligible.sort(
@@ -481,6 +507,8 @@ class GetSatoriPositions:
             )
         )
         selected: list[InclinationContextItem] = []
+        selected_refs: list[PayloadRef] = []
+        selection_limit = 1 if include_owned_topic else self.inclination_top_k
         for effective, item in eligible:
             preferred = None
             if item.kind is InclinationKind.PREFERENCE:
@@ -499,9 +527,12 @@ class GetSatoriPositions:
             if len(inclinations_context_json(tentative)) > self.max_inclination_context_chars:
                 continue
             selected.append(candidate)
-            if len(selected) >= self.inclination_top_k:
+            selected_refs.append(
+                PayloadRef("inclination", item.inclination_id, item.aggregate_version)
+            )
+            if len(selected) >= selection_limit:
                 break
-        return _inclination_context(tuple(selected))
+        return _inclination_context(tuple(selected), source_payload_refs=tuple(selected_refs))
 
 
 def position_is_current(position: SatoriPosition) -> bool:
@@ -535,6 +566,9 @@ def _position_tokens(value: str) -> frozenset[str]:
 
 def _position_context(positions: tuple[SatoriPosition, ...]) -> SatoriPositionsContext:
     return SatoriPositionsContext(
+        source_payload_refs=tuple(
+            PayloadRef("position", item.position_id, item.aggregate_version) for item in positions
+        ),
         schema_version=POSITIONS_CONTEXT_SCHEMA_VERSION,
         status="available" if positions else "empty",
         positions=tuple(
@@ -560,6 +594,7 @@ def _position_context(positions: tuple[SatoriPosition, ...]) -> SatoriPositionsC
 _EXPLICIT_INCLINATION_QUERY = re.compile(
     r"(?:какие\s+у\s+тебя\s+(?:интересы|предпочтения)|"
     r"что\s+тебе\s+(?:нравится|интересно)|чем\s+ты\s+интересуешься|"
+    r"чем\s+(?:ты\s+)?увлекаешься|"
     r"что\s+ты\s+предпочитаешь|"
     r"your\s+(?:interests|preferences)|what\s+do\s+you\s+(?:like|prefer))",
     re.IGNORECASE,
@@ -579,6 +614,8 @@ def _inclination_phrase_present(normalized_text: str, topic: str) -> bool:
 
 def _inclination_context(
     inclinations: tuple[InclinationContextItem, ...],
+    *,
+    source_payload_refs: tuple[PayloadRef, ...] = (),
 ) -> SatoriInclinationsContext:
     curiosity = min(
         0.20,
@@ -596,4 +633,5 @@ def _inclination_context(
         status="available" if inclinations else "empty",
         inclinations=inclinations,
         curiosity_influence=round(curiosity, 6),
+        source_payload_refs=source_payload_refs,
     )

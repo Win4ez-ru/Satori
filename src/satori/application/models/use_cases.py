@@ -16,6 +16,11 @@ from satori.application.models.contracts import (
     CurrentModelsContext,
 )
 from satori.application.models.ports import CurrentModelsUnitOfWork
+from satori.application.source_policy.admission import prepare_source_input, require_source_inputs
+from satori.application.source_policy.dispatch import (
+    admit_provider_dispatch,
+    source_dispatch_admission,
+)
 from satori.core.clock import Clock
 from satori.core.ids import IdGenerator
 from satori.core.models import (
@@ -38,6 +43,7 @@ from satori.domain.models import (
     model_idempotency_key,
     normalize_model_text,
 )
+from satori.domain.source_policy import PayloadRef
 
 MODEL_REQUEST_SCHEMA_VERSION = 1
 ModelsUnitOfWorkFactory = Callable[[], CurrentModelsUnitOfWork]
@@ -96,8 +102,13 @@ class FormCurrentModels:
             messages = unit_of_work.current_models.get_source_messages(
                 source_interaction_id, limit=self.max_source_messages
             )
-        if existing is not None:
-            return existing
+            if not messages:
+                raise ValueError("model_source_ineligible")
+            if existing is not None:
+                return existing
+            input_id = prepare_source_input(
+                unit_of_work, root_message_ids=tuple(item.message_id for item in messages)
+            )
         if not messages:
             raise ValueError("model source completed interaction does not exist")
         current = next(item for item in messages if item.interaction_id == source_interaction_id)
@@ -123,10 +134,13 @@ class FormCurrentModels:
         )
         started = self.monotonic()
         try:
-            response = await self.provider.generate_structured(request)
+            with source_dispatch_admission(self.unit_of_work_factory, input_id):
+                admit_provider_dispatch()
+                response = await self.provider.generate_structured(request)
             decision_id = self.id_generator.new()
             now = self.clock.now()
             with self.unit_of_work_factory() as unit_of_work:
+                require_source_inputs(unit_of_work, input_id)
                 user_existing = unit_of_work.current_models.list_user_claims(
                     identity_id=current.identity_id, counterparty_id=current.counterparty_id
                 )
@@ -220,6 +234,7 @@ class FormCurrentModels:
                     world_plan,
                     user_audit_event_id=self.id_generator.new(),
                     world_audit_event_id=self.id_generator.new(),
+                    source_input_id=input_id,
                 )
                 if recorded:
                     unit_of_work.commit()
@@ -537,6 +552,16 @@ class GetCurrentModels:
             user_claims=projected_user,
             world_claims=projected_world,
             excluded_claim_count=total_count - selected_count,
+            source_payload_refs=(
+                *(
+                    PayloadRef("user_model_claim", item.claim_id, item.aggregate_version)
+                    for item in selected_user
+                ),
+                *(
+                    PayloadRef("world_model_claim", item.claim_id, item.aggregate_version)
+                    for item in selected_world
+                ),
+            ),
         )
 
     @classmethod

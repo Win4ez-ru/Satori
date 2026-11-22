@@ -1,8 +1,10 @@
 """SQLAlchemy adapter for Stage 12-14 reflection lifecycle records."""
 
+import uuid
+from dataclasses import replace
 from datetime import datetime
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import and_, func, literal, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,12 @@ from satori.core.reflection import (
     ReflectionSource,
     ReflectionSourceKind,
     ReflectionTargetOwner,
+)
+from satori.domain.audit_metadata import AuditMetadataFamily
+from satori.domain.erasure_reflection import (
+    ReflectionBodyAction,
+    ReflectionBodyTarget,
+    ReflectionProposalHeader,
 )
 from satori.domain.personality_evolution import PERSONALITY_EVIDENCE_RESERVOIR_LIMIT
 from satori.domain.reflection import (
@@ -27,6 +35,14 @@ from satori.domain.reflection import (
     ReflectionTriggerKind,
     affective_signal_hash,
     content_hash,
+    reflection_outcome_id,
+)
+from satori.domain.source_policy import SourcePolicyError
+from satori.infrastructure.persistence.audit_metadata_writer import bind_metadata
+from satori.infrastructure.persistence.erasure_body_codec import decode_body_action
+from satori.infrastructure.persistence.memory_scope import (
+    admitted_reflection_episode_predicate,
+    require_live_message_content,
 )
 from satori.infrastructure.persistence.models.affect import AffectiveTransitionRow
 from satori.infrastructure.persistence.models.conversation import (
@@ -34,6 +50,7 @@ from satori.infrastructure.persistence.models.conversation import (
     ConversationMessageRow,
     ConversationSessionRow,
 )
+from satori.infrastructure.persistence.models.erasure_bodies import ErasureBodyApplicationRow
 from satori.infrastructure.persistence.models.initial_self import AuditEventRow
 from satori.infrastructure.persistence.models.memory import EpisodicMemoryRow, MemoryEvidenceRow
 from satori.infrastructure.persistence.models.positions import (
@@ -49,11 +66,231 @@ from satori.infrastructure.persistence.models.reflection import (
     ReflectionRunRow,
     ReflectionSourceRow,
 )
+from satori.infrastructure.persistence.source_policy import (
+    eligible_payload,
+    eligible_root,
+    payload_admission_predicate,
+    policy_snapshot,
+    record_owner_withdrawal,
+    record_payload,
+    require_source_inputs,
+    root_admission_predicate,
+)
 
 
 class SQLAlchemyReflectionRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def erase_payload_bodies(
+        self, targets: tuple[ReflectionBodyTarget, ...], *, action_id: str
+    ) -> None:
+        """Check all reviewed preimages; the caller owns the atomic main transaction."""
+        from satori.domain.erasure_reflection import MAX_REFLECTION_TARGETS
+        from satori.infrastructure.persistence.reflection_material import read_reflection_material
+
+        if (
+            not 1 <= len(targets) <= MAX_REFLECTION_TARGETS
+            or any(not isinstance(target, ReflectionBodyTarget) for target in targets)
+            or len({target.proposal_id for target in targets}) != len(targets)
+        ):
+            raise SourcePolicyError("reflection_body_target_invalid")
+        receipt = self._session.get(ErasureBodyApplicationRow, action_id)
+        if receipt is None:
+            raise SourcePolicyError("body_action_missing")
+        try:
+            approved = decode_body_action(receipt.action)
+        except (ValueError, TypeError, KeyError, RecursionError):
+            raise SourcePolicyError("body_action_target_mismatch") from None
+        if not isinstance(approved, ReflectionBodyAction) or (
+            approved.action_id != receipt.action_id
+            or approved.floor_id != receipt.floor_id
+            or approved.proposal.root.identity_id != receipt.identity_id
+            or approved.proposal.root.message_id != receipt.root_message_id
+            or approved.proposal.root.lineage_id != receipt.lineage_id
+            or approved.proposal.request_id != receipt.request_id
+            or approved.result_body_revision != receipt.body_revision
+            or any(target not in approved.proposal.targets for target in targets)
+        ):
+            raise SourcePolicyError("body_action_target_mismatch")
+        index = read_reflection_material(
+            self._session, tuple(target.proposal_id for target in targets), require_terminal=False
+        )
+        for target in targets:
+            proposal = index.proposals.get(target.proposal_id)
+            run = index.runs.get(target.run_id)
+            if (
+                proposal is None
+                or run is None
+                or proposal["run_id"] != target.run_id
+                or proposal["body_state"] != "available"
+                or proposal["body_action_id"] is not None
+                or proposal["payload"] is None
+                or run["identity_id"] != approved.proposal.root.identity_id
+                or run["aggregate_version"] != target.run_version
+                or run["status"] not in ("completed", "exhausted")
+                or index.digest(target.proposal_id, terminal=False) != target.body_digest
+                or index.digest(target.proposal_id, terminal=True) != target.terminal_digest
+                or index.metadata_reference_count(target.proposal_id)
+                != target.metadata_reference_count
+            ):
+                raise SourcePolicyError("body_owner_state_changed")
+            roots = self._session.execute(
+                select(
+                    ReflectionSourceRow.root_message_id,
+                    ReflectionSourceRow.root_counterparty_id,
+                    ConversationSessionRow.identity_id,
+                    ConversationSessionRow.counterparty_id,
+                )
+                .join(
+                    ConversationMessageRow,
+                    and_(
+                        ConversationMessageRow.message_id == ReflectionSourceRow.root_message_id,
+                        ConversationMessageRow.interaction_id
+                        == ReflectionSourceRow.root_interaction_id,
+                    ),
+                )
+                .join(
+                    ConversationInteractionRow,
+                    and_(
+                        ConversationInteractionRow.interaction_id
+                        == ConversationMessageRow.interaction_id,
+                        ConversationInteractionRow.session_id == ConversationMessageRow.session_id,
+                    ),
+                )
+                .join(
+                    ConversationSessionRow,
+                    ConversationSessionRow.session_id == ConversationInteractionRow.session_id,
+                )
+                .where(
+                    ReflectionSourceRow.run_id == target.run_id,
+                    ConversationMessageRow.role == "user",
+                    ConversationMessageRow.sequence == 1,
+                    ConversationInteractionRow.status == "completed",
+                    ConversationSessionRow.scope_verified.is_(True),
+                )
+            ).all()
+            expected_roots = self._session.scalar(
+                select(func.count())
+                .select_from(ReflectionSourceRow)
+                .where(ReflectionSourceRow.run_id == target.run_id)
+            )
+            root = approved.proposal.root
+            if (
+                not roots
+                or len(roots) != expected_roots
+                or any(
+                    row.root_counterparty_id != root.counterparty_id
+                    or row.identity_id != root.identity_id
+                    or row.counterparty_id != root.counterparty_id
+                    for row in roots
+                )
+            ):
+                raise SourcePolicyError("body_action_target_mismatch")
+        # SQL NULL is deliberate: assigning Python None to JSON produces JSON null.
+        for target in targets:
+            result = self._session.connection().exec_driver_sql(
+                "UPDATE reflection_proposals SET payload=NULL,body_state='erased',body_action_id=? "
+                "WHERE proposal_id=? AND run_id=? AND body_state='available' "
+                "AND body_action_id IS NULL AND payload IS NOT NULL",
+                (action_id, target.proposal_id, target.run_id),
+            )
+            if result.rowcount != 1:
+                raise SourcePolicyError("body_owner_state_changed")
+        self._session.expire_all()
+
+    def withdraw_source_support(
+        self,
+        *,
+        excluded_message_ids: frozenset[str],
+        request_id: str,
+        policy_generation: int,
+        now: datetime,
+    ) -> None:
+        """Finish unusable backlog without reading or regenerating protected proposal text."""
+        snapshot = policy_snapshot(self._session)
+        if snapshot is None:
+            return
+        rows = tuple(
+            self._session.scalars(
+                select(ReflectionRunRow).where(
+                    ReflectionRunRow.identity_id == snapshot.identity_id,
+                    ReflectionRunRow.status.not_in(("completed", "exhausted")),
+                )
+            )
+        )
+        for row in rows:
+            fixed_roots = tuple(
+                self._session.scalars(
+                    select(ReflectionSourceRow.root_message_id).where(
+                        ReflectionSourceRow.run_id == row.run_id
+                    )
+                )
+            )
+            proposals = tuple(
+                self._session.execute(
+                    select(
+                        ReflectionProposalRow.proposal_id, ReflectionProposalRow.target_owner
+                    ).where(ReflectionProposalRow.run_id == row.run_id)
+                ).all()
+            )
+            unsafe = any(not eligible_root(self._session, root) for root in fixed_roots) or any(
+                not eligible_payload(self._session, "reflection_proposal", proposal.proposal_id)
+                for proposal in proposals
+            )
+            if not unsafe:
+                continue
+            before = self._map_run(row)
+            terminal = replace(
+                before,
+                status=ReflectionRunStatus.EXHAUSTED,
+                aggregate_version=before.aggregate_version + 1,
+                updated_at=now,
+                completed_at=now,
+            )
+            self.update_run(terminal, expected_run_version=before.aggregate_version)
+            for proposal in proposals:
+                policy_version = (
+                    1
+                    if proposal.target_owner
+                    in {"satori_positions", "satori_inclinations", "personality"}
+                    else row.policy_version
+                )
+                outcome = ReflectionOutcome(
+                    outcome_id=reflection_outcome_id(
+                        proposal_id=proposal.proposal_id, target_policy_version=policy_version
+                    ),
+                    proposal_id=proposal.proposal_id,
+                    target_policy_version=policy_version,
+                    decision=ReflectionOutcomeDecision.REJECTED,
+                    reason_code=(
+                        "canonical_source_excluded"
+                        if set(fixed_roots).intersection(excluded_message_ids)
+                        else "source_eligibility_withheld"
+                    ),
+                    target_aggregate_type=None,
+                    target_aggregate_id=None,
+                    decided_at=now,
+                )
+                self.record_outcome(
+                    outcome,
+                    identity_id=snapshot.identity_id,
+                    trace_id=request_id,
+                    audit_event_id=str(uuid.uuid4()),
+                )
+            record_owner_withdrawal(
+                self._session,
+                owner="reflection_run",
+                aggregate_id=row.run_id,
+                request_id=request_id,
+                policy_generation=policy_generation,
+                before_status=before.status.value,
+                after_status=terminal.status.value,
+                before_version=before.aggregate_version,
+                after_version=terminal.aggregate_version,
+                root_message_ids=tuple(sorted(set(fixed_roots).intersection(excluded_message_ids))),
+                now=now,
+            )
 
     def get_run(self, run_id: str) -> ReflectionRun | None:
         row = self._session.get(ReflectionRunRow, run_id)
@@ -146,8 +383,21 @@ class SQLAlchemyReflectionRepository:
             )
             .where(
                 SatoriPositionRow.identity_id == identity_id,
+                SatoriPositionRow.body_state == "available",
+                SatoriPositionRow.body_action_id.is_(None),
+                PositionEvidenceRow.quote.is_not(None),
+                PositionEvidenceRow.normalized_signature.is_not(None),
+                ConversationSessionRow.identity_id == identity_id,
+                ConversationSessionRow.scope_verified.is_(True),
+                ConversationMessageRow.interaction_id == ConversationInteractionRow.interaction_id,
+                ConversationMessageRow.session_id == ConversationInteractionRow.session_id,
+                PositionEvidenceRow.source_counterparty_id
+                == ConversationSessionRow.counterparty_id,
                 ConversationMessageRow.role == "user",
                 ConversationInteractionRow.status == "completed",
+                root_admission_predicate(self._session, ConversationMessageRow.message_id),
+                func.length(PositionEvidenceRow.quote) > 0,
+                func.instr(ConversationMessageRow.content, PositionEvidenceRow.quote) > 0,
             )
             .order_by(PositionEvidenceRow.observed_at, PositionEvidenceRow.evidence_id)
         )
@@ -191,6 +441,7 @@ class SQLAlchemyReflectionRepository:
             )
             .where(
                 ConversationSessionRow.identity_id == identity_id,
+                admitted_reflection_episode_predicate(self._session),
                 ConversationMessageRow.role == "user",
                 ConversationInteractionRow.status == "completed",
                 EpisodicMemoryRow.lifecycle_status == "active",
@@ -207,7 +458,10 @@ class SQLAlchemyReflectionRepository:
         memory_rows = self._session.execute(memory_query).all()
         selected: dict[str, ReflectionSource] = {}
         for evidence, message, interaction, session, transition in position_rows:
-            if message.message_id in consumed_roots or evidence.quote not in message.content:
+            if (
+                message.message_id in consumed_roots
+                or evidence.quote not in require_live_message_content(message)
+            ):
                 continue
             selected.setdefault(
                 message.message_id,
@@ -228,7 +482,9 @@ class SQLAlchemyReflectionRepository:
             if (
                 message.message_id in consumed_roots
                 or message.message_id in selected
-                or evidence.quote not in message.content
+                or evidence.quote is None
+                or evidence.body_state != "available"
+                or evidence.quote not in require_live_message_content(message)
             ):
                 continue
             selected[message.message_id] = self._candidate_source(
@@ -268,12 +524,21 @@ class SQLAlchemyReflectionRepository:
                     if position_edge is not None
                     else None
                 )
-                edge_identity_id = edge_position.identity_id if edge_position is not None else None
+                if (
+                    edge_position is None
+                    or edge_position.body_state != "available"
+                    or edge_position.body_action_id is not None
+                    or position_edge is None
+                    or position_edge.quote is None
+                    or position_edge.normalized_signature is None
+                ):
+                    raise ValueError("reflection source provenance or content hash mismatch")
+                edge_identity_id: str | None = edge_position.identity_id
                 edge_counterparty_id = (
                     position_edge.source_counterparty_id if position_edge is not None else None
                 )
                 edge_lineage_kind = ReflectionLineageKind.POSITION
-                edge_lineage_id = position_edge.position_id if position_edge is not None else None
+                edge_lineage_id: str | None = position_edge.position_id
             else:
                 memory_edge = self._session.get(MemoryEvidenceRow, record.evidence_edge_id)
                 edge_quote = memory_edge.quote if memory_edge is not None else None
@@ -288,6 +553,17 @@ class SQLAlchemyReflectionRepository:
                 edge_counterparty_id = record.root_counterparty_id
                 edge_lineage_kind = ReflectionLineageKind.EPISODIC_MEMORY
                 edge_lineage_id = memory_edge.memory_id if memory_edge is not None else None
+                if (
+                    edge_memory is None
+                    or self._session.execute(
+                        select(EpisodicMemoryRow.memory_id).where(
+                            EpisodicMemoryRow.memory_id == edge_memory.memory_id,
+                            admitted_reflection_episode_predicate(self._session),
+                        )
+                    ).scalar_one_or_none()
+                    is None
+                ):
+                    raise ValueError("reflection source provenance or content hash mismatch")
             message = self._session.get(ConversationMessageRow, record.root_message_id)
             interaction = self._session.get(ConversationInteractionRow, record.root_interaction_id)
             session = (
@@ -300,6 +576,8 @@ class SQLAlchemyReflectionRepository:
                 or message is None
                 or interaction is None
                 or session is None
+                or not session.scope_verified
+                or not eligible_root(self._session, record.root_message_id)
                 or message.role != "user"
                 or edge_message_id != record.root_message_id
                 or (
@@ -317,10 +595,11 @@ class SQLAlchemyReflectionRepository:
                     and record.upstream_lineage_id != edge_lineage_id
                 )
                 or message.interaction_id != record.root_interaction_id
+                or message.session_id != interaction.session_id
                 or interaction.status != "completed"
                 or session.identity_id != run.identity_id
                 or session.counterparty_id != record.root_counterparty_id
-                or edge_quote not in message.content
+                or edge_quote not in require_live_message_content(message)
                 or content_hash(edge_quote) != record.content_hash
             ):
                 raise ValueError("reflection source provenance or content hash mismatch")
@@ -380,10 +659,64 @@ class SQLAlchemyReflectionRepository:
     def list_proposals(self, run_id: str) -> tuple[ReflectionProposal, ...]:
         rows = self._session.execute(
             select(ReflectionProposalRow)
-            .where(ReflectionProposalRow.run_id == run_id)
+            .where(
+                ReflectionProposalRow.run_id == run_id,
+                ReflectionProposalRow.body_state == "available",
+                ReflectionProposalRow.body_action_id.is_(None),
+                ReflectionProposalRow.payload.is_not(None),
+                payload_admission_predicate(
+                    self._session,
+                    "reflection_proposal",
+                    ReflectionProposalRow.proposal_id,
+                    literal(1),
+                ),
+            )
             .order_by(ReflectionProposalRow.ordinal)
         ).scalars()
         return tuple(self._map_proposal(item) for item in rows)
+
+    def list_proposal_ids(self, run_id: str) -> tuple[str, ...]:
+        return tuple(
+            self._session.scalars(
+                select(ReflectionProposalRow.proposal_id)
+                .where(ReflectionProposalRow.run_id == run_id)
+                .order_by(ReflectionProposalRow.ordinal)
+            )
+        )
+
+    def list_unavailable_proposal_headers(
+        self, run_id: str
+    ) -> tuple[ReflectionProposalHeader, ...]:
+        rows = self._session.execute(
+            select(
+                ReflectionProposalRow.proposal_id,
+                ReflectionProposalRow.run_id,
+                ReflectionProposalRow.ordinal,
+                ReflectionProposalRow.target_owner,
+                ReflectionProposalRow.evidence_source_ids,
+                ReflectionProposalRow.created_at,
+                ReflectionProposalRow.body_action_id,
+            )
+            .where(
+                ReflectionProposalRow.run_id == run_id,
+                ReflectionProposalRow.body_state == "erased",
+                ReflectionProposalRow.body_action_id.is_not(None),
+                ReflectionProposalRow.payload.is_(None),
+            )
+            .order_by(ReflectionProposalRow.ordinal)
+        )
+        return tuple(
+            ReflectionProposalHeader(
+                proposal_id=row.proposal_id,
+                run_id=row.run_id,
+                ordinal=row.ordinal,
+                target_owner=ReflectionTargetOwner(row.target_owner),
+                evidence_source_ids=tuple(row.evidence_source_ids),
+                created_at=row.created_at,
+                body_action_id=row.body_action_id,
+            )
+            for row in rows
+        )
 
     def list_outcomes(self, run_id: str) -> tuple[ReflectionOutcome, ...]:
         rows = self._session.execute(
@@ -431,11 +764,18 @@ class SQLAlchemyReflectionRepository:
         proposals: tuple[ReflectionProposal, ...],
         *,
         expected_run_version: int,
+        source_input_id: str | None = None,
     ) -> None:
+        if attempt.status is ReflectionAttemptStatus.SUCCEEDED:
+            require_source_inputs(self._session, source_input_id)
         if attempt.run_id != run.run_id or any(item.run_id != run.run_id for item in proposals):
             raise ValueError("reflection attempt/proposal belongs to a different run")
         self._session.add(self._attempt_row(attempt))
         self._session.add_all(self._proposal_row(item) for item in proposals)
+        for proposal in proposals:
+            record_payload(
+                self._session, "reflection_proposal", proposal.proposal_id, 1, source_input_id
+            )
         self.update_run(run, expected_run_version=expected_run_version)
 
     def record_outcome(
@@ -446,6 +786,27 @@ class SQLAlchemyReflectionRepository:
         trace_id: str,
         audit_event_id: str,
     ) -> bool:
+        prior = self._session.scalar(
+            select(ReflectionOutcomeRow.outcome_id).where(
+                ReflectionOutcomeRow.proposal_id == outcome.proposal_id,
+                ReflectionOutcomeRow.target_policy_version == outcome.target_policy_version,
+            )
+        )
+        if prior is not None:
+            return False
+        # Exact legacy operator repair selects historical metadata without asking the
+        # old schema for new body columns. Ordinary owner routing has no fallback.
+        if self._session.info.get("source_operator_reflection_legacy") is not True:
+            available = self._session.scalar(
+                select(ReflectionProposalRow.proposal_id).where(
+                    ReflectionProposalRow.proposal_id == outcome.proposal_id,
+                    ReflectionProposalRow.body_state == "available",
+                    ReflectionProposalRow.body_action_id.is_(None),
+                    ReflectionProposalRow.payload.is_not(None),
+                )
+            )
+            if available is None:
+                raise SourcePolicyError("reflection_body_unavailable")
         statement = (
             sqlite_insert(ReflectionOutcomeRow)
             .values(
@@ -464,20 +825,26 @@ class SQLAlchemyReflectionRepository:
         if self._session.execute(statement).scalar_one_or_none() is None:
             return False
         self._session.add(
-            AuditEventRow(
-                event_id=audit_event_id,
-                schema_version=1,
-                event_type=f"reflection.{outcome.decision.value}",
-                aggregate_type="reflection_proposal",
-                aggregate_id=outcome.proposal_id,
-                occurred_at=outcome.decided_at,
-                trace_id=trace_id,
-                details={
-                    "outcome_id": outcome.outcome_id,
-                    "target_policy_version": outcome.target_policy_version,
-                    "reason_code": outcome.reason_code,
-                    "identity_id": identity_id,
-                },
+            bind_metadata(
+                self._session,
+                AuditEventRow(
+                    event_id=audit_event_id,
+                    schema_version=1,
+                    event_type=f"reflection.{outcome.decision.value}",
+                    aggregate_type="reflection_proposal",
+                    aggregate_id=outcome.proposal_id,
+                    occurred_at=outcome.decided_at,
+                    trace_id=trace_id,
+                    details={
+                        "outcome_id": outcome.outcome_id,
+                        "target_policy_version": outcome.target_policy_version,
+                        "reason_code": outcome.reason_code,
+                        "identity_id": identity_id,
+                    },
+                ),
+                family=AuditMetadataFamily.REFLECTION_DISABLED,
+                identity_id=identity_id,
+                owner_record_id=outcome.outcome_id,
             )
         )
         return True
@@ -712,6 +1079,8 @@ class SQLAlchemyReflectionRepository:
 
     @staticmethod
     def _map_proposal(row: ReflectionProposalRow) -> ReflectionProposal:
+        if row.body_state != "available" or row.body_action_id is not None or row.payload is None:
+            raise SourcePolicyError("reflection_body_unavailable")
         return ReflectionProposal(
             proposal_id=row.proposal_id,
             run_id=row.run_id,

@@ -4,6 +4,8 @@ import json
 import math
 from dataclasses import dataclass
 
+from satori.domain.source_policy import PayloadRef
+
 
 @dataclass(frozen=True, slots=True)
 class PositionContextItem:
@@ -22,6 +24,7 @@ class SatoriPositionsContext:
     schema_version: int
     status: str
     positions: tuple[PositionContextItem, ...]
+    source_payload_refs: tuple[PayloadRef, ...] = ()
 
     @property
     def position_ids(self) -> tuple[str, ...]:
@@ -71,6 +74,7 @@ class SatoriInclinationsContext:
     status: str
     inclinations: tuple[InclinationContextItem, ...]
     curiosity_influence: float
+    source_payload_refs: tuple[PayloadRef, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "inclinations", tuple(self.inclinations))

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from satori.core.conversation import ConversationProviderFailureReason
 from satori.domain.validation import aware_utc, non_blank, positive_version
 
 
@@ -37,6 +38,103 @@ class HistoricalMessageRole(StrEnum):
     ASSISTANT = "assistant"
 
 
+class DialogueBodyState(StrEnum):
+    """Availability of an owner's physical text representation."""
+
+    AVAILABLE = "available"
+    ERASED = "erased"
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalMessageHeader:
+    """Retained attribution metadata; never a message or new source evidence."""
+
+    message_id: str
+    session_id: str
+    interaction_id: str
+    schema_version: int
+    role: HistoricalMessageRole
+    created_at: datetime
+    sequence: int
+    body_state: DialogueBodyState
+    body_action_id: str | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("message_id", "session_id", "interaction_id"):
+            object.__setattr__(self, name, non_blank(getattr(self, name), name, maximum=128))
+        positive_version(self.schema_version, "message schema_version")
+        if not isinstance(self.role, HistoricalMessageRole):
+            raise ValueError("invalid_historical_message_role")
+        object.__setattr__(self, "created_at", aware_utc(self.created_at, "created_at"))
+        expected = 1 if self.role is HistoricalMessageRole.USER else 2
+        if type(self.sequence) is not int or self.sequence != expected:
+            raise ValueError("invalid_historical_message_sequence")
+        if not isinstance(self.body_state, DialogueBodyState):
+            raise ValueError("invalid_dialogue_body_state")
+        if self.body_state is DialogueBodyState.AVAILABLE:
+            if self.body_action_id is not None:
+                raise ValueError("available_dialogue_body_cannot_have_action")
+        else:
+            if self.body_action_id is None:
+                raise ValueError("erased_dialogue_body_requires_action")
+            object.__setattr__(
+                self,
+                "body_action_id",
+                non_blank(self.body_action_id, "body_action_id", maximum=128),
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationInteractionHeader:
+    """Owner metadata for deliberate terminal-body processing skips."""
+
+    interaction_id: str
+    session_id: str
+    status: InteractionStatus
+    user_message: HistoricalMessageHeader
+    assistant_message: HistoricalMessageHeader | None = None
+    relationship_processing_required: bool = True
+    model_processing_required: bool = True
+    position_processing_required: bool = True
+
+    def __post_init__(self) -> None:
+        for name in ("interaction_id", "session_id"):
+            object.__setattr__(self, name, non_blank(getattr(self, name), name, maximum=128))
+        if not isinstance(self.status, InteractionStatus):
+            raise ValueError("invalid_interaction_status")
+        if (
+            self.user_message.role is not HistoricalMessageRole.USER
+            or self.user_message.interaction_id != self.interaction_id
+            or self.user_message.session_id != self.session_id
+        ):
+            raise ValueError("interaction_header_user_reference_mismatch")
+        assistant = self.assistant_message
+        if self.status is InteractionStatus.COMPLETED:
+            if (
+                assistant is None
+                or assistant.role is not HistoricalMessageRole.ASSISTANT
+                or assistant.interaction_id != self.interaction_id
+                or assistant.session_id != self.session_id
+            ):
+                raise ValueError("completed_interaction_header_requires_pair")
+        elif assistant is not None:
+            raise ValueError("incomplete_interaction_header_cannot_have_reply")
+        for name in (
+            "relationship_processing_required",
+            "model_processing_required",
+            "position_processing_required",
+        ):
+            if type(getattr(self, name)) is not bool:
+                raise ValueError("invalid_processing_required")
+
+    @property
+    def has_terminal_body(self) -> bool:
+        return self.user_message.body_state is DialogueBodyState.ERASED or (
+            self.assistant_message is not None
+            and self.assistant_message.body_state is DialogueBodyState.ERASED
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class ConversationSession:
     """Stable conversation container; never a long-term memory."""
@@ -49,6 +147,7 @@ class ConversationSession:
     started_at: datetime
     ended_at: datetime | None = None
     counterparty_id: str = "local-default"
+    scope_verified: bool = True
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -60,6 +159,8 @@ class ConversationSession:
             non_blank(self.identity_id, "identity_id", maximum=128),
         )
         positive_version(self.schema_version, "session schema_version")
+        if not isinstance(self.scope_verified, bool):
+            raise ValueError("session scope_verified must be boolean")
         object.__setattr__(self, "started_at", aware_utc(self.started_at, "started_at"))
         object.__setattr__(
             self,
@@ -401,6 +502,40 @@ class InteractionProviderMetadata:
 
 
 @dataclass(frozen=True, slots=True)
+class InteractionFailureMetadata:
+    """Content-free reason for one failed interaction attempt."""
+
+    kind: str
+    reason: ConversationProviderFailureReason | None = None
+    provider: str | None = None
+    model: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "kind", non_blank(self.kind, "failure kind", maximum=128))
+        provider_values = (self.provider, self.model)
+        if self.reason is None:
+            if any(value is not None for value in provider_values):
+                raise ValueError("legacy/non-provider failure cannot contain provider metadata")
+            return
+        if not isinstance(self.reason, ConversationProviderFailureReason):
+            raise ValueError("failure reason must be a ConversationProviderFailureReason")
+        if any(value is None for value in provider_values):
+            raise ValueError("typed provider failure requires provider and model")
+        assert self.provider is not None
+        assert self.model is not None
+        object.__setattr__(
+            self,
+            "provider",
+            non_blank(self.provider, "failure provider", maximum=128),
+        )
+        object.__setattr__(
+            self,
+            "model",
+            non_blank(self.model, "failure model", maximum=256),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class ConversationInteraction:
     """One user-to-Satori turn with an atomic completed-message pair."""
 
@@ -415,7 +550,7 @@ class ConversationInteraction:
     assistant_message: HistoricalMessage | None = None
     completed_at: datetime | None = None
     provider_metadata: InteractionProviderMetadata | None = None
-    failure_kind: str | None = None
+    failure: InteractionFailureMetadata | None = None
     relationship_processing_required: bool = True
     model_processing_required: bool = True
     position_processing_required: bool = True
@@ -458,7 +593,7 @@ class ConversationInteraction:
                 self.assistant_message is None
                 or self.completed_at is None
                 or self.provider_metadata is None
-                or self.failure_kind is not None
+                or self.failure is not None
             ):
                 raise ValueError("completed interaction requires reply metadata and no failure")
             if self.assistant_message.role is not HistoricalMessageRole.ASSISTANT:
@@ -473,12 +608,19 @@ class ConversationInteraction:
                 )
             if self.completed_at < self.started_at:
                 raise ValueError("completed_at cannot precede started_at")
-        elif (
-            self.assistant_message is not None
-            or self.completed_at is not None
-            or self.provider_metadata is not None
-        ):
-            raise ValueError("incomplete interaction cannot contain a committed assistant reply")
+        else:
+            if (
+                self.assistant_message is not None
+                or self.completed_at is not None
+                or self.provider_metadata is not None
+            ):
+                raise ValueError(
+                    "incomplete interaction cannot contain a committed assistant reply"
+                )
+            if self.status is InteractionStatus.PENDING and self.failure is not None:
+                raise ValueError("pending interaction cannot contain failure metadata")
+            if self.status is InteractionStatus.FAILED and self.failure is None:
+                raise ValueError("failed interaction requires failure metadata")
 
 
 @dataclass(frozen=True, slots=True)

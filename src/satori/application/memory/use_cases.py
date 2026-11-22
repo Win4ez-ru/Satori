@@ -4,7 +4,13 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from satori.application.memory.contracts import MemoryScopeStatus
 from satori.application.memory.ports import EpisodicMemoryUnitOfWork
+from satori.application.source_policy.admission import prepare_source_input, require_source_inputs
+from satori.application.source_policy.dispatch import (
+    admit_provider_dispatch,
+    source_dispatch_admission,
+)
 from satori.core.clock import Clock
 from satori.core.conversation import ConversationMessageRole
 from satori.core.episode import (
@@ -29,6 +35,8 @@ from satori.domain.memory import (
     MemoryProvenanceKind,
     episode_idempotency_key,
 )
+from satori.domain.memory_scope import MemoryScope
+from satori.domain.source_policy import PayloadRef
 
 EPISODE_REQUEST_SCHEMA_VERSION = 1
 EpisodicMemoryUnitOfWorkFactory = Callable[[], EpisodicMemoryUnitOfWork]
@@ -65,9 +73,24 @@ class FormEpisodeForInteraction:
             raise ValueError("episode formation requires a completed interaction")
         key = episode_idempotency_key(interaction.interaction_id, EPISODE_FORMATION_VERSION)
         with self.unit_of_work_factory() as unit_of_work:
+            canonical = unit_of_work.episodic_memory.get_source_interaction(
+                interaction.interaction_id
+            )
+            if canonical is None:
+                raise ValueError("episode_source_scope_unverified")
             existing = unit_of_work.episodic_memory.get_decision(key)
+            input_id = None
+            if existing is None:
+                input_id = prepare_source_input(
+                    unit_of_work,
+                    root_message_ids=(canonical.user_message.message_id,),
+                    payload_refs=(PayloadRef("assistant_reply", canonical.interaction_id),)
+                    if canonical.assistant_message is not None
+                    else (),
+                )
         if existing is not None:
             return existing
+        interaction = canonical
 
         self.logger.info(
             "episode_formation_started",
@@ -98,7 +121,9 @@ class FormEpisodeForInteraction:
             ),
         )
         try:
-            provider_response = await self.provider.generate_structured(request)
+            with source_dispatch_admission(self.unit_of_work_factory, input_id):
+                admit_provider_dispatch()
+                provider_response = await self.provider.generate_structured(request)
             draft = self.memory_manager.evaluate(provider_response.proposal, interaction)
             decision = self._materialize_decision(
                 key=key,
@@ -108,9 +133,16 @@ class FormEpisodeForInteraction:
                 trace_id=trace_id,
             )
             with self.unit_of_work_factory() as unit_of_work:
+                require_source_inputs(unit_of_work, input_id)
+                if (
+                    unit_of_work.episodic_memory.get_source_interaction(interaction.interaction_id)
+                    != interaction
+                ):
+                    raise ValueError("episode_source_changed")
                 recorded = unit_of_work.episodic_memory.record_decision(
                     decision,
                     audit_event_id=self.id_generator.new(),
+                    input_id=input_id,
                 )
                 if recorded:
                     unit_of_work.commit()
@@ -214,9 +246,24 @@ class GetEpisodicMemories:
     """Explicit-ID/debug read only; never inject memories into conversation context."""
 
     unit_of_work_factory: EpisodicMemoryUnitOfWorkFactory
+    scope_provider: Callable[[], MemoryScope]
 
-    def execute(self, *, interaction_id: str | None = None) -> tuple[EpisodicMemory, ...]:
+    def scope_status(self, *, scope: MemoryScope | None = None) -> MemoryScopeStatus:
+        with self.unit_of_work_factory() as unit_of_work:
+            return unit_of_work.episodic_memory.scope_status(scope or self.scope_provider())
+
+    def execute(
+        self,
+        *,
+        scope: MemoryScope | None = None,
+        interaction_id: str | None = None,
+        include_archived: bool = False,
+    ) -> tuple[EpisodicMemory, ...]:
         """Load durable episodes without performing semantic retrieval."""
 
         with self.unit_of_work_factory() as unit_of_work:
-            return unit_of_work.episodic_memory.list_memories(interaction_id=interaction_id)
+            return unit_of_work.episodic_memory.list_memories(
+                scope=scope or self.scope_provider(),
+                interaction_id=interaction_id,
+                include_archived=include_archived,
+            )

@@ -1,10 +1,28 @@
 # Cognition lifecycle
 
+[ADR-0069](decisions/0069-prior-dialogue-relation-before-agency.md) adds a separate default-off
+V35-only interpretation experiment before final agency. One bounded relation proposal is validated
+against exact current USER and the immediately preceding available completed pair; a scoped
+content-free header prevents older eligible-history substitution. Only supported relevant topic
+shift can modulate the ordinary lead. Personality, affect, relationship and cognition ownership
+remain unchanged, and cognition completion still checks the selected reaction afterward.
+
 ## 1. Принцип
 
 Cognition превращает вход и immutable state snapshots в ответ и typed proposals. Она не владеет persistent domain state. Semantic judgment может использовать LLM; validation, permissions, bounds, persistence и audit всегда детерминированы.
 
 Structured artifacts описывают результаты рассуждения, но не raw private chain-of-thought.
+
+## Current-position candidate — 2026-10-07
+
+[ADR-0067](decisions/0067-bounded-current-position-before-expression.md) adds an independent
+default-off semantic operation after existing agency/cognition compatibility on V35. It proposes
+none or one bounded current judgment from the already supplied immutable context. The application
+checks schema, bounds and reachable refs before the final generator receives marked provisional
+data. It does not replace the operational `InternalPosition`, select agency, mutate owners or
+create a durable Satori position. One extra call on eligible ordinary turns, separate timing/usage,
+complete source admission and frozen reuse on foreground retry are explicit. Semantic truth and
+recognizable character remain human/provider gates.
 
 ## Stage 3 implemented slice
 
@@ -128,6 +146,16 @@ The tentative state is not durable before generation. Provider/grounding failure
 completed replay skips appraisal; canonical finalize commits assistant message, interaction,
 state, transition and audit in one transaction. Stale different-interaction versions fail
 explicitly and require re-appraisal/regeneration from the latest state.
+
+## Checkpoint 14.3 optional appraisal dialogue context
+
+[ADR-0064](decisions/0064-previous-exchange-context-for-affective-appraisal.md) adds optional
+previous-exchange interpretation before appraisal. It uses at most one verified pair from already
+loaded history, without replacing the current event or adding provider calls. Input schema 2 is
+separate from unchanged semantic proposal schema 1/categorical output 2. The opt-in flag defaults
+off; prior wording supplies conversational context rather than self truth or new relationship
+evidence. Its complete actual source dependencies remain checked through dispatch and canonical
+finalize, including a context-bearing failed/skipped appraisal.
 
 ## Stage 7.5 implemented runtime slice
 
@@ -472,26 +500,207 @@ origin.
 
 ### Checkpoint 14.2 character expression
 
-ADR-0029 added one post-strategy, pre-generation typed read projection; ADR-0030 supersedes its
-relationship-modulation and provider-delivery clauses. The response strategy still owns stance, uncertainty, evidence
-boundary, verbosity, humor and softness. A pure `CharacterExpressionPlan` composes those
-constraints with the five authoritative personality-guidance codes, qualitative affect and the
-existing qualitative relationship profile. Fresh, developing and established profiles may
-modulate ordinary-turn ease, care, openness and response-local initiative. Damaged guardedness is
-still read only when the current relational subject makes it relevant. The plan selects a closed
-expression register and candidate v16 owned reaction/semantic move plus bounded wit, care,
-openness and initiative codes; it does not inspect raw dialogue or generate prose. The new closed
-codes use only narrow typed signals such as explicit request, canonical completion/depletion
-contrast and exact repeated-turn detection.
+ADR-0029 added one post-strategy, pre-generation typed read projection; ADR-0030 superseded its
+relationship-modulation clauses, and ADR-0036 historically replaced its current-turn contribution/
+motivation selection. ADR-0037–0039 then evolved that request-local plan through policy v23; those
+plan/response-act contracts remain historical for v19–v23. The response strategy still owns stance,
+uncertainty, evidence boundary, verbosity, humor and softness. In the historical path, a pure
+`CharacterExpressionPlan` composes those constraints with the five authoritative personality-
+guidance codes, qualitative affect and the existing qualitative relationship profile. Fresh,
+developing and established profiles may modulate ordinary-turn ease, care, openness and response-
+local initiative. Damaged guardedness is read only when the current relational subject makes it
+relevant.
 
-The plan is rendered as positive guidance so `listen` can choose open care, `challenge` a playful
+Policy v19/schema v2 remains historical. Historical candidate v20 required schema v3: its semantic
+move is the factual/continuity anchor, while closed contribution, motivational-posture and
+pressure axes select what Satori adds and the maximum interpersonal force allowed by current
+evidence. Narrow deterministic checks recognize explicit depletion, serious distress, a request
+to be heard, a direct request for motivation, task retreat and harmful overextension. They reject
+local negation and quoted examples, create no cognition artifact and are never persisted.
+
+That plan was rendered as positive guidance so `listen` could choose open care, `challenge` a playful
 edge, creative collaboration active energy, negative affect reflective candor and technical mode
-thoughtful precision. These choices never reverse the internal position, add evidence, persist a
-style mode or authorize an external action. Provider text remains canonical and unrewritten.
+thoughtful precision. A completion/depletion contrast may choose gentle recovery direction, but
+cannot infer cause or further work. Explicit listening or serious distress disables ordinary
+motivation; only directly stated harmful continuation permits a firm protective stop. These
+choices never reversed the internal position, added evidence, persisted a style mode or authorized
+an external action. V20 rendering was contribution-first, then factual-anchor constrained, and
+bounded to at most two short complete sentences. Its target achievement/listen-sensitive turns
+received a 128-token cap; reaching Ollama's length limit failed closed rather than committing a
+fragment. Provider text otherwise remained canonical and unrewritten.
 
 Response-local initiative means only a contribution inside the current reply that the typed
 strategy already licenses. No probability target or persistent counter is implied. Observer-driven
 or otherwise out-of-band initiative remains the separate Stage 19 `should_initiate?` boundary.
+
+ADR-0040 historically made policy v24 the direct-delivery candidate while preserving v19–v23 as
+historical paths. Once cognition returns a complete `ResponseStrategy`, the application derives one
+`CharacterDeliveryDecision` directly; it does not construct the legacy expression plan or
+response-act contract. Policies v10 and v19–v23 remain pinned to intent/template registry V1 with
+template ID `satori.cognition.response-strategy` and schema 1. V24 alone uses intent/template
+registry V2 with template ID `satori.cognition.response-substance` and schema 2. The selector copies
+the registry version, primary intent, ordered tags, required point codes, complete forbidden-claim
+boundary, response verbosity, `position_stance` and `preserve_uncertainty` exactly. It fails before
+generation if the
+strategy or intent is absent, the registry/template identity differs, any copied substance differs,
+or the selected goal/voice/grounding/continuation/pressure topology is invalid. Character delivery
+therefore cannot become a second cognition owner.
+
+V24 renders the typed position through one cohesive canonical-character baseline and exactly one
+late director. The director is the sole turn-specific provider-facing reply-shape instruction: the
+V2 response-substance template renders cognition-owned intent/tags, required points, forbidden
+claims and verbosity inside the same director. The historical V1 cognition-strategy prose, legacy
+plan realization and response-act projection are not rendered alongside it. The underlying
+cognition trace and decision remain typed and observable through safe metadata, while raw
+chain-of-thought is neither requested nor stored.
+
+Intent registry V2 adds `hold_safety_boundary`, `notice_repetition` and `receive_repair`. Protective
+safety has precedence over exact-turn repetition, which has precedence over a clean repair offer.
+Repair applies only when the ordinary stance remains `ANSWER` and no question, request, correction
+or challenge owns the current message; it cannot hide an actionable turn. The character selector
+must consume these cognition-owned meta-intents rather than infer an incompatible goal itself.
+
+V2 also closes the intent-to-substance topology. `IntentSelection` contains exactly one
+response-action tag, equal to `primary_tag`; `ResponseStrategy` contains exactly one action point,
+equal to that same primary intent. Meta-intents use a singleton point set. A non-meta strategy also
+contains `address_current_request`; its only permitted supplemental point codes are
+`state_uncertainty`, `presence_before_advice` and `topic_relevant_inclination`. The cognition trace,
+embedded V2 template and character-delivery boundary independently fail closed on a missing,
+competing, unknown or mismatched action/point combination.
+
+The safe planner boundary also treats `curiosity_influence` as owner-approved input rather than a
+planner output. A returned strategy may project exactly zero or the supplied value; a positive
+value requires `topic_relevant_inclination`, that point requires a positive value, and positive
+influence is forbidden on fallback traces. Any amplification, substitution or point/value drift
+uses the existing conservative cognition fallback. This does not create a second inclination
+owner, and legitimate zero suppression remains allowed.
+
+The director separates factual scope from conversational movement. `grounding` controls which
+claims current or trusted evidence licenses; `continuation` independently controls a grounded
+reaction, one in-reply initiative, a natural close or reserve. Ordinary depletion means presence
+first and no more than one optional low-cost suggestion supported by current input; listen-only and
+serious-distress paths remain presence-only. Existing affect and relationship owners only modulate
+delivery. Guardedness cannot degrade an important technical or practical answer.
+
+The existing ten-reason validator and max-one retry are unchanged and reuse the final director
+byte-for-byte. There is no output rewrite, judge model, new persistent state or Stage 15 behavior.
+The 32-case deterministic corpus and four-module employer-demo contract are acceptance inputs, not
+proof of provider quality. Each reviewed module is digest-bound to its immutable safe report, and
+the final readiness aggregate requires all four distinct modules, their exact human reviews and a
+shared production configuration. Non-generation replay may omit the transient cognition/delivery
+projection, but cannot treat it as state or fresh-generation authority. The later paid v24
+`core_emotional` module was rejected and is only historical sampling evidence.
+
+ADR-0041 adds a v25 cognition/delivery boundary for questions about Satori herself. The request-
+local disclosure plan classifies social current-affect checks, reciprocal warmth, personal self-
+disclosure and current-relationship questions, and carries every directly requested authoritative
+facet, including `interests`. Its closed `DisclosureRequestKind` emits
+`SELF_DISCLOSURE_REQUEST` only for `SATORI_SELF`; reciprocal warmth remains `NONE` and uses the same
+social delivery path without claiming a self request. The cognition pipeline does not reinterpret
+Satori's requested affect as evidence that the user needs emotional presence; it raises the
+information need and selects `ANSWER` from trusted self state. Explicit listening, high distress
+and harmful-overextension safety retain precedence.
+
+V25 keeps cognition intent registry V2 and switches only the substance renderer to template
+registry/schema V3. V3 renders `listen_and_reflect` without repeating, explaining or diagnosing the
+experience, treats `presence_before_advice` as conditional and expands `hidden_user_state` to
+include causal psychological explanations. The template still renders only closed typed codes
+inside the sole character director; it is not a second personality source. V24 remains pinned to
+template V2.
+
+The schema-2 delivery decision copies cognition stance, uncertainty and all required substance as
+before, then may select `social_connect` or `self_disclose` and carry the exact disclosure facets.
+It cannot invent a stable interest when no owner-approved inclination is available. The adjacent
+`depletion_follow_through` signal is also deterministic: only an explicit current stop/defer choice
+immediately after a canonical depletion disclosure permits pressure-free practical care. No
+provider output feeds back into any signal or cognition artifact. The v25 implementation phase was
+offline. The later separately authorized 3 × 3 OpenAI sample completed without
+retry or provider failure and proved this route, but its repeated calm-state declarations,
+interest disclaimers and polished abstractions did not establish recognizability.
+
+ADR-0042 historically replaced the active v25 realization with policy v26 while preserving that historical
+path. The audit found a break after cognition and context assembly: live personality strengths and
+values were not consumed by the v25 decision, affect and relationship were collapsed into a few
+profiles, and several overlapping prose blocks instructed the provider to satisfy a response
+checklist. Stage 15 autobiographical state would not fix that break, so it remains locked.
+
+V26 advances `CharacterDeliveryDecision` to schema 3 without changing cognition ownership. The
+decision still copies the exact V2 intent registry, primary intent, ordered tags, required points,
+forbidden claims, verbosity, stance and uncertainty. `CharacterPresenceProjection` schema 1 then
+derives one bounded causal read from that decision plus the existing runtime personality/value,
+affect and relationship owner projections, an exact memory-use license and the availability of a
+canonical position and an owner-approved inclination. Memory use is licensed only when retrieval
+actually returned memory and the final delivery decision uses `trusted_context` grounding; stored
+or retrieved memory under another grounding scope remains outside the character-presence move. At
+most three qualitative signals from each state family may be selected; none is a proposal or
+mutation.
+
+The V26 V3 cognition template exposed `render_presence_purpose`: it rendered the selected
+outcome compactly rather than repeating the historical response-substance checklist. One final
+presence layer combines that purpose with the live state signals, grounding, continuation,
+pressure and requested disclosure facets. Separate current affect, relationship, canonical-
+character core and late-director blocks are absent on a fresh v26 turn. Factual/safety contracts
+remain distinct where their authority requires it.
+
+This boundary explicitly distinguishes a new Satori reaction, opinion or taste from an external
+fact about the user or world. Missing inclination stays silent unless the user specifically asks
+whether a stable hobby exists; personality and values may support general curiosity but never
+manufacture a durable topical preference. Ordinary depletion uses no default pressure in v26;
+motivation still requires an explicit request or the separate safety basis.
+
+The v26 manifest records decision schema 3, presence schema 1, bounded qualitative signal codes
+and levels, and the exact memory-use-license boolean. The boolean must agree with retrieval status
+and final grounding. Non-generation replay may omit the transient fields, and provider prose never
+feeds back into cognition or any state owner. The later attempt-5 sample rejected that frozen
+V26/Terra realization; it remains historical evidence rather than cognition or prompt authority.
+
+ADR-0043 kept the same cognition intent/template registry V2/V3 for the then-current policy v27
+offline candidate. In that now-rejected historical policy, the full validated V3 support is no
+longer reduced to a generic presence purpose: the compact operational renderer carries
+`address_current_request`, the selected analysis/creative/follow-up support, conditional
+presence-before-advice, uncertainty, every
+forbidden-claim category and cognition-owned verbosity. Character selection may choose voice,
+pressure and continuation only inside that substance/truth boundary.
+
+Live personality/values, affect, scoped relationship and narrow current-turn evidence are consumed
+before schema-4 movement selection. Direct objection and topic closure are request-local response
+acts under the existing `ANSWER` stance, not new beliefs or planner state. A previous assistant
+turn may establish what is being disputed, but cannot become a durable Satori position; revision of
+a canonical position still requires the Stage 11 owner path. Pressure-free ordinary depletion
+renders no advice/action plan, while explicit help, safety and listen-only paths retain cognition
+precedence. Schema-2 presence is transient proof of selected owner inputs, never feedback into
+cognition.
+
+Offline tests cover exact schema isolation, complete V3 support, all 40 historical public inputs,
+eight exact current turns, 28 broader situations and the unchanged maximum-one retry. The later
+V27 attempt-2 provider sample completed 24/24 base calls without retry; generated prose remains
+non-authoritative. Its direct human-only gate rejected the configuration at 6/24 recognizable
+Satori presence and 9/24 natural delivery despite 24/24 grounding and completeness.
+
+Checkpoint 14.3 / ADR-0045 changes the ordering that V27 could not validate. After retrieval and
+tentative affect reads, but before `SafeCognitionPipeline.complete`, deterministic policy selects
+one `CharacterAgencyDecision` from prepared perception/needs plus the immutable live state. The
+decision states what Satori chooses to do in this reply; it does not contain prose, a hidden
+thought, a durable goal or an instruction to mutate state. Cognition completion then remains the
+hard obligation boundary: agency cannot remove required points, weaken forbidden claims, reverse
+stance, hide uncertainty or pre-empt safety/listen/repetition/repair precedence.
+
+Policy v28 delivery schema 5 copies both inputs into one validated result and presence schema 3
+renders exactly one integrated movement. An owner-approved position/inclination contribution must
+name a supplied ID; absent state cannot be synthesized. A retry receives the byte-identical
+decision and request, and neither successful nor rejected provider prose becomes cognition or
+agency evidence.
+
+Completion failure is explicit rather than a mixed-status request: if the safe pipeline completes
+as `fallback` after an applied intake, the earlier agency decision is downgraded before rendering
+to the sole conservative `none/respond/stop` fallback topology. Delivery and manifest validation
+require status parity while retaining cognition's final safety, repetition, uncertainty and point
+requirements.
+
+Fresh V28 generation records that transient decision in manifest schema 17. Historical policies
+through V27 remain on manifest schema 16 and cannot consume or reconstruct V28 agency authority;
+non-generation replay may omit the full transient agency/delivery/presence set but cannot create
+one.
 
 No persistent creator relation exists. The model may accurately attribute a creator claim to the
 current user input, but cannot make it a durable fact, deny it as impossible, or replace the
@@ -503,6 +712,29 @@ refines the existing late current-turn guidance only: relationship answers canno
 closeness/being nearby, and technical answers cannot deny that the bounded affect projection
 changes expression. Behavior policy v7, provider output delivery and all typed self/state remain
 unchanged.
+
+V36 under ADR-0062 adds an opt-in transient structural cue before the existing agency freeze.
+It refers only to an unquoted final question-like span of the last available complete canonical
+assistant turn, with exact IDs and Unicode offsets. It does not extend cognition intake with
+semantic answered/declined/redirected classification. Schema-2 agency may choose ordinary
+HELP/FUSED with the cue and supplementary reason; cognition obligations and completion remain
+unchanged. Delivery/presence retain schemas 5/3; manifest 18 carries the cue separately from fresh
+evidence references. The assembler checks exact recomputation against supplied recent history;
+the manifest alone proves typed topology and prior user-root membership, not source text.
+
+Replay omits transient selection; the bounded retry retains it; completion fallback removes it.
+Historical policies through V35 keep agency 1 / manifest 17 and exact provider wire/native
+parameters. New optional Python fields serialize as null under generic dataclass serialization.
+There is no inference call, appraisal wire change, migration or persistent owner mutation.
+
+V37 under ADR-0065 is a separate expression candidate based on V35 selection. It reuses agency
+2 / manifest 18 with the cue absent; V36 cue projection and HELP modulation are V36-only. A single
+eligible generic movement line distinguishes supplied premises from own contribution, preserving
+the complete cognition boundary and requested summary/quotation/reasoning work. It adds no new
+selected proposition, summary detector or semantic judge, and does not reinterpret context as
+mutation evidence. The actual V37 builder rejects an incoming V36 cue; the standalone historical
+manifest validator remains a protocol validator. Behavioral fulfillment is not established by
+the presence of that instruction.
 
 ## 9. Stage 8 slow relationship cognition
 
@@ -523,3 +755,18 @@ above episode and semantic formation. A new user turn may take foreground priori
 relationship snapshot; it never waits for derived relationship consistency. Conversation context
 schema v10 adds only a trusted qualitative relationship section, while numeric state and provenance
 remain outside the provider request. Love/dependency/exclusivity are not inferred constructs.
+
+## 10. Available dialogue boundary — Foundations 14.4.2f
+
+[ADR-0063](decisions/0063-terminal-dialogue-bodies-and-historical-provenance.md) keeps contentful
+conversation/Character inputs separate from terminal historical metadata. Approved canonical,
+paired and COMPLETE-dependent assistant bodies are SQL NULL; metadata-only headers retain IDs
+and attribution. Recent/history projections filter available completed pairs before their limits.
+Independent available USER evidence can remain valid when its dependent assistant is terminal.
+
+An erased client request has an explicit content-unavailable replay result and does not call a
+provider or regenerate text. Post-response work checks the interaction header before loading
+content and skips terminal pairs. Exact historical evidence witnesses are inventory/audit proof
+only; they never enter cognition or authorize fresh learning. Dispatch/finalization continue to
+use the existing source admission contract and actual mixed-head body proof. No Character prompt,
+selection, affect appraisal or provider-specific behavior is introduced by this slice.

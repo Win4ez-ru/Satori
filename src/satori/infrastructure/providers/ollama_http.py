@@ -7,6 +7,8 @@ from collections.abc import Mapping
 from typing import Any
 from urllib.parse import urlsplit
 
+from satori.application.source_policy.dispatch import admit_provider_dispatch
+
 
 class OllamaHttpStatusError(Exception):
     """An Ollama request reached the server and returned a non-success status."""
@@ -51,6 +53,7 @@ class OllamaHttpClient:
         try:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             connection.timeout = timeout_seconds
+            admit_provider_dispatch()
             connection.request(
                 "POST",
                 path,

@@ -22,6 +22,11 @@ canonical same-counterparty user messages
 Every claim is partitioned by Satori identity and opaque counterparty ID. The local default is not
 authentication and does not make multi-user deployment safe.
 
+North Star audit 2026-09-04: this model's partitioning does not imply that earlier episodic and
+semantic retrieval is equally partitioned. Nor does World Model v1 ingest calendar/mail/device
+events. Planned 14.4 and 17.1–17.2 gates add explicit visibility and source/temporal contracts;
+ADR-0022 eligibility remains unchanged until a separately accepted implementation ADR.
+
 ## Closed v1 vocabulary
 
 User claims have subject `counterparty` and one of:
@@ -114,3 +119,14 @@ equality; it is never a mutable second store.
 - restart and export round-trip equality;
 - bounded relevant context and no Stage 6/relationship feedback;
 - manual project lifecycle `planned -> active -> completed` with state lineage and replies.
+
+## Canonical source withdrawal — Foundations 14.4.2b.2
+
+ADR-0057 adds actual-input receipts independently of accepted evidence. Every newly accepted
+evidence edge must belong to the exact prepared canonical input window with completed verified
+identity/counterparty lineage. Current projections require eligible exact payload versions.
+If source exclusion invalidates a claim's actual-input closure, its existing owner retires the
+unsafe text through a typed support-withdrawal operation: the fact is not asserted disproved, and
+historical evidence/confidence/revisions remain. Active keys are released for freshly grounded
+replacement without inherited withdrawn confidence. Owner repair lag rejects mutation before
+provider work/first SQL; it cannot merge hidden ACTIVE support. See [source policy](source-policy.md).

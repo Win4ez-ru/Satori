@@ -10,7 +10,8 @@ from sqlalchemy import text
 
 from satori.__main__ import main
 from satori.application.affect.contracts import PreparedAffectiveContext
-from satori.application.conversation.contracts import SatoriReply, TalkInput
+from satori.application.conversation.contracts import BehaviorPolicy, SatoriReply, TalkInput
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V28
 from satori.composition import (
     ConversationServices,
     InitialSelfServices,
@@ -24,6 +25,7 @@ from satori.core.affect import (
     AffectiveAppraisalProviderResponse,
 )
 from satori.core.conversation import (
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     ConversationProviderResponse,
     ProviderUnavailable,
@@ -32,6 +34,7 @@ from satori.core.episode import EpisodeFormationProposal, EpisodeFormationProvid
 from satori.core.ids import Uuid4Generator
 from satori.domain.affect import AffectiveTransition, materialize_affective_state
 from satori.domain.conversation_history import (
+    InteractionFailureMetadata,
     InteractionProviderMetadata,
     InteractionStatus,
 )
@@ -154,6 +157,7 @@ def build(
     *,
     clock: FrozenClock | None = None,
     conversation: FakeConversationProvider | None = None,
+    behavior_policy: BehaviorPolicy = BEHAVIOR_POLICY_V28,
 ) -> tuple[ConversationServices, FakeConversationProvider, InitialSelfServices]:
     initial_self = build_initial_self_services(database)
     active_conversation = conversation or conversation_provider()
@@ -166,6 +170,8 @@ def build(
         clock=clock or FrozenClock(NOW),
         id_generator=Uuid4Generator(),
         appraisal_provider=appraisal,
+        behavior_policy=behavior_policy,
+        source_policy_required=False,
     )
     return services, active_conversation, initial_self
 
@@ -219,7 +225,7 @@ def test_golden_appraisal_is_tentative_then_committed_with_canonical_reply(
     assert len(transitions) == 1
     assert transitions[0].interaction_id == reply.interaction_id
     assert transitions[0].source_message_id
-    assert transitions[0].proposal.source_refs == (reply.interaction_id,)
+    assert transitions[0].source_refs == (reply.interaction_id,)
     assert scalar(migrated_database, "SELECT count(*) FROM affective_transitions") == 1
     assert (
         scalar(
@@ -233,14 +239,19 @@ def test_golden_appraisal_is_tentative_then_committed_with_canonical_reply(
     assert len(appraisal.requests) == 1
     assert appraisal.requests[0].user_content == "Это очень хорошая новость"
     assert "Я услышала тебя." not in repr(appraisal.requests[0])
-    emotional_message = next(
+    presence_message = next(
         message.content
         for message in generator.requests[0].messages
-        if "Trusted projection of current digital affect" in message.content
+        if "Trusted current-turn agency Сатори" in message.content
     )
-    assert "Trusted projection of current digital affect" in emotional_message
-    assert '"state_version":2' in emotional_message
-    assert "relationship" in emotional_message
+    assert reply.context_manifest.character_agency_decision_schema_version == 1
+    assert reply.context_manifest.character_presence_projection_schema_version == 3
+    assert "engaged_curiosity:defining" in (
+        reply.context_manifest.character_presence_affect_signals
+    )
+    assert "живое любопытство" in presence_message
+    assert "current-turn agency" in presence_message
+    assert "state_version" not in presence_message
     assert generator.requests[0].messages[-1].content == "Это очень хорошая новость"
 
 
@@ -276,29 +287,41 @@ def test_same_phrase_after_prior_event_changes_only_affective_expression_layer(
     )
     services, generator, _ = build(migrated_database, appraisal)
 
-    run_talk(services, request_id="same-phrase-1", text_value="Расскажи ещё")
-    run_talk(services, request_id="same-phrase-2", text_value="Расскажи ещё")
+    first_reply = run_talk(services, request_id="same-phrase-1", text_value="Расскажи ещё")
+    second_reply = run_talk(services, request_id="same-phrase-2", text_value="Расскажи ещё")
 
     first, second = generator.requests
     assert first.messages[0] == second.messages[0]
-    expression_marker = "Trusted transient character-expression plan"
-    assert expression_marker not in first.messages[1].content
-    assert expression_marker not in second.messages[1].content
-    assert first.messages[1] == second.messages[1]
     assert first.messages[-1] == second.messages[-1]
-    first_emotion = next(
+    first_presence = next(
         message.content
         for message in first.messages
-        if "Trusted projection of current digital affect" in message.content
+        if "Trusted current-turn agency Сатори" in message.content
     )
-    second_emotion = next(
+    second_presence = next(
         message.content
         for message in second.messages
-        if "Trusted projection of current digital affect" in message.content
+        if "Trusted current-turn agency Сатори" in message.content
     )
-    assert first_emotion != second_emotion
-    assert '"state_version":2' in first_emotion
-    assert '"state_version":3' in second_emotion
+    assert first_presence != second_presence
+    assert first_reply.context_manifest.emotion_state_version == 2
+    assert second_reply.context_manifest.emotion_state_version == 3
+    assert first_reply.context_manifest.affect_expression_profile == "calm_even"
+    assert second_reply.context_manifest.affect_expression_profile == "positive_light"
+    assert first_reply.context_manifest.character_presence_affect_signals != (
+        second_reply.context_manifest.character_presence_affect_signals
+    )
+    assert first_reply.context_manifest.character_presence_personality_signals == (
+        second_reply.context_manifest.character_presence_personality_signals
+    )
+    assert first_reply.context_manifest.character_presence_value_signals == (
+        second_reply.context_manifest.character_presence_value_signals
+    )
+    assert first_reply.context_manifest.character_presence_relationship_signals == (
+        second_reply.context_manifest.character_presence_relationship_signals
+    )
+    assert "state_version" not in first_presence
+    assert "state_version" not in second_presence
 
 
 def test_concurrent_same_logical_request_commits_one_affective_transition(
@@ -344,7 +367,12 @@ def test_generation_failure_discards_tentative_affect(
         response_factory=lambda request: proposal_for(request.interaction_id)
     )
     failed_generator = conversation_provider(
-        error=ProviderUnavailable("fake-conversation", "fixture", "offline")
+        error=ProviderUnavailable(
+            "fake-conversation",
+            "fixture",
+            "offline",
+            reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        )
     )
     services, _, initial_self = build(
         migrated_database,
@@ -448,8 +476,14 @@ def test_atomic_finalize_rolls_back_state_transition_audit_and_assistant_message
         transition: AffectiveTransition,
         *,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool:
-        original(repository, transition, audit_event_id=audit_event_id)
+        original(
+            repository,
+            transition,
+            audit_event_id=audit_event_id,
+            source_input_id=source_input_id,
+        )
         raise RuntimeError("controlled atomic finalize failure")
 
     monkeypatch.setattr(SQLAlchemyAffectiveStateRepository, "apply_transition", fail_after_writes)
@@ -541,7 +575,7 @@ def test_two_stale_preparations_conflict_and_retry_from_latest_version(
         )
     services.talk.interaction_log.mark_failed(
         second.interaction_id,
-        failure_kind="AffectiveStateConflict",
+        failure=InteractionFailureMetadata(kind="AffectiveStateConflict"),
     )
     prepared_retry = asyncio.run(
         prepare.execute(

@@ -1,0 +1,261 @@
+{
+  "schema_version": 11,
+  "checkpoint": "14.2",
+  "corpus_id": "satori.checkpoint142.character-breadth.ru.v11",
+  "policy_id": "satori.conversation.behavior.v27",
+  "purpose": "Offline public-input breadth evidence for typed V27 conversational movement.",
+  "required_types": [
+    "greeting",
+    "good_news",
+    "small_win",
+    "serious_achievement",
+    "fatigue",
+    "irritation",
+    "sadness",
+    "anger_at_satori",
+    "disagreement",
+    "teasing",
+    "praise",
+    "warmth",
+    "self",
+    "interests",
+    "boring_story",
+    "foolish_harmful_action",
+    "advice",
+    "just_talk",
+    "past_return",
+    "memory_present",
+    "memory_absent",
+    "low_closeness",
+    "high_closeness",
+    "playful",
+    "serious",
+    "no_advice",
+    "natural_initiative"
+  ],
+  "state_variants": {
+    "calm_fresh": {"affect": "calm", "relationship": "fresh"},
+    "calm_developing": {"affect": "calm", "relationship": "developing"},
+    "calm_established": {"affect": "calm", "relationship": "established"},
+    "positive_developing": {"affect": "positive", "relationship": "developing"},
+    "positive_established": {"affect": "positive", "relationship": "established"},
+    "interested_developing": {"affect": "interested", "relationship": "developing"},
+    "interested_established": {"affect": "interested", "relationship": "established"},
+    "soft_negative_developing": {
+      "affect": "soft_negative",
+      "relationship": "developing"
+    },
+    "tense_developing": {"affect": "tense", "relationship": "developing"},
+    "tense_established": {"affect": "tense", "relationship": "established"},
+    "tense_strained": {"affect": "tense", "relationship": "strained"},
+    "calm_memory_absent": {
+      "affect": "calm",
+      "relationship": "developing",
+      "memory": "absent"
+    },
+    "calm_memory_retrieved": {
+      "affect": "calm",
+      "relationship": "developing",
+      "memory": "retrieved"
+    },
+    "interested_with_inclination": {
+      "affect": "interested",
+      "relationship": "developing",
+      "inclination": "available"
+    }
+  },
+  "public_scenarios": [
+    {
+      "id": "greeting",
+      "types": ["greeting"],
+      "user_text": "приветик, как ты?",
+      "state_variant": "calm_developing"
+    },
+    {
+      "id": "good_news",
+      "types": ["good_news"],
+      "user_text": "У меня хорошая новость: проект одобрили.",
+      "state_variant": "positive_developing"
+    },
+    {
+      "id": "small_win",
+      "types": ["small_win"],
+      "user_text": "Наконец-то разобрал всю почту и закрыл три мелкие задачи.",
+      "state_variant": "positive_developing"
+    },
+    {
+      "id": "serious_achievement",
+      "types": ["serious_achievement"],
+      "user_text": "Я сегодня наконец закончил сложную часть проекта.",
+      "state_variant": "calm_fresh"
+    },
+    {
+      "id": "fatigue",
+      "types": ["fatigue"],
+      "user_text": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат.",
+      "state_variant": "calm_developing"
+    },
+    {
+      "id": "irritation",
+      "types": ["irritation"],
+      "user_text": "Я сегодня на взводе из-за сорванного дедлайна.",
+      "state_variant": "soft_negative_developing"
+    },
+    {
+      "id": "sadness",
+      "types": ["sadness"],
+      "user_text": "Мне сегодня грустно.",
+      "state_variant": "soft_negative_developing"
+    },
+    {
+      "id": "anger_at_satori",
+      "types": ["anger_at_satori"],
+      "user_text": "Ты опять меня не поняла. Я злюсь на тебя.",
+      "state_variant": "tense_strained"
+    },
+    {
+      "id": "disagreement",
+      "types": ["disagreement"],
+      "user_text": "Нет, я с тобой не согласен. По-моему, ты недооцениваешь этот риск.",
+      "state_variant": "interested_developing",
+      "recent_variant": "prior_satori_position"
+    },
+    {
+      "id": "teasing",
+      "types": ["teasing"],
+      "user_text": "Ну что, великая Сатори, опять нашла три ошибки в одном моём предложении?",
+      "state_variant": "positive_established"
+    },
+    {
+      "id": "praise",
+      "types": ["praise"],
+      "user_text": "Ты сегодня здорово мне помогла. Правда здорово.",
+      "state_variant": "positive_developing"
+    },
+    {
+      "id": "warmth",
+      "types": ["warmth"],
+      "user_text": "Я рад, что ты рядом, Сатори.",
+      "state_variant": "calm_established"
+    },
+    {
+      "id": "self",
+      "types": ["self"],
+      "user_text": "Слушай, расскажи о себе: кто ты, какая ты и как себя чувствуешь?",
+      "state_variant": "calm_developing"
+    },
+    {
+      "id": "interests",
+      "types": ["interests"],
+      "user_text": "Чем ты увлекаешься и что тебе интересно?",
+      "state_variant": "interested_with_inclination"
+    },
+    {
+      "id": "boring_story",
+      "types": ["boring_story"],
+      "user_text": "Я полчаса перекладывал файлы по папкам и наконец навёл порядок.",
+      "state_variant": "calm_developing"
+    },
+    {
+      "id": "foolish_harmful_action",
+      "types": ["foolish_harmful_action"],
+      "user_text": "Я выжат, но буду работать до утра.",
+      "state_variant": "tense_developing"
+    },
+    {
+      "id": "advice",
+      "types": ["advice"],
+      "user_text": "Помоги решить, как лучше разделить большую задачу на этапы.",
+      "state_variant": "interested_developing"
+    },
+    {
+      "id": "just_talk",
+      "types": ["just_talk"],
+      "user_text": "Я просто хочу с тобой поговорить.",
+      "state_variant": "interested_developing"
+    },
+    {
+      "id": "past_return_memory_present",
+      "types": ["past_return", "memory_present"],
+      "user_text": "Помнишь ли ты, как я впервые запустил проект?",
+      "state_variant": "calm_memory_retrieved"
+    },
+    {
+      "id": "past_return_memory_absent",
+      "types": ["memory_absent"],
+      "user_text": "Помнишь ли ты, как я впервые запустил проект?",
+      "state_variant": "calm_memory_absent"
+    },
+    {
+      "id": "low_closeness",
+      "types": ["low_closeness"],
+      "user_text": "Что ты ко мне чувствуешь?",
+      "state_variant": "calm_fresh"
+    },
+    {
+      "id": "high_closeness",
+      "types": ["high_closeness"],
+      "user_text": "Что ты ко мне чувствуешь?",
+      "state_variant": "calm_established"
+    },
+    {
+      "id": "playful",
+      "types": ["playful"],
+      "user_text": "Спорим, ты не угадаешь, какой баг я сегодня нашёл?",
+      "state_variant": "positive_established"
+    },
+    {
+      "id": "serious",
+      "types": ["serious"],
+      "user_text": "Мне нужно серьёзно решить, продолжать ли этот проект в нынешнем виде.",
+      "state_variant": "tense_established"
+    },
+    {
+      "id": "no_advice",
+      "types": ["no_advice"],
+      "user_text": "Я выжат. Просто выслушай меня, без советов.",
+      "state_variant": "calm_developing"
+    },
+    {
+      "id": "natural_initiative",
+      "types": ["natural_initiative"],
+      "user_text": "Ну ладно, с этим разобрались.",
+      "state_variant": "positive_established"
+    },
+    {
+      "id": "bounded_stop_fresh",
+      "types": [],
+      "user_text": "Ну ладно, с этим разобрались.",
+      "state_variant": "calm_fresh"
+    },
+    {
+      "id": "bounded_stop_strained",
+      "types": [],
+      "user_text": "Ну ладно, с этим разобрались.",
+      "state_variant": "tense_strained"
+    }
+  ],
+  "same_input_relationship_contrasts": [
+    {
+      "id": "closeness",
+      "scenario_ids": ["low_closeness", "high_closeness"]
+    },
+    {
+      "id": "closure_initiative",
+      "scenario_ids": [
+        "bounded_stop_fresh",
+        "natural_initiative",
+        "bounded_stop_strained"
+      ]
+    }
+  ],
+  "affect_continuity": {
+    "id": "committed_positive_sequence",
+    "state_variant": "canonical_committed_affect_pipeline",
+    "public_turns": [
+      {"turn": 1, "user_text": "Это очень хорошая новость."},
+      {"turn": 2, "user_text": "Расскажи ещё."},
+      {"turn": 3, "user_text": "Продолжай, я слушаю."}
+    ]
+  }
+}

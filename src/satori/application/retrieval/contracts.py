@@ -9,6 +9,8 @@ from enum import StrEnum
 from satori.core.embedding import EmbeddingSpace
 from satori.core.provider_metrics import ProviderExecutionMetrics
 from satori.domain.memory import EpisodicMemory
+from satori.domain.memory_scope import MemoryScope
+from satori.domain.source_policy import PayloadRef
 
 
 class RetrievalStatus(StrEnum):
@@ -62,9 +64,11 @@ class RetrievedMemoryContext:
     embedding_latency_ms: float = 0.0
     candidate_search_ranking_latency_ms: float = 0.0
     provider_metrics: ProviderExecutionMetrics | None = None
+    source_payload_refs: tuple[PayloadRef, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "memories", tuple(self.memories))
+        object.__setattr__(self, "source_payload_refs", tuple(self.source_payload_refs))
         if self.status is RetrievalStatus.RETRIEVED and not self.memories:
             raise ValueError("retrieved status requires memories")
         if self.status is not RetrievalStatus.RETRIEVED and self.memories:
@@ -89,6 +93,15 @@ class RetrievalQuery:
     trace_id: str
     cutoff: datetime
     current_interaction_id: str | None
+    scope: MemoryScope
+    root_message_id: str | None = None
+    operator_query: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.scope, MemoryScope):
+            raise ValueError("memory_scope_required")
+        if type(self.operator_query) is not bool:
+            raise ValueError("invalid_operator_query")
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +112,7 @@ class IndexingReport:
     indexed: int
     failed: int
     space: EmbeddingSpace | None
+    more_available: bool = False
 
 
 def memory_context_json(context: RetrievedMemoryContext) -> str:

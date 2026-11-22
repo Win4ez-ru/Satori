@@ -16,19 +16,24 @@ from satori.application.conversation.errors import (
 )
 from satori.application.conversation.ports import ConversationHistoryUnitOfWork
 from satori.application.initial_self.use_cases import GetInitialSelfSnapshot
+from satori.application.source_policy.admission import prepare_source_input, require_source_inputs
 from satori.core.clock import Clock
 from satori.core.ids import IdGenerator
 from satori.domain.conversation_history import (
     ConversationHistorySnapshot,
     ConversationInteraction,
+    ConversationInteractionHeader,
     ConversationSession,
     HistoricalMessage,
     HistoricalMessageRole,
+    InteractionFailureMetadata,
     InteractionProviderMetadata,
     InteractionStatus,
     SessionKind,
     SessionStatus,
 )
+from satori.domain.memory_scope import MemoryScope
+from satori.domain.source_policy import PayloadRef
 
 SESSION_SCHEMA_VERSION = 1
 INTERACTION_SCHEMA_VERSION = 1
@@ -39,6 +44,14 @@ ConversationHistoryUnitOfWorkFactory = Callable[[], ConversationHistoryUnitOfWor
 
 def _log_fields(**fields: object) -> dict[str, object]:
     return {"satori_fields": fields}
+
+
+def _session_matches(session: ConversationSession, scope: MemoryScope) -> bool:
+    return (
+        session.scope_verified
+        and session.identity_id == scope.identity_id
+        and session.counterparty_id == scope.counterparty_id
+    )
 
 
 @dataclass(slots=True)
@@ -82,14 +95,16 @@ class CloseConversationSession:
 
     unit_of_work_factory: ConversationHistoryUnitOfWorkFactory
     clock: Clock
+    scope_provider: Callable[[], MemoryScope]
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("satori.history"))
 
-    def execute(self, session_id: str) -> ConversationSession:
+    def execute(self, session_id: str, *, scope: MemoryScope | None = None) -> ConversationSession:
         """Close idempotently; a missing session is a typed error."""
 
+        scope = scope or self.scope_provider()
         with self.unit_of_work_factory() as unit_of_work:
             existing = unit_of_work.conversation_history.get_session(session_id)
-            if existing is None:
+            if existing is None or not _session_matches(existing, scope):
                 raise ConversationSessionNotFound(f"conversation session not found: {session_id}")
             if existing.status is SessionStatus.CLOSED:
                 return existing
@@ -112,17 +127,20 @@ class GetConversationHistory:
     """Return immutable raw-history read models, optionally scoped to one session."""
 
     unit_of_work_factory: ConversationHistoryUnitOfWorkFactory
+    scope_provider: Callable[[], MemoryScope]
 
-    def execute(self, *, session_id: str | None = None) -> ConversationHistorySnapshot:
+    def execute(
+        self, *, scope: MemoryScope | None = None, session_id: str | None = None
+    ) -> ConversationHistorySnapshot:
         """Load history without provider prompts, ORM objects, or memory projections."""
 
+        scope = scope or self.scope_provider()
         with self.unit_of_work_factory() as unit_of_work:
-            if (
-                session_id is not None
-                and unit_of_work.conversation_history.get_session(session_id) is None
-            ):
-                raise ConversationSessionNotFound(f"conversation session not found: {session_id}")
-            return unit_of_work.conversation_history.get_history(session_id=session_id)
+            if session_id is not None:
+                session = unit_of_work.conversation_history.get_session(session_id)
+                if session is None or not _session_matches(session, scope):
+                    raise ConversationSessionNotFound("conversation session unavailable in scope")
+            return unit_of_work.conversation_history.get_history(scope=scope, session_id=session_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,14 +150,20 @@ class GetRecentConversation:
     unit_of_work_factory: ConversationHistoryUnitOfWorkFactory
     max_turns: int
     max_chars: int
+    scope_provider: Callable[[], MemoryScope]
 
     def execute(
-        self, *, session_id: str, excluded_interaction_id: str
+        self, *, session_id: str, excluded_interaction_id: str, scope: MemoryScope | None = None
     ) -> RecentConversationContext:
         """Keep newest whole turns and deterministically drop older/oversize pairs."""
 
+        scope = scope or self.scope_provider()
         with self.unit_of_work_factory() as unit_of_work:
+            session = unit_of_work.conversation_history.get_session(session_id)
+            if session is None or not _session_matches(session, scope):
+                raise ConversationSessionNotFound("conversation session unavailable in scope")
             candidates = unit_of_work.conversation_history.list_recent_completed(
+                scope=scope,
                 session_id=session_id,
                 excluded_interaction_id=excluded_interaction_id,
                 limit=self.max_turns,
@@ -182,6 +206,18 @@ class InteractionLog:
     default_counterparty_id: str = "local-default"
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("satori.history"))
 
+    def prepare_inputs(
+        self, *, root_message_ids: tuple[str, ...], payload_refs: tuple[PayloadRef, ...]
+    ) -> str | None:
+        with self.unit_of_work_factory() as unit:
+            return prepare_source_input(
+                unit, root_message_ids=root_message_ids, payload_refs=payload_refs
+            )
+
+    def require_inputs(self, input_id: str | None) -> None:
+        with self.unit_of_work_factory() as unit:
+            require_source_inputs(unit, input_id)
+
     def get_session(self, session_id: str) -> ConversationSession | None:
         """Read the canonical session partition without exposing the repository."""
 
@@ -195,6 +231,11 @@ class InteractionLog:
             repository = unit_of_work.conversation_history
             existing = repository.get_by_client_request_id(command.client_request_id)
             if existing is not None:
+                prior_session = repository.get_session(existing.session_id)
+                if prior_session is None or not _session_matches(
+                    prior_session, MemoryScope(identity_id, self.default_counterparty_id)
+                ):
+                    raise InteractionIdempotencyConflict("client_request_id unavailable in scope")
                 self._validate_replay(existing, command)
                 return existing
 
@@ -220,7 +261,9 @@ class InteractionLog:
                         f"conversation session not found: {command.session_id}"
                     )
                 session = stored_session
-                if session.identity_id != identity_id:
+                if not _session_matches(
+                    session, MemoryScope(identity_id, self.default_counterparty_id)
+                ):
                     raise ConversationSessionNotFound(
                         f"conversation session not found: {command.session_id}"
                     )
@@ -262,13 +305,13 @@ class InteractionLog:
             )
         return interaction
 
-    def mark_failed(self, interaction_id: str, *, failure_kind: str) -> None:
+    def mark_failed(self, interaction_id: str, *, failure: InteractionFailureMetadata) -> None:
         """Persist retryable failure metadata without message content."""
 
         with self.unit_of_work_factory() as unit_of_work:
             unit_of_work.conversation_history.mark_failed(
                 interaction_id,
-                failure_kind=failure_kind,
+                failure=failure,
             )
             unit_of_work.commit()
 
@@ -278,12 +321,35 @@ class InteractionLog:
         with self.unit_of_work_factory() as unit_of_work:
             return unit_of_work.conversation_history.get_interaction(interaction_id)
 
+    def get_header(self, interaction_id: str) -> ConversationInteractionHeader | None:
+        """Inspect terminal availability without reconstructing an erased message."""
+
+        with self.unit_of_work_factory() as unit_of_work:
+            return unit_of_work.conversation_history.get_interaction_header(interaction_id)
+
+    def get_latest_completed_header(
+        self,
+        *,
+        scope: MemoryScope,
+        session_id: str,
+        excluded_interaction_id: str,
+    ) -> ConversationInteractionHeader | None:
+        """Read a scoped latest slot without materializing unavailable history."""
+
+        with self.unit_of_work_factory() as unit_of_work:
+            return unit_of_work.conversation_history.get_latest_completed_header(
+                scope=scope,
+                session_id=session_id,
+                excluded_interaction_id=excluded_interaction_id,
+            )
+
     def complete(
         self,
         interaction: ConversationInteraction,
         *,
         assistant_text: str,
         provider_metadata: InteractionProviderMetadata,
+        source_input_id: str | None = None,
     ) -> ConversationInteraction:
         """Atomically append the assistant message and mark the pair completed."""
 
@@ -308,6 +374,7 @@ class InteractionLog:
                 completed_at=completed_at,
                 provider_metadata=provider_metadata,
                 close_session=session.kind is SessionKind.IMPLICIT,
+                **({"source_input_id": source_input_id} if source_input_id is not None else {}),
             )
             unit_of_work.commit()
         if session.kind is SessionKind.IMPLICIT:

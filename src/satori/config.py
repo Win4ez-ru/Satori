@@ -2,6 +2,7 @@
 
 from enum import StrEnum
 from functools import lru_cache
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, ValidationInfo, field_validator, model_validator
@@ -53,10 +54,18 @@ class OpenAIReasoningEffort(StrEnum):
     MAX = "max"
 
 
+class OpenAIModelProfile(StrEnum):
+    """Closed, explicitly selected all-role OpenAI model assignments."""
+
+    ALL_LUNA = "all_luna"
+    FOREGROUND_TERRA = "foreground_terra"
+
+
 class EmbeddingProviderKind(StrEnum):
     """Configured embedding provider adapter."""
 
     OLLAMA = "ollama"
+    OPENAI = "openai"
 
 
 class Settings(BaseSettings):
@@ -71,13 +80,17 @@ class Settings(BaseSettings):
 
     environment: Environment = Environment.DEVELOPMENT
     database_url: str = "sqlite+pysqlite:///./var/satori.db"
+    source_policy_directory: Path = Path("./var/source-policy")
     log_level: LogLevel = LogLevel.INFO
+    all_openai_enabled: bool = False
+    openai_model_profile: OpenAIModelProfile = OpenAIModelProfile.ALL_LUNA
     conversation_provider: ConversationProviderKind = ConversationProviderKind.OLLAMA
     conversation_model: str = "qwen3:4b-instruct"
     conversation_provider_base_url: str = "http://127.0.0.1:11434"
     conversation_timeout_seconds: float = Field(default=120.0, gt=0.0, le=600.0)
     conversation_temperature: float = Field(default=0.3, ge=0.0, le=2.0)
     conversation_max_output_tokens: int = Field(default=768, ge=1, le=4096)
+    conversation_output_token_limit_floor: int = Field(default=0, ge=0, le=768)
     conversation_max_input_chars: int = Field(default=8000, ge=1, le=100_000)
     conversation_max_context_chars: int = Field(default=12_000, ge=1000, le=100_000)
     conversation_max_response_chars: int = Field(default=12_000, ge=1, le=100_000)
@@ -127,6 +140,10 @@ class Settings(BaseSettings):
     affective_appraisal_timeout_seconds: float = Field(default=120.0, gt=0.0, le=600.0)
     affective_appraisal_max_output_tokens: int = Field(default=96, ge=32, le=1024)
     affective_appraisal_context_window: int = Field(default=4096, ge=512, le=32_768)
+    affective_appraisal_previous_exchange_enabled: bool = False
+    conversation_current_position_enabled: bool = False
+    conversation_prior_dialogue_relation_enabled: bool = False
+    conversation_repair_interpretation_enabled: bool = False
     relationship_appraisal_provider: ConversationProviderKind = ConversationProviderKind.OLLAMA
     relationship_appraisal_model: str = "qwen3:4b-instruct"
     relationship_appraisal_provider_base_url: str = "http://127.0.0.1:11434"
@@ -172,6 +189,15 @@ class Settings(BaseSettings):
         if effective_environment in {Environment.TEST, Environment.TEST.value}:
             return init_settings, env_settings, file_secret_settings
         return init_settings, env_settings, dotenv_settings, file_secret_settings
+
+    @field_validator("conversation_output_token_limit_floor", mode="before")
+    @classmethod
+    def exact_output_limit_floor(cls, value: object) -> int:
+        if type(value) is int:
+            return value
+        if type(value) is str and value.isascii() and value.isdecimal():
+            return int(value)
+        raise ValueError("output_token_limit_floor_requires_integer")
 
     @field_validator("database_url")
     @classmethod
@@ -244,7 +270,7 @@ class Settings(BaseSettings):
         allowed_paths = {"", "/"}
         if info.field_name == "yandex_ai_studio_base_url":
             allowed_paths.add("/v1")
-        if info.field_name == "openai_base_url":
+        if info.field_name == "openai_base_url" or info.data.get("all_openai_enabled") is True:
             allowed_paths.add("/v1")
         if (
             parsed.scheme not in {"http", "https"}
@@ -291,7 +317,71 @@ class Settings(BaseSettings):
             for name, provider in background_providers.items()
             if provider is not ConversationProviderKind.OLLAMA
         ]
-        if unsupported:
+        if self.conversation_output_token_limit_floor > self.conversation_max_output_tokens:
+            raise ValueError("output_token_limit_floor_exceeds_global_ceiling")
+        if self.conversation_output_token_limit_floor and not self.all_openai_enabled:
+            raise ValueError("output_token_limit_floor_requires_all_openai_mode")
+        if (
+            self.openai_model_profile is not OpenAIModelProfile.ALL_LUNA
+            and not self.all_openai_enabled
+        ):
+            raise ValueError("openai_model_profile_requires_all_openai_mode")
+        if self.all_openai_enabled:
+            if self.conversation_max_output_tokens > 768:
+                raise ValueError("all_openai_global_output_ceiling_exceeds_candidate_bound")
+            if (
+                self.conversation_provider is not ConversationProviderKind.OPENAI
+                or self.embedding_provider is not EmbeddingProviderKind.OPENAI
+                or any(
+                    provider is not ConversationProviderKind.OPENAI
+                    for provider in background_providers.values()
+                )
+            ):
+                raise ValueError("all_openai_requires_all_nine_roles")
+            if any(
+                origin != "https://api.openai.com/v1"
+                for origin in (
+                    self.conversation_provider_base_url,
+                    self.affective_appraisal_provider_base_url,
+                    self.relationship_appraisal_provider_base_url,
+                    self.reflection_provider_base_url,
+                    self.embedding_provider_base_url,
+                )
+            ):
+                raise ValueError("all_openai_requires_canonical_role_endpoints")
+            if self.openai_api_key is not None and any(
+                not 33 <= ord(character) <= 126
+                for character in self.openai_api_key.get_secret_value()
+            ):
+                raise ValueError("all_openai_invalid_key_format")
+            generation_models = (
+                self.episode_formation_model,
+                self.semantic_formation_model,
+                self.model_formation_model,
+                self.position_formation_model,
+                self.reflection_model,
+                self.affective_appraisal_model,
+                self.relationship_appraisal_model,
+            )
+            foreground_model = (
+                "gpt-6.1-terra"
+                if self.openai_model_profile is OpenAIModelProfile.FOREGROUND_TERRA
+                else "gpt-6-luna"
+            )
+            if self.conversation_model != foreground_model or any(
+                model != "gpt-6-luna" for model in generation_models
+            ):
+                raise ValueError("all_openai_requires_pinned_generation_models")
+            if self.embedding_model != "text-embedding-3-small" or self.embedding_dimensions > 1536:
+                raise ValueError("all_openai_requires_pinned_embedding_space")
+            if (
+                self.openai_reasoning_effort is not OpenAIReasoningEffort.NONE
+                or self.openai_reasoning_token_allowance != 0
+            ):
+                raise ValueError("all_openai_requires_nonreasoning_candidate")
+        elif self.embedding_provider is not EmbeddingProviderKind.OLLAMA:
+            raise ValueError("OpenAI embeddings require explicit all_openai_enabled")
+        elif unsupported:
             raise ValueError(
                 "Cloud providers are authorized only for conversation_provider; unsupported "
                 f"settings: {', '.join(unsupported)}"

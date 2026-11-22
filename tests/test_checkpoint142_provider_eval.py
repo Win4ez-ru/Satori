@@ -75,7 +75,7 @@ def test_checkpoint142_diagnostics_distinguish_clear_pass_and_failure(
     assert not all(evaluate_reply(scenario_id, rejected).values())
 
 
-def test_checkpoint142_report_retains_public_reply_and_v16_character_metadata(
+def test_checkpoint142_report_retains_public_reply_and_v18_character_metadata(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -125,6 +125,7 @@ def test_checkpoint142_report_retains_public_reply_and_v16_character_metadata(
     record = artifact["scenarios"][0]
 
     assert artifact["schema_version"] == 2
+    assert artifact["policy_id"] == "satori.conversation.behavior.v18"
     assert artifact["contains_raw_public_eval_replies"] is True
     assert artifact["contains_raw_provider_prompt_or_private_context"] is False
     assert artifact["contains_raw_memory_or_credential"] is False
@@ -134,6 +135,10 @@ def test_checkpoint142_report_retains_public_reply_and_v16_character_metadata(
     assert record["character_expression_register"] == "warm_independence"
     assert record["character_owned_reaction"] == "reserved_interest"
     assert record["character_semantic_move"] == "add_concrete_observation"
+    assert record["character_wit"] == "restrained"
+    assert record["character_care"] == "understated"
+    assert record["character_openness"] == "reserved"
+    assert record["character_initiative"] == "responsive"
     assert record["character_relational_ease"] == "baseline"
     assert persisted == artifact
     assert client.closed is True

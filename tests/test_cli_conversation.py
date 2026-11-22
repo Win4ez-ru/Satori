@@ -7,19 +7,25 @@ import pytest
 
 from satori.__main__ import main
 from satori.config import Environment, LogLevel, Settings
-from satori.core.conversation import ConversationProviderResponse, ProviderUnavailable
+from satori.core.conversation import (
+    ConversationProviderFailureReason,
+    ConversationProviderResponse,
+    ProviderUnavailable,
+)
 from satori.core.episode import EpisodeFormationProposal, EpisodeFormationProviderResponse
 from tests.fakes import (
     FakeConversationProvider,
     FakeEmbeddingProvider,
     FakeEpisodeFormationProvider,
 )
+from tests.source_policy_support import policy_directory
 
 
 def cli_settings(sqlite_url: str) -> Settings:
     return Settings(
         environment=Environment.TEST,
         database_url=sqlite_url,
+        source_policy_directory=policy_directory(sqlite_url),
         log_level=LogLevel.WARNING,
     )
 
@@ -104,7 +110,14 @@ def test_cli_provider_failure_has_no_traceback(
     settings = cli_settings(sqlite_url)
     assert main(["activate"], settings=settings, alembic_config=project_root / "alembic.ini") == 0
     capsys.readouterr()
-    provider = FakeConversationProvider(error=ProviderUnavailable("ollama", "fixture", "offline"))
+    provider = FakeConversationProvider(
+        error=ProviderUnavailable(
+            "ollama",
+            "fixture",
+            "offline",
+            reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        )
+    )
 
     result = main(
         ["talk", "Привет"],
@@ -189,6 +202,15 @@ def test_cli_memory_index_and_search_expose_safe_debug_metadata(
     """Operators can backfill and inspect no-result retrieval without dumping vectors."""
 
     active_settings = cli_settings(sqlite_url)
+    assert (
+        main(
+            ["activate"],
+            settings=active_settings,
+            alembic_config=project_root / "alembic.ini",
+        )
+        == 0
+    )
+    capsys.readouterr()
     conversation = FakeConversationProvider(
         response=ConversationProviderResponse("unused", "fake", "fixture", "stop")
     )
@@ -221,3 +243,90 @@ def test_cli_memory_index_and_search_expose_safe_debug_metadata(
     search_output = capsys.readouterr().out
     assert "status=no_relevant_memory candidates=0 selected=0" in search_output
     assert "[1.0" not in search_output
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["session", "start"],
+        ["history"],
+        ["memories", "scope-status"],
+        ["memories", "index"],
+        ["memories", "search", "unknown topic"],
+        ["semantic", "list"],
+    ],
+)
+def test_scoped_cli_requires_identity_without_provider_call(
+    command: list[str],
+    sqlite_url: str,
+    project_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    provider = FakeConversationProvider(
+        response=ConversationProviderResponse("unused", "fake", "fixture", "stop")
+    )
+    embedding = FakeEmbeddingProvider({})
+    assert (
+        main(
+            command,
+            settings=cli_settings(sqlite_url),
+            alembic_config=project_root / "alembic.ini",
+            conversation_provider=provider,
+            embedding_provider=embedding,
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "Satori is not activated. Run `satori activate` first.\n"
+    assert provider.requests == []
+    assert embedding.requests == []
+
+
+@pytest.mark.parametrize("operation", ["history", "close"])
+def test_foreign_session_cli_is_typed_denial_without_provider_call(
+    operation: str,
+    sqlite_url: str,
+    project_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    alice = cli_settings(sqlite_url).model_copy(update={"default_counterparty_id": "alice"})
+    config = project_root / "alembic.ini"
+    assert main(["activate"], settings=alice, alembic_config=config) == 0
+    capsys.readouterr()
+    provider = FakeConversationProvider(
+        response=ConversationProviderResponse("unused", "fake", "fixture", "stop")
+    )
+    episode = skip_episode_provider()
+    assert (
+        main(
+            ["session", "start"],
+            settings=alice,
+            alembic_config=config,
+            conversation_provider=provider,
+            episode_formation_provider=episode,
+        )
+        == 0
+    )
+    session_id = capsys.readouterr().out.strip()
+    bob = alice.model_copy(update={"default_counterparty_id": "bob"})
+    command = (
+        ["history", "--session", session_id]
+        if operation == "history"
+        else ["session", "close", session_id]
+    )
+    assert (
+        main(
+            command,
+            settings=bob,
+            alembic_config=config,
+            conversation_provider=provider,
+            episode_formation_provider=episode,
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "Conversation operation unavailable in the current scope.\n"
+    assert provider.requests == []
+    assert episode.requests == []

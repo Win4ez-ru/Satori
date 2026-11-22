@@ -1,5 +1,22 @@
 # Memory architecture
 
+Current Foundations extension (2026-10-03, ADR-0055): [Counterparty-bounded Memory](memory-scope.md)
+adds verified canonical scope to history/replay, episode/index and semantic formation/recall.
+Legacy default/mixed/invalid roots remain preserved but excluded. Historical Stage contracts below
+retain their rank/confidence/owner policies; global eligibility/semantic namespace are superseded.
+
+[Owner-controlled episodic archival](memory-lifecycle.md), ADR-0056, adds explicit ACTIVE↔ARCHIVED
+with monotonic versions, scoped review/apply and durable decisions. New episode intake remains
+ACTIVE-only; existing semantic support retains complete canonical proof. Archive preserves raw
+history, evidence and prior self/relationship effects. The historical ACTIVE-only decisions below
+are superseded only for this lifecycle.
+
+[Canonical source eligibility](source-policy.md), ADR-0057, independently excludes canonical
+roots and unsafe transitive payloads from retrieval, context, replay and new owner proposals.
+Complete actual-input receipts differ from accepted citations; legacy UNKNOWN remains bounded
+by its explicit lineage policy. Full Foundation/macOS gates passed, with Linux process execution
+still open. Physical erasure is a separate future contract.
+
 ## 1. Memory is not chat history
 
 Raw interaction log сохраняет то, что произошло в разговоре. Long-term memory — отобранное, типизированное и evidence-linked представление, предназначенное для будущего retrieval. Message не становится memory автоматически.
@@ -22,6 +39,13 @@ inclination evidence are provenance artifacts of their domain owners, not additi
 memory types. Autobiographical meaning не отменяет underlying episode.
 
 ## 3. Provenance contract
+
+The following list is the target taxonomy, not the current implemented enum. At audited HEAD
+`0b32dca`, episodic provenance is only `explicit_user_statement`, episode lifecycle is ACTIVE-only,
+and early episodic/semantic retrieval is not fully counterparty-partitioned. Recency rank decay
+is not forgetting/archival. Planned 14.4 and 17.1 gates in `roadmap-north-star.md` must establish
+visibility/retention and external-root contracts before new sources; no current enum or owner
+eligibility is broadened by this documentation.
 
 Каждое durable claim хранит:
 
@@ -95,8 +119,9 @@ ADR-0013 implements the first episodic-only read path. `EmbeddingSpace` is the e
 provider/model/dimensions/input-schema; only equal spaces are comparable. Vectors are derived JSON
 rows in SQLite and can be backfilled or rebuilt without changing `EpisodicMemory`/evidence.
 
-Eligibility is active episode + compatible space + `occurred_at <= cutoff` + source interaction
-different from the current pending interaction. The retrieval query is current user text only.
+Eligibility requires verified complete same-scope canonical lineage, an active episode, compatible
+space, `occurred_at <= cutoff` and a source interaction different from the current pending
+interaction (ADR-0055). The retrieval query is current user text only.
 Exact cosine scan first applies threshold `0.55`, then bounds the semantic pool to 32 and ranks:
 
 ```text
@@ -335,3 +360,18 @@ generated response remains ineligible evidence.
 
 No migration backfills historical memory, affect or conversation content into inclinations. Stage
 14 personality/value mutation and any semantic topic-expansion policy remain separately locked.
+
+## Canonical source exclusion — Foundations 14.4.2b.2
+
+[ADR-0057](decisions/0057-canonical-source-exclusion-and-trusted-policy-floor.md) implements logical
+exclusion separately from archive/reactivate. Every source/paired reply/episode/semantic payload
+carries immutable actual-input dependencies, in addition to accepted evidence. The independent
+installation floor propagates exclusion transitively, before SQL limits, provider dispatch and
+new commit. Stored summaries and vectors cannot independently authorize retrieval. UNKNOWN
+legacy text is conditionally usable only with proved lineage and zero exclusions anywhere in
+that lineage; descendants retain UNKNOWN and the first exclusion withholds them all.
+
+Derived knowledge is withheld as a whole and retired through its existing owner. Archive preserves
+formed semantic support; exclusion denies its use even when a claim cites a different immediate
+root but consumed tainted context. Raw history, quotes, revisions, vectors and archives remain
+physically stored until the separate erasure slice. See [source policy](source-policy.md).

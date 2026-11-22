@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Literal, Protocol
 
 from satori.application.unit_of_work import UnitOfWork
 from satori.core.personality import (
@@ -11,6 +11,7 @@ from satori.core.personality import (
     PersonalityTraitKey,
 )
 from satori.core.reflection import ReflectionLineageKind
+from satori.domain.erasure_personality_reasons import CheckpointReasonTarget
 from satori.domain.personality import Personality
 from satori.domain.personality_evolution import (
     PersonalityChangeEvaluation,
@@ -129,6 +130,38 @@ class PersonalityRestoreEventRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class PersonalityCheckpointApprovalHeader:
+    """Approval accountability and budget origin without operator reason content."""
+
+    approval_id: str
+    identity_id: str
+    checkpoint_id: str
+    checkpoint_hash: str
+    expected_aggregate_version: int
+    approved_at: datetime
+    reason_state: Literal["available", "erased"]
+    reason_action_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class PersonalityRestoreEventHeader:
+    """Retained restore lineage and numerical diffs without operator reason content."""
+
+    restore_id: str
+    revision_id: str
+    identity_id: str
+    source_checkpoint_id: str
+    source_checkpoint_hash: str
+    resulting_checkpoint_id: str
+    before_aggregate_version: int
+    after_aggregate_version: int
+    trait_diffs: tuple[PersonalityTraitDiff, ...]
+    restored_at: datetime
+    reason_state: Literal["available", "erased"]
+    reason_action_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class PersonalityEvidenceWrite:
     evidence_id: str
     source: ResolvedPersonalitySource
@@ -187,6 +220,18 @@ class PersonalityRepository(Protocol):
         self, identity_id: str
     ) -> tuple[PersonalityCheckpointApprovalRecord, ...]: ...
 
+    def list_checkpoint_approval_headers(
+        self, identity_id: str
+    ) -> tuple[PersonalityCheckpointApprovalHeader, ...]: ...
+
+    def list_restore_headers(
+        self, identity_id: str
+    ) -> tuple[PersonalityRestoreEventHeader, ...]: ...
+
+    def erase_reason_bodies(
+        self, targets: tuple[CheckpointReasonTarget, ...], *, action_id: str
+    ) -> None: ...
+
     def list_restore_events(
         self, identity_id: str
     ) -> tuple[PersonalityRestoreEventRecord, ...]: ...
@@ -218,6 +263,7 @@ class PersonalityRepository(Protocol):
         identity_id: str,
         trace_id: str,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool: ...
 
     def record_checkpoint_approval(

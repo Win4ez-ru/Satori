@@ -1,0 +1,218 @@
+{
+  "protocol": "satori.mobile.v1",
+  "authority": "ADR-0096; implementation contract, acceptance separate",
+  "transport": {
+    "scheme": "https",
+    "defaultEnabled": false,
+    "defaultBind": "127.0.0.1",
+    "lanRequiresExplicitEnable": true,
+    "certificate": "Exact leaf DER SHA256 pin; paired leaf exclusive trust anchor plus paired host/SAN and date checks; no allow-all ATS/trust",
+    "authorization": "Authorization: Bearer <256-bit random device token>; Mac stores only digest, iPhone device-only Keychain",
+    "pairingCodeTTLSeconds": 120,
+    "pairingMaxAttempts": 5,
+    "deviceGrantTTLSeconds": 2592000,
+    "dates": "RFC3339 UTC, seconds or fractional seconds; client must accept both"
+  },
+  "limits": {
+    "maxRequestBytes": 65536,
+    "maxResponseBytes": 1048576,
+    "maxTextCharacters": 8000,
+    "maxHistoryMessages": 64,
+    "maxSessions": 100,
+    "maxDeviceNameCharacters": 80,
+    "requestWaitSeconds": 2,
+    "maxReadPollSeconds": 120,
+    "maxReplyCharacters": 64000,
+    "maxCardBodyCharacters": 24000
+  },
+  "envelope": {
+    "success": {
+      "ok": true,
+      "data": "endpoint-specific object"
+    },
+    "error": {
+      "ok": false,
+      "error": {
+        "code": "closed error code",
+        "retryable": false,
+        "requestID": null
+      }
+    }
+  },
+  "errorCodes": [
+    "invalid_request",
+    "unauthorized",
+    "forbidden",
+    "pairing_closed",
+    "pairing_expired",
+    "pairing_rate_limited",
+    "device_revoked",
+    "device_expired",
+    "profile_changed",
+    "session_closed",
+    "session_missing",
+    "request_id_conflict",
+    "request_unknown",
+    "request_pending",
+    "core_unavailable",
+    "busy",
+    "too_large",
+    "deadline_exceeded",
+    "operation_failed",
+    "not_supported",
+    "source_grant_required"
+  ],
+  "endpoints": {
+    "POST /v1/pair": {
+      "auth": "one-use pairing code, TLS pin required",
+      "request": {
+        "code": "string",
+        "deviceName": "string"
+      },
+      "data": {
+        "deviceID": "opaque UUID",
+        "token": "opaque secret",
+        "expiresAt": "RFC3339",
+        "profileID": "opaque stable profile binding",
+        "capabilities": [
+          "status",
+          "chat",
+          "history",
+          "reminders"
+        ]
+      }
+    },
+    "GET /v1/status": {
+      "capability": "status",
+      "data": {
+        "ready": true,
+        "coreState": "ready|starting|stopped|error",
+        "profileID": "opaque profile binding",
+        "sessionID": "string or null",
+        "sourceStatuses": [
+          {
+            "id": "calendar|gmail|telegram",
+            "connection": "connected|disconnected|expired|unknown",
+            "capabilities": [
+              "finite operation strings"
+            ]
+          }
+        ]
+      }
+    },
+    "GET /v1/sessions": {
+      "capability": "history",
+      "data": {
+        "activeSessionID": "string or null",
+        "sessions": [
+          {
+            "id": "string",
+            "startedAt": "RFC3339",
+            "status": "open|closed"
+          }
+        ],
+        "truncated": false
+      }
+    },
+    "POST /v1/sessions": {
+      "capability": "chat",
+      "request": {
+        "requestID": "UUID"
+      },
+      "data": {
+        "requestID": "UUID",
+        "state": "completed|pending|unknown|failed",
+        "sessionID": "string or null"
+      }
+    },
+    "GET /v1/history?session_id=<opaque>": {
+      "capability": "history",
+      "data": {
+        "sessionID": "string",
+        "messages": [
+          {
+            "id": "opaque string",
+            "role": "user|assistant",
+            "text": "plain text",
+            "createdAt": "RFC3339",
+            "status": "completed|pending|failed|unknown"
+          }
+        ],
+        "truncated": false
+      }
+    },
+    "POST /v1/chat": {
+      "capability": "chat",
+      "request": {
+        "requestID": "UUID",
+        "sessionID": "explicit existing open conversation ID",
+        "text": "plain user-authored text"
+      },
+      "data": {
+        "requestID": "UUID",
+        "state": "completed|pending|unknown|failed",
+        "kind": "conversation|assistant",
+        "sessionID": "string",
+        "text": "plain committed reply or action result",
+        "interactionID": "string or null",
+        "card": "action card or null"
+      }
+    },
+    "GET /v1/requests/<requestID>": {
+      "capability": "same original operation capability",
+      "data": "same operation response; unknown is an explicit outcome; GET never executes an action"
+    },
+    "GET /v1/reminders": {
+      "capability": "reminders",
+      "data": {
+        "items": [
+          {
+            "id": "UUID",
+            "title": "user-authored text",
+            "dueAt": "RFC3339 UTC",
+            "timezone": "IANA",
+            "state": "scheduled|due|completed|cancelled|unknown",
+            "notificationState": "not_requested|permission_required|scheduled|delivered|unknown|failed"
+          }
+        ],
+        "truncated": false
+      }
+    },
+    "POST /v1/revoke": {
+      "capability": "status",
+      "request": {},
+      "data": {
+        "revoked": true
+      }
+    }
+  },
+  "actionCard": {
+    "type": "calendar|reminder|clarification|connection_required|file|search|places|error",
+    "title": "plain text",
+    "body": "plain text",
+    "source": "human-readable source or null",
+    "observedAt": "RFC3339 or null",
+    "expiresAt": "RFC3339 or null",
+    "status": "completed|partial|empty|permission_required|pending|unknown|failed"
+  },
+  "lifecycle": [
+    "Mac is sole Core/database writer; API broker must use same owned Core worker",
+    "Atomic explicit-session send; no resume-then-send interleaving; phone does not change desktop selected conversation",
+    "Same requestID and payload idempotent; changed payload under existing ID rejects",
+    "No automatic POST replay after timeout, cancel, app restart or reconnect; reconcile with GET /v1/requests first",
+    "Profile switch/revoke closes old device/request authority; late results are fenced",
+    "On phone background, cancel foreground reads and capture; unknown writes remain unknown",
+    "Local forget clears phone credentials but does not claim server revoke; online revoke must receive receipt",
+    "Initial history includes only canonical user/assistant messages; tool cards are separate transient untrusted data with expiry",
+    "Default paired capabilities exclude external Calendar/Gmail/Telegram data; explicit per-device source scopes and existing live selected grants are both required",
+    "Phone Today starts with own reminders; unauthorized source shows connection-required state",
+    "No secrets, request bodies, source payloads or authentication headers in logs"
+  ],
+  "notSupportedInitially": [
+    "remote public Internet access without separately configured secure transport",
+    "Phone speech output from Mac without explicit separate audio contract",
+    "background continuous microphone or screen capture",
+    "offline automatic writes",
+    "new canonical identity or SQLite memory copy on phone"
+  ]
+}

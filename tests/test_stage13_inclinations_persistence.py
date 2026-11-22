@@ -800,6 +800,23 @@ def test_reflection_v2_load_rejects_affect_attachment_tampering(
             payload = dict(transition.appraisal_payload)
             payload["novelty"] = 0.25
             transition.appraisal_payload = payload
+            with pytest.raises(IntegrityError, match="appraisal_explanation_terminal"):
+                session.commit()
+            session.rollback()
+            # Exercise read-time corruption detection beyond the normal SQL write barrier.
+            connection = session.connection()
+            guard = connection.exec_driver_sql(
+                "SELECT sql FROM sqlite_schema WHERE type='trigger' "
+                "AND name='affective_transitions_explanation_update'"
+            ).scalar_one()
+            assert isinstance(guard, str)
+            connection.exec_driver_sql("DROP TRIGGER affective_transitions_explanation_update")
+            transition = session.get(AffectiveTransitionRow, source.affective_transition_id)
+            assert transition is not None
+            assert transition.appraisal_payload == APPRAISAL_PAYLOAD
+            transition.appraisal_payload = payload
+            session.flush()
+            connection.exec_driver_sql(guard)
         session.commit()
 
     with (

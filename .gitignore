@@ -12,3 +12,10 @@ build/
 dist/
 *.egg-info/
 var/
+.desktop-venv/
+*.app/
+*.dmg
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm

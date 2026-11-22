@@ -10,10 +10,27 @@ from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from satori.application.affect.use_cases import AffectiveAppraisalProvider
 from satori.application.conversation.contracts import TalkInput
 from satori.application.conversation.errors import ConversationError
 from satori.application.conversation.use_cases import ConversationProvider
+from satori.application.erasure.audit_contracts import AuditMetadataStatusRequest
+from satori.application.erasure.audit_use_cases import AuditMetadataReader
+from satori.application.erasure.body_contracts import BodyErasureCommand, BodyErasureRequest
+from satori.application.erasure.body_use_cases import BodyErasureManager
+from satori.application.erasure.contracts import ErasureCheckRequest, ErasurePreviewRequest
+from satori.application.erasure.intent_contracts import (
+    ErasureIntentCommand,
+    ErasureIntentRequest,
+)
+from satori.application.erasure.intent_use_cases import ErasureIntentManager
+from satori.application.erasure.use_cases import ErasurePlanner
+from satori.application.memory.lifecycle_contracts import (
+    MemoryLifecycleCommand,
+    MemoryLifecycleError,
+)
 from satori.application.memory.use_cases import EpisodeFormationProvider
 from satori.application.models.use_cases import ModelFormationProvider
 from satori.application.personality.use_cases import (
@@ -22,17 +39,22 @@ from satori.application.personality.use_cases import (
     PersonalityInspection,
 )
 from satori.application.positions.use_cases import PositionFormationProvider
+from satori.application.recovery.contracts import RecoveryError
+from satori.application.recovery.use_cases import WholeStateRecovery
 from satori.application.reflection.ports import ReflectionGenerationPort
 from satori.application.relationship.use_cases import RelationshipProvider
 from satori.application.retrieval.contracts import RetrievalQuery
 from satori.application.retrieval.use_cases import EmbeddingProvider
 from satori.application.semantic.use_cases import SemanticFormationProvider
+from satori.application.source_policy.contracts import SourceExclusionCommand
+from satori.application.source_policy.use_cases import SourcePolicyControls
 from satori.appraisal_evaluation import run_appraisal_model_evaluation
 from satori.bootstrap import bootstrap
 from satori.composition import (
     InitialSelfServices,
     build_conversation_services,
     build_initial_self_services,
+    build_memory_lifecycle_services,
 )
 from satori.config import (
     ConversationProviderKind,
@@ -58,11 +80,20 @@ from satori.core.semantic import SemanticFormationProviderError
 from satori.domain.errors import AlreadyActivated, NotActivated
 from satori.domain.identity import Identity
 from satori.domain.inclinations import SatoriInclination, materialize_inclination_score
+from satori.domain.memory import MemoryLifecycleStatus
+from satori.domain.memory_scope import MemoryScope
 from satori.domain.models import ModelClaimRevision, UserModelClaim, WorldModelClaim
 from satori.domain.positions import PositionRevision, SatoriPosition
 from satori.domain.reflection import ReflectionTriggerKind
+from satori.domain.source_policy import SourceEligibilitySnapshot, SourcePolicyError
+from satori.infrastructure.artifacts import PrivateArtifactStore
 from satori.infrastructure.persistence.database import Database, create_database
+from satori.infrastructure.persistence.erasure import SQLiteErasureInventory
+from satori.infrastructure.persistence.erasure_database import open_existing_erasure_database
+from satori.infrastructure.persistence.erasure_preparation import SQLiteErasurePreparationStore
 from satori.infrastructure.persistence.migrations import upgrade_database
+from satori.infrastructure.persistence.recovery import SQLiteStoredSnapshot
+from satori.infrastructure.persistence.source_policy import verify_mirror
 from satori.infrastructure.providers.inference_scheduler import OllamaInferenceScheduler
 from satori.infrastructure.providers.ollama import OllamaConversationAdapter
 from satori.infrastructure.providers.ollama_affect import OllamaAffectiveAppraisalAdapter
@@ -83,6 +114,15 @@ from satori.infrastructure.providers.yandex_ai_studio_http import (
     YandexAIStudioHttpClient,
 )
 from satori.infrastructure.seeds.loader import JsonSeedLoader
+from satori.infrastructure.source_policy.installation import (
+    bind_installation,
+    canonical_root,
+    enroll_installation,
+    installation_identity,
+    repair_installation,
+)
+from satori.infrastructure.source_policy.ledger import InstallationPolicyLedger
+from satori.infrastructure.source_policy.runtime import SourcePolicyRuntime
 from satori.interactive import InteractiveChat
 from satori.observability.logging import bind_trace_id, configure_logging
 from satori.performance import run_inference_benchmark
@@ -95,6 +135,13 @@ def _counterparty_id_argument(value: str) -> str:
     if not normalized:
         raise argparse.ArgumentTypeError("counterparty ID must not be blank")
     return normalized
+
+
+def _nonnegative_int_argument(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("value must be nonnegative")
+    return parsed
 
 
 def _positive_int_argument(value: str) -> int:
@@ -126,6 +173,456 @@ def _aware_datetime_argument(value: str) -> datetime:
     return parsed
 
 
+def _erasure_intent_request_id_argument(value: str) -> str:
+    if not value or len(value) > 128 or value.strip() != value:
+        raise argparse.ArgumentTypeError("request ID must be nonblank and at most 128 characters")
+    return value
+
+
+def _safe_source_policy_reason(error: SourcePolicyError) -> str:
+    reason = error.reason_code
+    if any(character not in "abcdefghijklmnopqrstuvwxyz0123456789_" for character in reason):
+        return "policy_rejection"
+    return reason
+
+
+def _erasure_intent_command(arguments: argparse.Namespace, settings: Settings) -> int:
+    """Existing-only operator controls; never bootstrap providers or erase content."""
+    database: Database | None = None
+    try:
+        if arguments.source_action == "erasure-policy":
+            if not arguments.upgrade or not arguments.reviewed:
+                raise SourcePolicyError("erasure_policy_upgrade_requires_review")
+            database = open_existing_erasure_database(settings.database_url)
+            runtime = SourcePolicyRuntime(
+                settings.source_policy_directory, installation_identity(database)
+            )
+            snapshot = runtime.upgrade_policy()
+            print(
+                json.dumps(
+                    {
+                        "operation": "upgrade_erasure_policy",
+                        "floor_id": snapshot.floor_id,
+                        "lineage_id": snapshot.lineage_id,
+                        "generation": snapshot.generation,
+                        "erasure_revision": snapshot.erasure_revision,
+                        "physical_erasure": False,
+                        "execution_authorized": False,
+                    },
+                    indent=2,
+                )
+            )
+            return 0
+        review_fields = (
+            arguments.expected_generation,
+            arguments.expected_erasure_revision,
+            arguments.sha256,
+        )
+        if arguments.preview and (
+            any(value is not None for value in review_fields) or arguments.request_id is not None
+        ):
+            raise SourcePolicyError("erasure_intent_preview_does_not_commit")
+        if arguments.commit and (
+            any(value is None for value in review_fields) or arguments.request_id is None
+        ):
+            raise SourcePolicyError("erasure_intent_commit_requires_reviewed_state_request")
+        if (arguments.resume or arguments.status) and (
+            arguments.request_id is None or any(value is not None for value in review_fields)
+        ):
+            raise SourcePolicyError("erasure_intent_receipt_requires_request_only")
+        request = ErasureIntentRequest(
+            message_id=arguments.message_id,
+            counterparty_id=settings.default_counterparty_id,
+        )
+        database = open_existing_erasure_database(
+            settings.database_url, writable=arguments.commit or arguments.resume
+        )
+        active_database = database
+        runtime = SourcePolicyRuntime(
+            settings.source_policy_directory, installation_identity(active_database)
+        )
+
+        def verify(snapshot: SourceEligibilitySnapshot) -> None:
+            with active_database.session_factory() as session:
+                verify_mirror(session, snapshot)
+
+        runtime.verify_mirror = verify
+        active_database.session_factory.configure(info={"source_runtime": runtime})
+        manager = ErasureIntentManager(
+            runtime,
+            SQLiteErasureInventory(active_database),
+            SQLiteErasurePreparationStore(active_database),
+        )
+        if arguments.preview:
+            preview = manager.preview(request)
+            print(preview.model_dump_json(indent=2))
+            return 0
+        if arguments.commit:
+            result = manager.commit(
+                ErasureIntentCommand(
+                    message_id=request.message_id,
+                    counterparty_id=request.counterparty_id,
+                    expected_generation=arguments.expected_generation,
+                    expected_erasure_revision=arguments.expected_erasure_revision,
+                    approval_digest=arguments.sha256,
+                    request_id=arguments.request_id,
+                )
+            )
+        elif arguments.resume:
+            result = manager.resume(request, request_id=arguments.request_id)
+        else:
+            result = manager.status(request, request_id=arguments.request_id)
+        print(result.model_dump_json(indent=2))
+        return 0 if result.main_projection_current else 2
+    except SourcePolicyError as error:
+        print(f"Erasure intent rejected: {_safe_source_policy_reason(error)}", file=sys.stderr)
+        return 2
+    except NotActivated:
+        print("Erasure intent rejected: installation_not_activated", file=sys.stderr)
+        return 2
+    except ValueError:
+        print("Erasure intent rejected: invalid_command", file=sys.stderr)
+        return 2
+    except (SQLAlchemyError, OSError):
+        print("Erasure intent unavailable: storage_failure", file=sys.stderr)
+        return 1
+    finally:
+        if database is not None:
+            database.dispose()
+
+
+def _audit_metadata_command(arguments: argparse.Namespace, settings: Settings) -> int:
+    """Scoped read-only retention proof; no provider, migration or mutation path."""
+    from satori.infrastructure.persistence.audit_metadata_inventory import (
+        SQLiteAuditMetadataInventory,
+    )
+
+    database: Database | None = None
+    try:
+        database = open_existing_erasure_database(settings.database_url)
+        runtime = bind_installation(database, settings.source_policy_directory)
+        reader = AuditMetadataReader(runtime, SQLiteAuditMetadataInventory(database))
+        result = reader.execute(
+            AuditMetadataStatusRequest(
+                message_id=arguments.message_id,
+                counterparty_id=settings.default_counterparty_id,
+            )
+        )
+        print(result.model_dump_json(indent=2))
+        return 0 if result.coverage == "complete" else 2
+    except SourcePolicyError as error:
+        print(f"Audit metadata status rejected: {error.reason_code}", file=sys.stderr)
+        return 2
+    except NotActivated:
+        print("Audit metadata status rejected: installation_not_activated", file=sys.stderr)
+        return 2
+    except ValueError:
+        print("Audit metadata status rejected: invalid_command", file=sys.stderr)
+        return 2
+    except (SQLAlchemyError, OSError):
+        print("Audit metadata status unavailable: storage_failure", file=sys.stderr)
+        return 1
+    finally:
+        if database is not None:
+            database.dispose()
+
+
+def _erasure_preview_command(arguments: argparse.Namespace, settings: Settings) -> int:
+    """Read-only metadata branch: no migrations, enrollment, providers or domain commits."""
+    database: Database | None = None
+    try:
+        if arguments.preview and (
+            arguments.expected_generation is not None or arguments.sha256 is not None
+        ):
+            raise SourcePolicyError("erasure_preview_does_not_apply")
+        if arguments.check and (arguments.expected_generation is None or arguments.sha256 is None):
+            raise SourcePolicyError("erasure_check_requires_generation_digest")
+        database = open_existing_erasure_database(settings.database_url)
+        runtime = bind_installation(database, settings.source_policy_directory)
+        planner = ErasurePlanner(runtime, SQLiteErasureInventory(database))
+        if arguments.preview:
+            preview = planner.preview(
+                ErasurePreviewRequest(
+                    message_id=arguments.message_id,
+                    counterparty_id=settings.default_counterparty_id,
+                )
+            )
+            print(preview.model_dump_json(indent=2))
+            return 0 if preview.assessment_status == "complete" else 2
+        result = planner.check(
+            ErasureCheckRequest(
+                message_id=arguments.message_id,
+                counterparty_id=settings.default_counterparty_id,
+                expected_generation=arguments.expected_generation,
+                preview_digest=arguments.sha256,
+            )
+        )
+        print(result.model_dump_json(indent=2))
+        return 0 if result.assessment_status == "complete" else 2
+    except SourcePolicyError as error:
+        print(f"Erasure preview rejected: {error.reason_code}", file=sys.stderr)
+        return 2
+    except NotActivated:
+        print("Erasure preview rejected: installation_not_activated", file=sys.stderr)
+        return 2
+    except ValueError:
+        print("Erasure preview rejected: invalid_command", file=sys.stderr)
+        return 2
+    except (SQLAlchemyError, OSError):
+        print("Erasure preview unavailable: storage_failure", file=sys.stderr)
+        return 1
+    finally:
+        if database is not None:
+            database.dispose()
+
+
+def _erasure_body_command(arguments: argparse.Namespace, settings: Settings) -> int:
+    database: Database | None = None
+    try:
+        if arguments.source_action in {
+            "erasure-body-policy",
+            "erasure-dialogue-policy",
+            "erasure-knowledge-policy",
+            "erasure-reflection-policy",
+            "erasure-appraisal-policy",
+        }:
+            database = open_existing_erasure_database(settings.database_url)
+            runtime = SourcePolicyRuntime(
+                settings.source_policy_directory, installation_identity(database)
+            )
+            snapshot = (
+                runtime.upgrade_appraisal_policy()
+                if arguments.source_action == "erasure-appraisal-policy"
+                else runtime.upgrade_reflection_policy()
+                if arguments.source_action == "erasure-reflection-policy"
+                else runtime.upgrade_knowledge_policy()
+                if arguments.source_action == "erasure-knowledge-policy"
+                else runtime.upgrade_dialogue_policy()
+                if arguments.source_action == "erasure-dialogue-policy"
+                else runtime.upgrade_body_policy()
+            )
+            print(
+                json.dumps(
+                    {
+                        "operation": "upgrade_appraisal_body_policy"
+                        if arguments.source_action == "erasure-appraisal-policy"
+                        else "upgrade_reflection_body_policy"
+                        if arguments.source_action == "erasure-reflection-policy"
+                        else "upgrade_knowledge_body_policy"
+                        if arguments.source_action == "erasure-knowledge-policy"
+                        else "upgrade_dialogue_body_policy"
+                        if arguments.source_action == "erasure-dialogue-policy"
+                        else "upgrade_episode_body_policy",
+                        "body_revision": snapshot.body_revision,
+                        "physical_erasure": False,
+                    },
+                    indent=2,
+                )
+            )
+            return 0
+        review = (
+            arguments.expected_generation,
+            arguments.expected_erasure_revision,
+            arguments.expected_body_revision,
+            arguments.sha256,
+        )
+        if arguments.preview and (
+            arguments.request_id is not None or any(value is not None for value in review)
+        ):
+            raise SourcePolicyError("body_preview_does_not_apply")
+        if arguments.apply and (
+            arguments.request_id is None or any(value is None for value in review)
+        ):
+            raise SourcePolicyError("body_apply_requires_fresh_review")
+        if (arguments.resume or arguments.status) and (
+            arguments.request_id is None or any(value is not None for value in review)
+        ):
+            raise SourcePolicyError("body_receipt_requires_request_only")
+        request = BodyErasureRequest(
+            message_id=arguments.message_id,
+            counterparty_id=settings.default_counterparty_id,
+            intent_request_id=arguments.intent_request_id,
+        )
+        database = open_existing_erasure_database(
+            settings.database_url, writable=arguments.apply or arguments.resume
+        )
+        runtime = SourcePolicyRuntime(
+            settings.source_policy_directory, installation_identity(database)
+        )
+        from satori.application.erasure.appraisal_use_cases import AppraisalBodyManager
+        from satori.application.erasure.dialogue_use_cases import DialogueBodyManager
+        from satori.application.erasure.knowledge_use_cases import KnowledgeBodyManager
+        from satori.application.erasure.reflection_use_cases import ReflectionBodyManager
+        from satori.infrastructure.persistence.erasure_appraisal import SQLiteAppraisalBodyStore
+        from satori.infrastructure.persistence.erasure_bodies import SQLiteBodyErasureStore
+        from satori.infrastructure.persistence.erasure_dialogue import SQLiteDialogueBodyStore
+        from satori.infrastructure.persistence.erasure_knowledge import SQLiteKnowledgeBodyStore
+        from satori.infrastructure.persistence.erasure_reflection import SQLiteReflectionBodyStore
+
+        manager: (
+            BodyErasureManager
+            | DialogueBodyManager
+            | KnowledgeBodyManager
+            | ReflectionBodyManager
+            | AppraisalBodyManager
+        )
+        manager = (
+            AppraisalBodyManager(runtime, SQLiteAppraisalBodyStore(database))
+            if arguments.source_action == "erasure-appraisal"
+            else ReflectionBodyManager(runtime, SQLiteReflectionBodyStore(database))
+            if arguments.source_action == "erasure-reflection"
+            else KnowledgeBodyManager(runtime, SQLiteKnowledgeBodyStore(database))
+            if arguments.source_action == "erasure-knowledge"
+            else DialogueBodyManager(runtime, SQLiteDialogueBodyStore(database))
+            if arguments.source_action == "erasure-dialogue"
+            else BodyErasureManager(runtime, SQLiteBodyErasureStore(database))
+        )
+        if arguments.preview:
+            preview = manager.preview(request)
+            print(preview.model_dump_json(indent=2))
+            return 0 if preview.readiness == "ready" else 2
+        if arguments.apply:
+            result = manager.commit(
+                BodyErasureCommand(
+                    **request.model_dump(),
+                    request_id=arguments.request_id,
+                    expected_generation=arguments.expected_generation,
+                    expected_erasure_revision=arguments.expected_erasure_revision,
+                    expected_body_revision=arguments.expected_body_revision,
+                    approval_digest=arguments.sha256,
+                )
+            )
+        elif arguments.resume:
+            result = manager.resume(request, request_id=arguments.request_id)
+        else:
+            result = manager.status(request, request_id=arguments.request_id)
+        print(result.model_dump_json(indent=2))
+        return 0 if result.main_projection_current else 2
+    except SourcePolicyError as error:
+        print(f"Body erasure rejected: {_safe_source_policy_reason(error)}", file=sys.stderr)
+        return 2
+    except NotActivated:
+        print("Body erasure rejected: installation_not_activated", file=sys.stderr)
+        return 2
+    except ValueError:
+        print("Body erasure rejected: invalid_command", file=sys.stderr)
+        return 2
+    except (SQLAlchemyError, OSError):
+        print("Body erasure unavailable: storage_failure", file=sys.stderr)
+        return 1
+    finally:
+        if database is not None:
+            database.dispose()
+
+
+def _source_policy_command(
+    arguments: argparse.Namespace, settings: Settings, *, alembic_config: Path
+) -> int:
+    from dataclasses import asdict
+
+    if arguments.source_action == "audit-metadata":
+        return _audit_metadata_command(arguments, settings)
+    if arguments.source_action == "erasure":
+        return _erasure_preview_command(arguments, settings)
+    if arguments.source_action in {"erasure-policy", "erasure-intent"}:
+        return _erasure_intent_command(arguments, settings)
+    if arguments.source_action in {
+        "erasure-body-policy",
+        "erasure-bodies",
+        "erasure-dialogue-policy",
+        "erasure-dialogue",
+        "erasure-knowledge-policy",
+        "erasure-knowledge",
+        "erasure-reflection-policy",
+        "erasure-reflection",
+        "erasure-appraisal-policy",
+        "erasure-appraisal",
+    }:
+        return _erasure_body_command(arguments, settings)
+    database, _services = _open_services(settings, alembic_config=alembic_config)
+    try:
+        if arguments.source_action == "enroll":
+            runtime = enroll_installation(
+                database,
+                settings.source_policy_directory,
+                reviewed=arguments.reviewed,
+                new_installation=arguments.new_installation,
+            )
+            with runtime.shared() as snapshot:
+                print(
+                    json.dumps(
+                        {
+                            "floor_id": snapshot.floor_id,
+                            "lineage_id": snapshot.lineage_id,
+                            "generation": snapshot.generation,
+                            "excluded_sources": len(snapshot.excluded_message_ids),
+                        }
+                    )
+                )
+            return 0
+        runtime = SourcePolicyRuntime(
+            settings.source_policy_directory, installation_identity(database)
+        )
+        if arguments.source_action == "repair":
+            with runtime.exclusive() as snapshot:
+                receipt = runtime.receipt(arguments.request_id)
+                if receipt is None:
+                    raise SourcePolicyError("source_request_unknown")
+                runtime.mark_repair_pending(receipt.request_id)
+                repair_installation(database, runtime, snapshot, receipt)
+                result = runtime.mark_repaired(receipt.request_id)
+        elif arguments.source_action == "status":
+            with runtime.exclusive() as snapshot:
+                print(
+                    json.dumps(
+                        {
+                            "floor_id": snapshot.floor_id,
+                            "lineage_id": snapshot.lineage_id,
+                            "generation": snapshot.generation,
+                            "excluded_sources": len(snapshot.excluded_message_ids),
+                        }
+                    )
+                )
+            return 0
+        else:
+            root = canonical_root(
+                database,
+                runtime,
+                arguments.message_id,
+                counterparty_id=settings.default_counterparty_id,
+            )
+            controls = SourcePolicyControls(runtime)
+            if arguments.preview:
+                print(controls.preview(root).model_dump_json(indent=2))
+                return 0
+            if (
+                arguments.expected_generation is None
+                or arguments.sha256 is None
+                or arguments.request_id is None
+            ):
+                raise SourcePolicyError("source_apply_requires_reviewed_generation_digest_request")
+            command = SourceExclusionCommand(
+                message_id=root.message_id,
+                expected_generation=arguments.expected_generation,
+                request_id=arguments.request_id,
+                preview_digest=arguments.sha256,
+            )
+            result = controls.apply(
+                command,
+                root,
+                repair=lambda snapshot, receipt: repair_installation(
+                    database, runtime, snapshot, receipt
+                ),
+            )
+        print(json.dumps(asdict(result), default=str, ensure_ascii=False, indent=2))
+        return 0 if result.phase.value == "complete" else 2
+    except (SourcePolicyError, NotActivated, OSError) as error:
+        print(f"Source policy rejected: {error}", file=sys.stderr)
+        return 2
+    finally:
+        database.engine.dispose()
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the non-interactive command-line parser."""
 
@@ -137,6 +634,193 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subcommands.add_parser("status", help="show whether Satori is activated")
     subcommands.add_parser("activate", help="activate canonical Satori exactly once")
+    source_parser = subcommands.add_parser("sources", help="metadata-only canonical source policy")
+    source_actions = source_parser.add_subparsers(dest="source_action", required=True)
+    audit_parser = source_actions.add_parser(
+        "audit-metadata", help="read-only scoped audit retention coverage"
+    )
+    audit_parser.add_argument("message_id")
+    audit_parser.add_argument("--status", action="store_true", required=True)
+    enroll_parser = source_actions.add_parser(
+        "enroll", help="explicitly enroll reviewed stored lineage"
+    )
+    enroll_parser.add_argument("--reviewed", action="store_true", required=True)
+    enroll_parser.add_argument(
+        "--new-installation",
+        action="store_true",
+        help="create first floor for a previously unbound installation",
+    )
+    source_actions.add_parser("status", help="inspect the independent trusted floor")
+    repair_parser = source_actions.add_parser("repair", help="resume owner projection repair")
+    repair_parser.add_argument("--request-id", required=True)
+    exclude_parser = source_actions.add_parser(
+        "exclude", help="terminal logical exclusion of canonical USER root"
+    )
+    exclude_parser.add_argument("message_id")
+    exclude_mode = exclude_parser.add_mutually_exclusive_group(required=True)
+    exclude_mode.add_argument("--preview", action="store_true")
+    exclude_mode.add_argument("--apply", action="store_true")
+    exclude_parser.add_argument("--expected-generation", type=_nonnegative_int_argument)
+    exclude_parser.add_argument("--sha256", type=_sha256_argument)
+    exclude_parser.add_argument("--request-id")
+    erasure_parser = source_actions.add_parser(
+        "erasure", help="assess retained source data without deletion or provider calls"
+    )
+    erasure_parser.add_argument("message_id")
+    erasure_mode = erasure_parser.add_mutually_exclusive_group(required=True)
+    erasure_mode.add_argument("--preview", action="store_true")
+    erasure_mode.add_argument("--check", action="store_true")
+    erasure_parser.add_argument("--expected-generation", type=_nonnegative_int_argument)
+    erasure_parser.add_argument("--sha256", type=_sha256_argument)
+    erasure_policy_parser = source_actions.add_parser(
+        "erasure-policy", help="explicit reviewed upgrade of the independent erasure policy floor"
+    )
+    erasure_policy_parser.add_argument("--upgrade", action="store_true", required=True)
+    erasure_policy_parser.add_argument("--reviewed", action="store_true", required=True)
+    erasure_intent_parser = source_actions.add_parser(
+        "erasure-intent", help="record or prepare terminal privacy intent without physical deletion"
+    )
+    erasure_intent_parser.add_argument("message_id")
+    erasure_intent_mode = erasure_intent_parser.add_mutually_exclusive_group(required=True)
+    erasure_intent_mode.add_argument("--preview", action="store_true")
+    erasure_intent_mode.add_argument("--commit", action="store_true")
+    erasure_intent_mode.add_argument("--resume", action="store_true")
+    erasure_intent_mode.add_argument("--status", action="store_true")
+    erasure_intent_parser.add_argument("--expected-generation", type=_nonnegative_int_argument)
+    erasure_intent_parser.add_argument(
+        "--expected-erasure-revision", type=_nonnegative_int_argument
+    )
+    erasure_intent_parser.add_argument("--sha256", type=_sha256_argument)
+    erasure_intent_parser.add_argument("--request-id", type=_erasure_intent_request_id_argument)
+    body_policy = source_actions.add_parser(
+        "erasure-body-policy",
+        help="reviewed independent floor upgrade for bounded episode body handling",
+    )
+    body_policy.add_argument("--upgrade", action="store_true", required=True)
+    body_policy.add_argument("--reviewed", action="store_true", required=True)
+    body_parser = source_actions.add_parser(
+        "erasure-bodies",
+        help="review or erase episode summaries, quotes and vectors; partial owner coverage",
+    )
+    body_parser.add_argument("message_id")
+    body_parser.add_argument(
+        "--intent-request-id", type=_erasure_intent_request_id_argument, required=True
+    )
+    body_mode = body_parser.add_mutually_exclusive_group(required=True)
+    for option in ("--preview", "--apply", "--resume", "--status"):
+        body_mode.add_argument(option, action="store_true")
+    body_parser.add_argument("--expected-generation", type=_nonnegative_int_argument)
+    body_parser.add_argument("--expected-erasure-revision", type=_nonnegative_int_argument)
+    body_parser.add_argument("--expected-body-revision", type=_nonnegative_int_argument)
+    body_parser.add_argument("--sha256", type=_sha256_argument)
+    body_parser.add_argument("--request-id", type=_erasure_intent_request_id_argument)
+    dialogue_policy = source_actions.add_parser(
+        "erasure-dialogue-policy", help="explicit floor upgrade for terminal InteractionLog bodies"
+    )
+    dialogue_policy.add_argument("--upgrade", action="store_true", required=True)
+    dialogue_policy.add_argument("--reviewed", action="store_true", required=True)
+    dialogue = source_actions.add_parser(
+        "erasure-dialogue", help="review or erase canonical and proved dependent assistant bodies"
+    )
+    dialogue.add_argument("message_id")
+    dialogue.add_argument(
+        "--intent-request-id", type=_erasure_intent_request_id_argument, required=True
+    )
+    dialogue_mode = dialogue.add_mutually_exclusive_group(required=True)
+    for option in ("--preview", "--apply", "--resume", "--status"):
+        dialogue_mode.add_argument(option, action="store_true")
+    dialogue.add_argument("--expected-generation", type=_nonnegative_int_argument)
+    dialogue.add_argument("--expected-erasure-revision", type=_nonnegative_int_argument)
+    dialogue.add_argument("--expected-body-revision", type=_nonnegative_int_argument)
+    dialogue.add_argument("--sha256", type=_sha256_argument)
+    dialogue.add_argument("--request-id", type=_erasure_intent_request_id_argument)
+    knowledge_policy = source_actions.add_parser(
+        "erasure-knowledge-policy", help="reviewed floor upgrade for terminal derived knowledge"
+    )
+    knowledge_policy.add_argument("--upgrade", action="store_true", required=True)
+    knowledge_policy.add_argument("--reviewed", action="store_true", required=True)
+    knowledge = source_actions.add_parser(
+        "erasure-knowledge", help="review or erase owned claims, positions and inclinations"
+    )
+    knowledge.add_argument("message_id")
+    knowledge.add_argument(
+        "--intent-request-id", type=_erasure_intent_request_id_argument, required=True
+    )
+    knowledge_mode = knowledge.add_mutually_exclusive_group(required=True)
+    for option in ("--preview", "--apply", "--resume", "--status"):
+        knowledge_mode.add_argument(option, action="store_true")
+    knowledge.add_argument("--expected-generation", type=_nonnegative_int_argument)
+    knowledge.add_argument("--expected-erasure-revision", type=_nonnegative_int_argument)
+    knowledge.add_argument("--expected-body-revision", type=_nonnegative_int_argument)
+    knowledge.add_argument("--sha256", type=_sha256_argument)
+    knowledge.add_argument("--request-id", type=_erasure_intent_request_id_argument)
+    reflection_policy = source_actions.add_parser(
+        "erasure-reflection-policy", help="reviewed floor upgrade for terminal Reflection payloads"
+    )
+    reflection_policy.add_argument("--upgrade", action="store_true", required=True)
+    reflection_policy.add_argument("--reviewed", action="store_true", required=True)
+    reflection = source_actions.add_parser(
+        "erasure-reflection", help="review or erase retained terminal Reflection proposal payloads"
+    )
+    reflection.add_argument("message_id")
+    reflection.add_argument(
+        "--intent-request-id", type=_erasure_intent_request_id_argument, required=True
+    )
+    reflection_mode = reflection.add_mutually_exclusive_group(required=True)
+    for option in ("--preview", "--apply", "--resume", "--status"):
+        reflection_mode.add_argument(option, action="store_true")
+    reflection.add_argument("--expected-generation", type=_nonnegative_int_argument)
+    reflection.add_argument("--expected-erasure-revision", type=_nonnegative_int_argument)
+    reflection.add_argument("--expected-body-revision", type=_nonnegative_int_argument)
+    reflection.add_argument("--sha256", type=_sha256_argument)
+    reflection.add_argument("--request-id", type=_erasure_intent_request_id_argument)
+    appraisal_policy = source_actions.add_parser(
+        "erasure-appraisal-policy", help="reviewed floor upgrade for paired appraisal explanations"
+    )
+    appraisal_policy.add_argument("--upgrade", action="store_true", required=True)
+    appraisal_policy.add_argument("--reviewed", action="store_true", required=True)
+    appraisal = source_actions.add_parser(
+        "erasure-appraisal", help="review or erase the owned appraisal explanation and audit copy"
+    )
+    appraisal.add_argument("message_id")
+    appraisal.add_argument(
+        "--intent-request-id", type=_erasure_intent_request_id_argument, required=True
+    )
+    appraisal_mode = appraisal.add_mutually_exclusive_group(required=True)
+    for option in ("--preview", "--apply", "--resume", "--status"):
+        appraisal_mode.add_argument(option, action="store_true")
+    appraisal.add_argument("--expected-generation", type=_nonnegative_int_argument)
+    appraisal.add_argument("--expected-erasure-revision", type=_nonnegative_int_argument)
+    appraisal.add_argument("--expected-body-revision", type=_nonnegative_int_argument)
+    appraisal.add_argument("--sha256", type=_sha256_argument)
+    appraisal.add_argument("--request-id", type=_erasure_intent_request_id_argument)
+    state_parser = subcommands.add_parser(
+        "state", help="whole-state local recovery without providers"
+    )
+    state_actions = state_parser.add_subparsers(dest="state_action", required=True)
+    state_export = state_actions.add_parser(
+        "export", aliases=["backup"], help="write a private consistent whole-state archive"
+    )
+    state_export.add_argument("--output", type=Path, required=True)
+    state_export.add_argument("--overwrite", action="store_true")
+    state_import = state_actions.add_parser("import", help="validate or restore a reviewed archive")
+    state_import.add_argument("archive", type=Path)
+    state_mode = state_import.add_mutually_exclusive_group(required=True)
+    state_mode.add_argument("--preview", action="store_true")
+    state_mode.add_argument("--activate", action="store_true")
+    state_import.add_argument("--target", type=Path, help="new absent SQLite database file")
+    state_import.add_argument("--sha256", type=_sha256_argument, help="reviewed whole-archive hash")
+    retention = state_actions.add_parser(
+        "retention", help="read-only whole-main retention coverage"
+    )
+    retention.add_argument("--identity-id", required=True)
+    retention_mode = retention.add_mutually_exclusive_group(required=True)
+    retention_mode.add_argument("--status", action="store_true")
+    retention_mode.add_argument("--check", action="store_true")
+    retention.add_argument("--expected-generation", type=_nonnegative_int_argument)
+    retention.add_argument("--expected-erasure-revision", type=_nonnegative_int_argument)
+    retention.add_argument("--expected-body-revision", type=_nonnegative_int_argument)
+    retention.add_argument("--sha256", type=_sha256_argument)
     talk_parser = subcommands.add_parser(
         "talk",
         help="send and durably persist one idempotent text turn",
@@ -217,11 +901,32 @@ def build_parser() -> argparse.ArgumentParser:
     history_parser.add_argument("--session", help="limit output to one session ID")
     memory_parser = subcommands.add_parser("memories", help="inspect episodic memory records")
     memory_parser.add_argument("--interaction", help="limit output to one source interaction ID")
+    memory_parser.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="explicitly inspect retained archived episodes",
+    )
     memory_actions = memory_parser.add_subparsers(dest="memory_action")
     search_parser = memory_actions.add_parser("search", help="debug semantic retrieval")
     search_parser.add_argument("text", help="retrieval query text")
     memory_actions.add_parser("index", help="backfill missing embeddings")
     memory_actions.add_parser("rebuild", help="replace embeddings in the active space")
+    memory_actions.add_parser(
+        "scope-status", help="show content-free attribution/quarantine counts"
+    )
+    for lifecycle_action in ("archive", "reactivate"):
+        lifecycle_parser = memory_actions.add_parser(
+            lifecycle_action, help=f"explicitly {lifecycle_action} one scoped episode"
+        )
+        lifecycle_parser.add_argument("memory_id")
+        lifecycle_mode = lifecycle_parser.add_mutually_exclusive_group(required=True)
+        lifecycle_mode.add_argument("--preview", action="store_true", help="metadata-only review")
+        lifecycle_mode.add_argument(
+            "--apply", action="store_true", help="apply a reviewed transition"
+        )
+        lifecycle_parser.add_argument("--expected-version", type=_positive_int_argument)
+        lifecycle_parser.add_argument("--sha256", type=_sha256_argument)
+        lifecycle_parser.add_argument("--request-id", help="durable operation idempotency key")
     semantic_parser = subcommands.add_parser(
         "semantic", help="inspect or process evidence-grounded semantic claims"
     )
@@ -259,9 +964,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     relationship_history.add_argument("--limit", type=int, default=20)
     relationship_process = relationship_actions.add_parser(
-        "process", help="retry one eligible canonical interaction"
+        "process", help="retry one interaction or oldest eligible missing decisions"
     )
-    relationship_process.add_argument("--interaction", required=True)
+    relationship_process_target = relationship_process.add_mutually_exclusive_group(required=True)
+    relationship_process_target.add_argument("--interaction")
+    relationship_process_target.add_argument(
+        "--limit",
+        type=_positive_int_argument,
+        help="maximum oldest missing sources for the default counterparty",
+    )
     models_parser = subcommands.add_parser(
         "models", help="inspect, export, or process Stage 9 user/world models"
     )
@@ -286,9 +997,10 @@ def build_parser() -> argparse.ArgumentParser:
             help="opaque counterparty partition; defaults to SATORI_DEFAULT_COUNTERPARTY_ID",
         )
     models_export = models_actions.add_parser(
-        "export", help="export one counterparty partition without raw messages"
+        "export", help="partial inspection: one counterparty partition without raw messages"
     )
     models_export.add_argument("--output", type=Path)
+    models_export.add_argument("--overwrite", action="store_true")
     models_export.add_argument(
         "--counterparty",
         type=_counterparty_id_argument,
@@ -310,9 +1022,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     positions_inspect.add_argument("position_id")
     positions_export = positions_actions.add_parser(
-        "export", help="export identity-global positions and provenance"
+        "export", help="partial inspection: identity-global positions and provenance"
     )
     positions_export.add_argument("--output", type=Path)
+    positions_export.add_argument("--overwrite", action="store_true")
     inclinations_list = positions_actions.add_parser(
         "inclinations-list", help="list current evidence-backed Satori inclinations"
     )
@@ -331,9 +1044,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="explicit ISO-8601 time for pure score materialization (default: now)",
     )
     inclination_export = positions_actions.add_parser(
-        "inclination-export", help="export inclinations without raw source text"
+        "inclination-export", help="partial inspection: inclinations without raw source text"
     )
     inclination_export.add_argument("--output", type=Path)
+    inclination_export.add_argument("--overwrite", action="store_true")
     inclination_export.add_argument(
         "--as-of",
         type=_aware_datetime_argument,
@@ -386,13 +1100,37 @@ def build_parser() -> argparse.ArgumentParser:
     personality_compare.add_argument("checkpoint_id")
     personality_export = personality_actions.add_parser(
         "export",
-        help="export Stage 14 state and provenance without source quotes or provider text",
+        help="partial inspection: Stage 14 state without source quotes or provider text",
     )
     personality_export.add_argument("--output", type=Path)
+    personality_export.add_argument("--overwrite", action="store_true")
     personality_actions.add_parser(
         "process",
         help="run explicit-local Reflection V3 eligibility, generation, and owner routing",
     )
+    reason_policy = personality_actions.add_parser(
+        "reasons-policy", help="reviewed independent floor upgrade for operator reason bodies"
+    )
+    reason_policy.add_argument("--upgrade", action="store_true", required=True)
+    reason_policy.add_argument("--reviewed", action="store_true", required=True)
+    reasons = personality_actions.add_parser(
+        "reason-bodies", help="review or logically remove exact identity-owned operator reasons"
+    )
+    reasons.add_argument("--identity-id", type=_erasure_intent_request_id_argument, required=True)
+    reasons.add_argument(
+        "--approval", type=_erasure_intent_request_id_argument, action="append", default=[]
+    )
+    reasons.add_argument(
+        "--restore", type=_erasure_intent_request_id_argument, action="append", default=[]
+    )
+    reason_mode = reasons.add_mutually_exclusive_group(required=True)
+    for option in ("--preview", "--apply", "--resume", "--status"):
+        reason_mode.add_argument(option, action="store_true")
+    reasons.add_argument("--expected-generation", type=_nonnegative_int_argument)
+    reasons.add_argument("--expected-erasure-revision", type=_nonnegative_int_argument)
+    reasons.add_argument("--expected-body-revision", type=_nonnegative_int_argument)
+    reasons.add_argument("--sha256", type=_sha256_argument)
+    reasons.add_argument("--request-id", type=_erasure_intent_request_id_argument)
     for action, help_text in (
         ("approve", "approve one reviewed current checkpoint as the new budget origin"),
         ("restore", "restore one immutable checkpoint through the deterministic owner"),
@@ -410,6 +1148,62 @@ def build_parser() -> argparse.ArgumentParser:
         )
         mutation.add_argument("--reason", required=True)
     return parser
+
+
+def _whole_state_command(
+    arguments: argparse.Namespace, settings: Settings, *, alembic_config: Path
+) -> int:
+    """Independent composition: never bootstrap a live DB or instantiate a provider."""
+
+    try:
+        recovery = WholeStateRecovery(
+            SQLiteStoredSnapshot(settings.database_url, alembic_config=alembic_config),
+            PrivateArtifactStore(),
+            reserved_paths=InstallationPolicyLedger(
+                settings.source_policy_directory
+            ).reserved_paths,
+        )
+        if arguments.state_action in {"export", "backup"}:
+            preview = recovery.export(arguments.output, overwrite=arguments.overwrite)
+        elif arguments.preview:
+            if arguments.target is not None or arguments.sha256 is not None:
+                raise RecoveryError("preview_does_not_activate")
+            preview = recovery.preview(arguments.archive)
+        else:
+            if arguments.target is None or arguments.sha256 is None:
+                raise RecoveryError("activation_requires_target_and_reviewed_hash")
+            preview = recovery.restore(
+                arguments.archive, arguments.target, expected_sha256=arguments.sha256
+            )
+    except (RecoveryError, OSError) as error:
+        print(f"State recovery rejected: {error}", file=sys.stderr)
+        return 2
+    print(preview.model_dump_json(indent=2))
+    if arguments.state_action == "import" and arguments.activate:
+        print(f"Restored offline database: {arguments.target}; automatic_processing=false")
+    return 0
+
+
+def _write_partial_export(
+    settings: Settings, output: Path, serialized: str, *, overwrite: bool, alembic_config: Path
+) -> bool:
+    """Route legacy aggregate file exports through the same private writer."""
+
+    try:
+        artifacts = PrivateArtifactStore()
+        recovery = WholeStateRecovery(
+            SQLiteStoredSnapshot(settings.database_url, alembic_config=alembic_config),
+            artifacts,
+            reserved_paths=InstallationPolicyLedger(
+                settings.source_policy_directory
+            ).reserved_paths,
+        )
+        recovery.check_artifact_target(output)
+        artifacts.write(output, (serialized + "\n").encode("utf-8"), overwrite=overwrite)
+    except (RecoveryError, OSError) as error:
+        print(f"Partial export rejected: {error}", file=sys.stderr)
+        return False
+    return True
 
 
 def _open_services(
@@ -614,6 +1408,7 @@ def _print_personality_inspection(inspection: PersonalityInspection) -> None:
             f"approval[{approval.approval_id}] checkpoint={approval.checkpoint_id} "
             f"hash={approval.checkpoint_hash} version={approval.expected_aggregate_version} "
             f"approved_at={approval.approved_at.isoformat()}"
+            f" reason_state={approval.reason_state}"
         )
     for restore in inspection.restores:
         print(
@@ -622,6 +1417,7 @@ def _print_personality_inspection(inspection: PersonalityInspection) -> None:
             f"version={restore.before_aggregate_version}->{restore.after_aggregate_version} "
             f"resulting_checkpoint={restore.resulting_checkpoint_id} "
             f"restored_at={restore.restored_at.isoformat()}"
+            f" reason_state={restore.reason_state}"
         )
 
 
@@ -1168,6 +1964,68 @@ def _talk(
     return 0
 
 
+def _memory_lifecycle_command(
+    arguments: argparse.Namespace,
+    database: Database,
+    services: InitialSelfServices,
+    settings: Settings,
+    *,
+    trace_id: str,
+) -> int:
+    """Run deterministic explicit owner controls before constructing providers."""
+
+    if arguments.interaction is not None or arguments.include_archived:
+        print("Memory lifecycle rejected: incompatible_inspection_options", file=sys.stderr)
+        return 2
+    target = (
+        MemoryLifecycleStatus.ARCHIVED
+        if arguments.memory_action == "archive"
+        else MemoryLifecycleStatus.ACTIVE
+    )
+    controls = build_memory_lifecycle_services(database)
+    scope = MemoryScope(
+        services.get_self.execute().identity.identity_id, settings.default_counterparty_id
+    )
+    try:
+        if arguments.preview:
+            if any(
+                value is not None
+                for value in (arguments.expected_version, arguments.sha256, arguments.request_id)
+            ):
+                raise MemoryLifecycleError("preview_does_not_apply")
+            print(
+                controls.preview(arguments.memory_id, target, scope=scope).model_dump_json(indent=2)
+            )
+            return 0
+        if any(
+            value is None
+            for value in (arguments.expected_version, arguments.sha256, arguments.request_id)
+        ):
+            raise MemoryLifecycleError("apply_requires_version_hash_and_request_id")
+        result = controls.execute(
+            MemoryLifecycleCommand(
+                memory_id=arguments.memory_id,
+                target_status=target,
+                expected_version=arguments.expected_version,
+                request_id=arguments.request_id,
+                preview_digest=arguments.sha256,
+            ),
+            scope=scope,
+            trace_id=trace_id,
+        )
+        print(result.model_dump_json(indent=2))
+        return 0
+    except MemoryLifecycleError as error:
+        print(f"Memory lifecycle rejected: {error.reason_code}", file=sys.stderr)
+        return 1 if error.reason_code == "memory_lifecycle_commit_failed" else 2
+    except ValueError:
+        print("Memory lifecycle rejected: invalid_command", file=sys.stderr)
+        return 2
+    except SQLAlchemyError:
+        print("Memory lifecycle unavailable: storage_failure", file=sys.stderr)
+        return 1
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -1189,6 +2047,37 @@ def main(
     process_started = time.perf_counter()
     arguments = build_parser().parse_args(argv)
     active_settings = settings or load_settings()
+    if active_settings.all_openai_enabled and not all(
+        provider is not None
+        for provider in (
+            conversation_provider,
+            episode_formation_provider,
+            embedding_provider,
+            semantic_formation_provider,
+            affective_appraisal_provider,
+            relationship_appraisal_provider,
+            model_formation_provider,
+            position_formation_provider,
+            reflection_generation_provider,
+        )
+    ):
+        print("all_openai_requires_budgeted_server_runtime", file=sys.stderr)
+        return 2
+    if arguments.command == "state":
+        if arguments.state_action == "retention":
+            from satori.retention_cli import retention_command
+
+            return retention_command(arguments, active_settings)
+        return _whole_state_command(arguments, active_settings, alembic_config=alembic_config)
+    if arguments.command == "sources":
+        return _source_policy_command(arguments, active_settings, alembic_config=alembic_config)
+    if arguments.command == "personality" and arguments.personality_action in {
+        "reasons-policy",
+        "reason-bodies",
+    }:
+        from satori.checkpoint_reason_cli import checkpoint_reason_command
+
+        return checkpoint_reason_command(arguments, active_settings)
     if arguments.command == "bootstrap":
         bootstrap(active_settings, alembic_config=alembic_config)
         return 0
@@ -1295,10 +2184,49 @@ def main(
     try:
         trace_id = Uuid4Generator().new()
         with bind_trace_id(trace_id):
+            if arguments.command == "activate":
+                try:
+                    installation_identity(database)
+                except NotActivated:
+                    activation_result = _activate(services, trace_id=trace_id)
+                    enroll_installation(
+                        database,
+                        active_settings.source_policy_directory,
+                        reviewed=True,
+                        new_installation=True,
+                    )
+                    return activation_result
+                bind_installation(database, active_settings.source_policy_directory)
+                return _activate(services, trace_id=trace_id)
+            try:
+                bind_installation(database, active_settings.source_policy_directory)
+            except NotActivated:
+                if arguments.command == "status":
+                    return _status(services)
+                print("Satori is not activated. Run `satori activate` first.", file=sys.stderr)
+                return 2
+            except SourcePolicyError as error:
+                print(
+                    f"Source policy rejected: {error}. "
+                    "Run reviewed `satori sources enroll` or `sources repair`.",
+                    file=sys.stderr,
+                )
+                return 2
             if arguments.command == "status":
                 return _status(services)
-            if arguments.command == "activate":
-                return _activate(services, trace_id=trace_id)
+            if arguments.command in {"session", "history", "memories", "semantic"}:
+                try:
+                    services.get_self.execute()
+                except NotActivated:
+                    print("Satori is not activated. Run `satori activate` first.", file=sys.stderr)
+                    return 2
+            if arguments.command == "memories" and arguments.memory_action in {
+                "archive",
+                "reactivate",
+            }:
+                return _memory_lifecycle_command(
+                    arguments, database, services, active_settings, trace_id=trace_id
+                )
             if arguments.command == "talk":
                 provider = conversation_provider or configured_conversation_provider()
                 episode_provider = episode_formation_provider or _configured_episode_provider(
@@ -1536,16 +2464,24 @@ def main(
                         print(f"assistant: {interaction.assistant_message.content}")
                 return 0
             if arguments.command == "memories":
+                if arguments.memory_action == "scope-status":
+                    print(conversation.memories.scope_status().model_dump_json(indent=2))
+                    return 0
                 if arguments.memory_action == "search":
                     if conversation.retrieve_memories is None:
                         raise AssertionError("retrieval service was not composed")
                     result = asyncio.run(
                         conversation.retrieve_memories.execute(
                             RetrievalQuery(
+                                scope=MemoryScope(
+                                    services.get_self.execute().identity.identity_id,
+                                    active_settings.default_counterparty_id,
+                                ),
                                 text=arguments.text,
                                 trace_id=trace_id,
                                 cutoff=SystemClock().now(),
                                 current_interaction_id=None,
+                                operator_query=True,
                             )
                         )
                     )
@@ -1566,6 +2502,10 @@ def main(
                         raise AssertionError("index service was not composed")
                     report = asyncio.run(
                         conversation.index_memories.execute(
+                            scope=MemoryScope(
+                                services.get_self.execute().identity.identity_id,
+                                active_settings.default_counterparty_id,
+                            ),
                             trace_id=trace_id,
                             rebuild=arguments.memory_action == "rebuild",
                         )
@@ -1576,7 +2516,10 @@ def main(
                         f"failed={report.failed}"
                     )
                     return 1 if report.failed else 0
-                memories = conversation.memories.execute(interaction_id=arguments.interaction)
+                memories = conversation.memories.execute(
+                    interaction_id=arguments.interaction,
+                    include_archived=arguments.include_archived,
+                )
                 for stored_memory in memories:
                     source_ids = ",".join(
                         evidence.source_message_id for evidence in stored_memory.evidence
@@ -1586,12 +2529,18 @@ def main(
                         f"(importance={stored_memory.importance:.2f}, "
                         f"confidence={stored_memory.confidence:.2f}, "
                         f"interaction={stored_memory.source_interaction_id}, "
-                        f"sources={source_ids}, formation={stored_memory.formation_version})"
+                        f"sources={source_ids}, formation={stored_memory.formation_version}, "
+                        f"status={stored_memory.lifecycle_status.value}, "
+                        f"version={stored_memory.aggregate_version})"
                     )
                 return 0
             if arguments.command == "semantic":
                 if arguments.semantic_action == "list":
                     claims = conversation.semantic_claims.list(
+                        scope=MemoryScope(
+                            services.get_self.execute().identity.identity_id,
+                            active_settings.default_counterparty_id,
+                        ),
                         active_only=not arguments.all,
                         predicate=arguments.predicate,
                     )
@@ -1604,7 +2553,13 @@ def main(
                         )
                     return 0
                 if arguments.semantic_action == "inspect":
-                    semantic_inspection = conversation.semantic_claims.inspect(arguments.claim_id)
+                    semantic_inspection = conversation.semantic_claims.inspect(
+                        arguments.claim_id,
+                        scope=MemoryScope(
+                            services.get_self.execute().identity.identity_id,
+                            active_settings.default_counterparty_id,
+                        ),
+                    )
                     if semantic_inspection is None:
                         print("Semantic claim not found.", file=sys.stderr)
                         return 2
@@ -1642,7 +2597,12 @@ def main(
                     try:
                         decision = asyncio.run(
                             conversation.process_semantic.execute(
-                                arguments.memory, trace_id=trace_id
+                                arguments.memory,
+                                trace_id=trace_id,
+                                scope=MemoryScope(
+                                    services.get_self.execute().identity.identity_id,
+                                    active_settings.default_counterparty_id,
+                                ),
                             )
                         )
                     except SemanticFormationProviderError as error:
@@ -1662,6 +2622,10 @@ def main(
                     return 0
                 backfill_report = asyncio.run(
                     conversation.backfill_semantic.execute(
+                        scope=MemoryScope(
+                            services.get_self.execute().identity.identity_id,
+                            active_settings.default_counterparty_id,
+                        ),
                         trace_id=trace_id,
                         limit=arguments.limit or active_settings.semantic_backfill_limit,
                     )
@@ -1736,8 +2700,14 @@ def main(
                     if arguments.output is None:
                         print(serialized)
                     else:
-                        arguments.output.parent.mkdir(parents=True, exist_ok=True)
-                        arguments.output.write_text(serialized + "\n", encoding="utf-8")
+                        if not _write_partial_export(
+                            active_settings,
+                            arguments.output,
+                            serialized,
+                            overwrite=arguments.overwrite,
+                            alembic_config=alembic_config,
+                        ):
+                            return 2
                         print(f"Models export written: {arguments.output}")
                     return 0
                 if conversation.process_models is None or conversation.backfill_models is None:
@@ -1807,8 +2777,14 @@ def main(
                     if arguments.output is None:
                         print(serialized)
                     else:
-                        arguments.output.parent.mkdir(parents=True, exist_ok=True)
-                        arguments.output.write_text(serialized + "\n", encoding="utf-8")
+                        if not _write_partial_export(
+                            active_settings,
+                            arguments.output,
+                            serialized,
+                            overwrite=arguments.overwrite,
+                            alembic_config=alembic_config,
+                        ):
+                            return 2
                         print(f"Positions export written: {arguments.output}")
                     return 0
                 if arguments.positions_action == "inclinations-list":
@@ -1854,8 +2830,14 @@ def main(
                     if arguments.output is None:
                         print(serialized)
                     else:
-                        arguments.output.parent.mkdir(parents=True, exist_ok=True)
-                        arguments.output.write_text(serialized + "\n", encoding="utf-8")
+                        if not _write_partial_export(
+                            active_settings,
+                            arguments.output,
+                            serialized,
+                            overwrite=arguments.overwrite,
+                            alembic_config=alembic_config,
+                        ):
+                            return 2
                         print(f"Inclinations export written: {arguments.output}")
                     return 0
                 if (
@@ -1934,11 +2916,14 @@ def main(
                     if arguments.output is None:
                         print(personality_export_json)
                     else:
-                        arguments.output.parent.mkdir(parents=True, exist_ok=True)
-                        arguments.output.write_text(
-                            personality_export_json + "\n",
-                            encoding="utf-8",
-                        )
+                        if not _write_partial_export(
+                            active_settings,
+                            arguments.output,
+                            personality_export_json,
+                            overwrite=arguments.overwrite,
+                            alembic_config=alembic_config,
+                        ):
+                            return 2
                         print(f"Personality export written: {arguments.output}")
                     return 0
                 if arguments.personality_action == "process":
@@ -2075,6 +3060,13 @@ def main(
                             f"sources={','.join(proposal.evidence_source_ids)} "
                             f"payload={serialized_payload}"
                         )
+                    for header in reflection_inspection.unavailable_proposals:
+                        print(
+                            f"proposal[{header.ordinal}] id={header.proposal_id} "
+                            f"target={header.target_owner} "
+                            f"sources={','.join(header.evidence_source_ids)} "
+                            "payload=unavailable"
+                        )
                     for outcome in reflection_inspection.outcomes:
                         print(
                             f"outcome[{outcome.outcome_id}] proposal={outcome.proposal_id} "
@@ -2142,7 +3134,8 @@ def main(
                         f"state={transition.before.state_version}->"
                         f"{transition.after.state_version} "
                         f"policy={transition.after.emotion_policy_version} "
-                        f"sources={','.join(transition.proposal.source_refs)}"
+                        f"sources={','.join(transition.source_refs)} "
+                        f"explanation={transition.explanation_state}"
                     )
                     print(
                         "delta "
@@ -2213,10 +3206,32 @@ def main(
                             )
                         )
                     return 0
-                if conversation.process_relationship is None:
+                if (
+                    conversation.process_relationship is None
+                    or conversation.backfill_relationship is None
+                ):
                     print("Relationship appraisal provider is not configured.", file=sys.stderr)
                     return 2
+                if arguments.limit is not None:
+                    relationship_backfill = asyncio.run(
+                        conversation.backfill_relationship.execute(
+                            identity_id,
+                            counterparty_id,
+                            limit=arguments.limit,
+                        )
+                    )
+                    print(
+                        f"considered={relationship_backfill.considered} "
+                        f"attempted={relationship_backfill.attempted} "
+                        f"applied={relationship_backfill.applied} "
+                        f"skipped={relationship_backfill.skipped} "
+                        f"rejected={relationship_backfill.rejected} "
+                        f"replayed={relationship_backfill.replayed} "
+                        f"failed={relationship_backfill.failed}"
+                    )
+                    return 1 if relationship_backfill.failed else 0
                 try:
+                    assert arguments.interaction is not None
                     relationship_report = asyncio.run(
                         conversation.process_relationship.execute(
                             arguments.interaction, trace_id=trace_id
@@ -2238,6 +3253,12 @@ def main(
                     f"replayed={str(relationship_report.replayed).lower()}"
                 )
                 return 0
+    except SourcePolicyError as error:
+        print(f"Source policy rejected: {error.reason_code}", file=sys.stderr)
+        return 2
+    except ConversationError:
+        print("Conversation operation unavailable in the current scope.", file=sys.stderr)
+        return 2
     finally:
         for client in http_clients.values():
             client.close()

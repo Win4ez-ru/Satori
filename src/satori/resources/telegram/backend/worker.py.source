@@ -1,0 +1,1713 @@
+#!/usr/bin/env python3
+"""Standalone session-only TDLib receiver. stdout is private GUI IPC, not logging."""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import ctypes
+import hashlib
+import json
+import math
+import os
+import queue
+import re
+import secrets
+import select
+import shutil
+import stat
+import sys
+import tempfile
+import threading
+import time
+import unicodedata
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+# TDLib's JSON transport is distinct from the selected-page/GUI projection.
+# The observed r2/r3 failures were native frames in the (1 MiB, 2 MiB] bucket.
+# Keep a finite 4 MiB transport budget; do not widen IPC or selected-source bounds.
+NATIVE_CAP = 4 * 1024 * 1024
+# Width is bounded by NATIVE_CAP, independently of this explicit nesting guard.
+NATIVE_JSON_MAX_DEPTH = 512
+# TDLib serializes finite doubles in fixed-point with six fractional digits;
+# DBL_MAX may need 317 characters. Leave a finite margin above that output.
+JSON_NUMBER_CAP = 384
+SMALL_WIRE_BUCKET_CAP = 512 * 1024
+INPUT_CAP = 32 * 1024
+OUTPUT_CAP = 512 * 1024
+MAX_COORD = 1_000_000
+INT53 = (1 << 53) - 1
+SCHEMA = json.loads(Path(__file__).with_name("schema.json").read_text())
+REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,80}\Z")
+ALLOWED_NATIVE = frozenset(
+    {
+        "getAuthorizationState",
+        "setTdlibParameters",
+        "setOption",
+        "setAuthenticationPhoneNumber",
+        "checkAuthenticationCode",
+        "checkAuthenticationPassword",
+        "getMe",
+        "loadChats",
+        "getChats",
+        "getChat",
+        "getUser",
+        "openChat",
+        "closeChat",
+        "getChatHistory",
+        "viewMessages",
+        "sendMessageViewMetrics",
+        "close",
+    }
+)
+
+
+class Rejected(Exception):
+    """Only closed metadata may cross the exception boundary."""
+
+    def __init__(self, reason: str, decoder: str = "NONE", bucket: str = "NONE") -> None:
+        self.reason = reason if reason in SCHEMA["reason"] else "RUNTIME_FAILURE"
+        self.decoder = decoder if decoder in SCHEMA["decoder_reason"] else "UNKNOWN"
+        self.bucket = bucket if bucket in SCHEMA["wire_bucket"] else "UNKNOWN"
+        super().__init__(self.reason)
+
+
+class SnapshotStale(Exception):
+    """A new selected-chat message invalidates a page, not its authorization."""
+
+    def __init__(self, page_id: str | None, request_id: str | None, *, from_read: bool) -> None:
+        self.page_id, self.request_id, self.from_read = page_id, request_id, from_read
+        super().__init__("NEW_MESSAGE")
+
+
+class JSONDepthLimit(Exception):
+    """A closed nesting bound, distinct from malformed or merely wide JSON."""
+
+
+class JSONNumberLimit(Exception):
+    """A closed numeric-literal conversion bound, excluding string contents."""
+
+
+def exact_int(value: Any, minimum: int, maximum: int) -> int:
+    if type(value) is not int or not minimum <= value <= maximum:
+        raise Rejected("INPUT_REJECTED")
+    return value
+
+
+def source_int(value: Any, minimum: int = -INT53, maximum: int = INT53) -> int:
+    try:
+        return exact_int(value, minimum, maximum)
+    except Rejected:
+        raise Rejected("SOURCE_REJECTED") from None
+
+
+def catalog_chat_id(value: Any) -> int:
+    """Public TDLib dialog IDs are signed int53; zero is not a chat."""
+    ident = source_int(value)
+    if ident == 0:
+        raise Rejected("SOURCE_REJECTED")
+    return ident
+
+
+def bounded_text(value: Any, limit: int, *, secret: bool = False) -> str:
+    try:
+        valid = isinstance(value, str) and len(value.encode("utf-8", "strict")) <= limit
+    except UnicodeError:
+        valid = False
+    if not valid:
+        raise Rejected("INPUT_REJECTED" if secret else "SOURCE_REJECTED")
+    if secret:
+        if not value or "\x00" in value:
+            raise Rejected("INPUT_REJECTED")
+        return value
+    return "".join(
+        c for c in value if c in "\n\t" or unicodedata.category(c) not in {"Cc", "Cf", "Cs"}
+    )
+
+
+def no_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate")
+        result[key] = value
+    return result
+
+
+def parse_json(raw: bytes) -> Any:
+    return json.loads(
+        raw.decode("utf-8", "strict"),
+        object_pairs_hook=no_duplicates,
+        parse_constant=lambda _: (_ for _ in ()).throw(ValueError("constant")),
+        parse_int=bounded_integer,
+        parse_float=finite_float,
+    )
+
+
+def bounded_integer(raw: str) -> int:
+    if len(raw) > JSON_NUMBER_CAP:
+        raise JSONNumberLimit
+    return int(raw)
+
+
+def finite_float(raw: str) -> float:
+    if len(raw) > JSON_NUMBER_CAP:
+        raise JSONNumberLimit
+    value = float(raw)
+    if not math.isfinite(value):
+        raise ValueError("nonfinite")
+    return value
+
+
+def bound_native_json_depth(raw: bytes) -> None:
+    """Bound nesting before decoding; the byte cap already bounds total JSON width."""
+    depth = 0
+    in_string = False
+    escaped = False
+    for byte in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif byte == 92:
+                escaped = True
+            elif byte == 34:
+                in_string = False
+        elif byte == 34:
+            in_string = True
+        elif byte in (91, 123):
+            depth += 1
+            if depth > NATIVE_JSON_MAX_DEPTH:
+                raise JSONDepthLimit
+        elif byte in (93, 125):
+            depth -= 1
+            if depth < 0:
+                raise ValueError("depth")
+
+
+def wire_bucket(length: int) -> str:
+    if length == 0:
+        return "EMPTY"
+    if length <= SMALL_WIRE_BUCKET_CAP:
+        return "LE512K"
+    for power, label in (
+        (20, "GT512K_LE1M"),
+        (21, "GT1M_LE2M"),
+        (22, "GT2M_LE4M"),
+        (23, "GT4M_LE8M"),
+        (24, "GT8M_LE16M"),
+        (25, "GT16M_LE32M"),
+        (26, "GT32M_LE64M"),
+    ):
+        if length <= 1 << power:
+            return label
+    return "GT64M"
+
+
+def decode_native(raw: bytes, client_id: int | None) -> dict[str, Any]:
+    bucket = wire_bucket(len(raw))
+    if len(raw) > NATIVE_CAP:
+        raise Rejected("CLIENT_INVALID_NATIVE_FRAME", "FRAME_TOO_LARGE", bucket)
+    try:
+        raw.decode("utf-8", "strict")
+    except UnicodeError:
+        raise Rejected("CLIENT_INVALID_NATIVE_FRAME", "INVALID_UTF8", bucket) from None
+    try:
+        bound_native_json_depth(raw)
+        value = parse_json(raw)
+    except JSONDepthLimit:
+        raise Rejected("CLIENT_INVALID_NATIVE_FRAME", "JSON_DEPTH_LIMIT", bucket) from None
+    except JSONNumberLimit:
+        raise Rejected("CLIENT_INVALID_NATIVE_FRAME", "JSON_NUMBER_LIMIT", bucket) from None
+    except (ValueError, UnicodeError, RecursionError, OverflowError):
+        raise Rejected("CLIENT_INVALID_NATIVE_FRAME", "INVALID_JSON", bucket) from None
+    if not isinstance(value, dict) or not isinstance(value.get("@type"), str) or not value["@type"]:
+        raise Rejected("CLIENT_INVALID_NATIVE_FRAME", "INVALID_ENVELOPE", bucket)
+    if "@extra" in value and not isinstance(value["@extra"], str):
+        raise Rejected("CLIENT_INVALID_NATIVE_FRAME", "INVALID_ENVELOPE", bucket)
+    if client_id is not None and (
+        type(value.get("@client_id")) is not int or value["@client_id"] != client_id
+    ):
+        raise Rejected("CLIENT_INVALID_NATIVE_FRAME", "INVALID_CLIENT_ID", bucket)
+    return value
+
+
+class NativeClient:
+    """One receiver owner. Construction happens only after explicit Connect."""
+
+    def __init__(self, library: Path, expected_sha: str) -> None:
+        if (
+            library.is_symlink()
+            or not library.is_file()
+            or hashlib.sha256(library.read_bytes()).hexdigest() != expected_sha
+        ):
+            raise Rejected("SDK_PIN_MISMATCH")
+        self.lib = ctypes.CDLL(str(library))
+        self.lib.td_execute.argtypes = [ctypes.c_char_p]
+        self.lib.td_execute.restype = ctypes.c_void_p
+        self.lib.td_create_client_id.argtypes = []
+        self.lib.td_create_client_id.restype = ctypes.c_int
+        self.lib.td_send.argtypes = [ctypes.c_int, ctypes.c_char_p]
+        self.lib.td_send.restype = None
+        self.lib.td_receive.argtypes = [ctypes.c_double]
+        self.lib.td_receive.restype = ctypes.c_void_p
+        self.libc = ctypes.CDLL(None)
+        self.libc.strnlen.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+        self.libc.strnlen.restype = ctypes.c_size_t
+        for query in (
+            {"@type": "setLogStream", "log_stream": {"@type": "logStreamEmpty"}},
+            {"@type": "setLogVerbosityLevel", "new_verbosity_level": 0},
+        ):
+            pointer = self.lib.td_execute(json.dumps(query).encode())
+            answer = self._copy(pointer, None)
+            if answer is None or answer.get("@type") != "ok":
+                raise Rejected("PRIVACY_REJECTED")
+        self.client_id = self.lib.td_create_client_id()
+        if not 0 < self.client_id < 1 << 31:
+            raise Rejected("SOURCE_REJECTED")
+
+    def _copy(self, pointer: int | None, client_id: int | None) -> dict[str, Any] | None:
+        if not pointer:
+            return None
+        # TDLib guarantees a NUL-terminated valid C string. Inspect length before copying.
+        length = int(self.libc.strnlen(pointer, (64 << 20) + 1))
+        if length > NATIVE_CAP:
+            raise Rejected("CLIENT_INVALID_NATIVE_FRAME", "FRAME_TOO_LARGE", wire_bucket(length))
+        return decode_native(ctypes.string_at(pointer, length), client_id)
+
+    def send(self, query: dict[str, Any]) -> None:
+        if query.get("@type") not in ALLOWED_NATIVE:
+            raise Rejected("INPUT_REJECTED")
+        if query["@type"] == "setOption" and query.get("name") not in {
+            "online",
+            "ignore_inline_thumbnails",
+            "disable_persistent_network_statistics",
+        }:
+            raise Rejected("INPUT_REJECTED")
+        self.lib.td_send(
+            self.client_id, json.dumps(query, ensure_ascii=True, allow_nan=False).encode()
+        )
+
+    def receive(self, timeout: float) -> dict[str, Any] | None:
+        return self._copy(self.lib.td_receive(timeout), self.client_id)
+
+
+class OwnedSession:
+    """Own only a fresh private directory; never restore or inspect saved profiles."""
+
+    def __init__(self, root: Path) -> None:
+        if not root.is_absolute():
+            raise Rejected("INPUT_REJECTED")
+        current = root
+        while current != current.parent:
+            if current.is_symlink():
+                raise Rejected("INPUT_REJECTED")
+            current = current.parent
+        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        root_stat = root.stat()
+        if root_stat.st_uid != os.getuid() or stat.S_IMODE(root_stat.st_mode) != 0o700:
+            raise Rejected("INPUT_REJECTED")
+        self.root = root.resolve(strict=True)
+        self.root_identity = (root_stat.st_dev, root_stat.st_ino)
+        self.path = Path(tempfile.mkdtemp(prefix="session-", dir=self.root))
+        os.chmod(self.path, 0o700)
+        info = self.path.stat()
+        self.identity = (info.st_dev, info.st_ino)
+        self.key = base64.b64encode(secrets.token_bytes(32)).decode("ascii")
+
+    def cleanup(self) -> bool:
+        self.key = ""
+        try:
+            current = self.path
+            while current != current.parent:
+                if current.is_symlink():
+                    return False
+                current = current.parent
+            if self.root.is_symlink() or self.path.is_symlink():
+                return False
+            root_info, info = self.root.stat(), self.path.stat()
+            if (root_info.st_dev, root_info.st_ino) != self.root_identity or (
+                info.st_dev,
+                info.st_ino,
+            ) != self.identity:
+                return False
+            if self.path.parent.resolve(strict=True) != self.root:
+                return False
+            shutil.rmtree(self.path)
+            return not self.path.exists()
+        except OSError:
+            return False
+
+
+@dataclass
+class Message:
+    native_id: int
+    sender_id: int
+    handle: str
+    text: str = field(repr=False)
+    date: int = 0
+    seen_ranges: list[tuple[int, int]] = field(default_factory=list)
+    seen_ms: int = 0
+    active_ms: int = 0
+    last_height_ratio: int = 0
+    acked: bool = False
+    metrics_dirty: bool = False
+    last_seen: float = 0.0
+    hidden_since: float | None = None
+
+
+class Engine:
+    def __init__(
+        self,
+        library: Path,
+        library_sha: str,
+        session_root: Path,
+        emit: Callable[[dict[str, Any]], None],
+        *,
+        native_factory: Callable[..., Any] = NativeClient,
+        clock: Callable[[], float] = time.monotonic,
+        wall: Callable[[], float] = time.time,
+    ) -> None:
+        self.library, self.library_sha, self.session_root = library, library_sha, session_root
+        self.emit_sink, self.native_factory, self.clock, self.wall = (
+            emit,
+            native_factory,
+            clock,
+            wall,
+        )
+        self.native: Any = None
+        self.session: OwnedSession | None = None
+        self.event_seq = 0
+        self.current_request: str | None = None
+        self.current_command: str | None = None
+        self.phase, self.operation, self.step = "DISCONNECTED", "NONE", "NONE"
+        self.request_ids: set[str] = set()
+        self.retired: set[str] = set()
+        self.auth_state = ""
+        self.challenge_id: str | None = None
+        self.challenge_kind: str | None = None
+        self.account_token: str | None = None
+        self.account_id: int | None = None
+        self.account_confirmed = False
+        self.catalog_id: str | None = None
+        self.catalog_until = 0.0
+        self.chats: dict[str, dict[str, Any]] = {}
+        self.selected_token: str | None = None
+        self.selected_chat: dict[str, Any] | None = None
+        self.grant_until = 0.0
+        self.opened_chat: int | None = None
+        self.page_id: str | None = None
+        self.page_until = 0.0
+        self.messages: dict[str, Message] = {}
+        self.read_inflight = False
+        self.retired_pages: set[str] = set()
+        self.last_sample_id = -1
+        self.last_sample_time: float | None = None
+        self.last_sample_rows: dict[str, tuple[int, int, int]] = {}
+        self.last_active = 0.0
+        self.last_sample_active = False
+        self.last_presence_sample = 0.0
+        self.last_presence_active = False
+        self.online = False
+        self.presence_uncertain = False
+        self.presence_pending = False
+        self.metrics_pending = False
+        self.rpc_active = False
+        self.command_deadline: float | None = None
+        self.last_clock = self.clock()
+        self.last_wall = self.wall()
+        self.started = 0.0
+        self.auth_until = 0.0
+        self.session_until = 0.0
+        self.closed_native = False
+        self.stopped = False
+        self.closing = False
+        self.output_lost = False
+        self.interrupted = threading.Event()
+        self.status()
+
+    def emit(self, event_type: str, **fields: Any) -> None:
+        if self.output_lost:
+            if event_type in {"account", "catalog", "selection", "page"}:
+                raise Rejected("CANCELLED")
+            return
+        if event_type in {"account", "catalog", "selection", "page"}:
+            self.tick()
+            if self.interrupted.is_set():
+                raise Rejected("CANCELLED")
+        self.event_seq += 1
+        value = {
+            "v": 1,
+            "event_seq": self.event_seq,
+            "type": event_type,
+            "request_id": self.current_request,
+            **fields,
+        }
+        if len(json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")) > OUTPUT_CAP:
+            raise Rejected("OUTPUT_BOUND")
+        try:
+            self.emit_sink(value)
+        except OSError:
+            self.output_lost = True
+            self.interrupted.set()
+            if not self.closing:
+                raise Rejected("CANCELLED") from None
+
+    def status(self, reason: str = "NONE", decoder: str = "NONE", bucket: str = "NONE") -> None:
+        self.emit(
+            "status",
+            phase=self.phase,
+            reason=reason,
+            operation=self.operation,
+            step=self.step,
+            decoder_reason=decoder,
+            wire_bucket=bucket,
+        )
+
+    def context(self, operation: str, step: str, phase: str | None = None) -> None:
+        self.operation, self.step = operation, step
+        if phase:
+            self.phase = phase
+        self.status()
+
+    def tick(self, *, allow_maintenance: bool = True) -> None:
+        if self.output_lost:
+            raise Rejected("CANCELLED")
+        now = self.clock()
+        wall_now = self.wall()
+        if now < self.last_clock or wall_now < self.last_wall:
+            raise Rejected("CLOCK_ROLLBACK")
+        self.last_clock = now
+        self.last_wall = wall_now
+        if self.command_deadline is not None and now >= self.command_deadline:
+            raise Rejected("REQUEST_TIMEOUT")
+        if self.native and now >= self.session_until:
+            raise Rejected("SESSION_EXPIRED")
+        if self.native and not self.account_confirmed and now >= self.auth_until:
+            raise Rejected("AUTH_TIMEOUT")
+        if self.selected_chat and now >= self.grant_until:
+            raise Rejected("GRANT_EXPIRED")
+        if self.page_id and now >= self.page_until:
+            raise Rejected("PAGE_EXPIRED")
+        if not allow_maintenance or self.interrupted.is_set():
+            return
+        if (
+            not self.rpc_active
+            and not self.presence_pending
+            and (
+                self.presence_uncertain
+                or (
+                    self.online
+                    and (now - self.last_presence_sample > 1 or not self.last_presence_active)
+                )
+            )
+        ):
+            self._presence(False)
+        if not self.rpc_active and not self.metrics_pending and self.page_id:
+            due = {
+                m.handle
+                for m in self.messages.values()
+                if m.metrics_dirty
+                and (
+                    (m.hidden_since is not None and now - m.hidden_since > 0.3)
+                    or m.seen_ms >= 300_000
+                )
+            }
+            if due:
+                self._flush_metrics(due)
+
+    def _update(self, value: dict[str, Any]) -> None:
+        kind = value["@type"]
+        if kind == "updateAuthorizationState":
+            state = value.get("authorization_state", {})
+            if not isinstance(state, dict) or not isinstance(state.get("@type"), str):
+                raise Rejected("SOURCE_REJECTED")
+            self.auth_state = state["@type"]
+            if self.auth_state == "authorizationStateClosed":
+                self.closed_native = True
+            if self.account_confirmed and self.auth_state != "authorizationStateReady":
+                raise Rejected("AUTH_LOST")
+        elif self.selected_chat:
+            chat_id = self.selected_chat["id"]
+            changed = False
+            if kind == "updateChat" and isinstance(value.get("chat"), dict):
+                changed = value["chat"].get("id") == chat_id
+            elif kind == "updateNewMessage":
+                message = value.get("message")
+                if not isinstance(message, dict) or message.get("@type") != "message":
+                    raise Rejected("SOURCE_REJECTED")
+                source_chat = catalog_chat_id(message.get("chat_id"))
+                if source_chat == chat_id:
+                    source_message = source_int(message.get("id"))
+                    if source_message == 0:
+                        raise Rejected("SOURCE_REJECTED")
+                    if self.page_id is not None or self.read_inflight:
+                        if self.current_command in {"conceal", "close"}:
+                            raise Rejected("CANCELLED")
+                        if self.current_command not in {None, "read", "viewport"}:
+                            raise Rejected("SOURCE_CHANGED")
+                        raise SnapshotStale(
+                            self.page_id, self.current_request, from_read=self.read_inflight
+                        )
+            elif value.get("chat_id") == chat_id:
+                # Pin-only metadata is not part of the frozen text projection.
+                # Content, privacy and lifetime changes still revoke that projection.
+                changed = kind in {
+                    "updateDeleteMessages",
+                    "updateMessageContent",
+                    "updateMessageEdited",
+                    "updateChatHasProtectedContent",
+                    "updateChatMessageAutoDeleteTime",
+                    "updateMessageContentOpened",
+                }
+            if changed:
+                raise Rejected("SOURCE_CHANGED")
+        # All other account-wide updates are discarded before normalization or output.
+
+    def rpc(
+        self, query: dict[str, Any], *, allowed_error: int | None = None, timeout: float = 30.0
+    ) -> dict[str, Any]:
+        if self.rpc_active:
+            raise Rejected("SOURCE_REJECTED")
+        if self.interrupted.is_set() and query["@type"] not in {"close", "closeChat"}:
+            raise Rejected("CANCELLED")
+        if self.command_deadline is not None and self.clock() >= self.command_deadline:
+            raise Rejected("REQUEST_TIMEOUT")
+        self.tick()
+        if len(self.retired) >= 4096:
+            raise Rejected("SOURCE_REJECTED")
+        token = secrets.token_hex(16)
+        query = {**query, "@extra": token}
+        deadline = self.clock() + timeout
+        if self.command_deadline is not None:
+            deadline = min(deadline, self.command_deadline)
+        if self.clock() >= deadline:
+            raise Rejected("REQUEST_TIMEOUT")
+        self.rpc_active = True
+        try:
+            self.native.send(query)
+            if query["@type"] == "openChat":
+                # Conceal must close a dispatched chat even if its reply was interrupted.
+                self.opened_chat = query["chat_id"]
+            while self.clock() < deadline:
+                self.tick()  # Bounds only while this request owns the serialized receiver.
+                if self.interrupted.is_set() and query["@type"] not in {"close", "closeChat"}:
+                    raise Rejected("CANCELLED")
+                answer = self.native.receive(min(0.05, max(0.0, deadline - self.clock())))
+                if self.interrupted.is_set() and query["@type"] not in {"close", "closeChat"}:
+                    if answer is not None:
+                        extra = answer.get("@extra")
+                        if extra is None:
+                            try:
+                                self._update(answer)
+                            except SnapshotStale:
+                                # The queued conceal supersedes this visible page.
+                                pass
+                        elif extra != token and extra not in self.retired:
+                            raise Rejected("SOURCE_REJECTED")
+                    raise Rejected("CANCELLED")
+                if self.clock() >= deadline:
+                    raise Rejected("REQUEST_TIMEOUT")
+                self.tick()
+                if answer is None:
+                    continue
+                extra = answer.get("@extra")
+                if extra == token:
+                    self.retired.add(token)
+                    if len(self.retired) > 4096:
+                        raise Rejected("SOURCE_REJECTED")
+                    if answer["@type"] == "error":
+                        if type(answer.get("code")) is int and answer["code"] == allowed_error:
+                            return answer
+                        raise Rejected("NATIVE_ERROR")
+                    return answer
+                if extra is not None:
+                    if extra in self.retired:
+                        continue
+                    raise Rejected("SOURCE_REJECTED")
+                self._update(answer)
+            raise Rejected("REQUEST_TIMEOUT")
+        except (SnapshotStale, Rejected) as failure:
+            # The serialized RPC was sent but its answer may still be queued.
+            # A later matching answer is retired metadata, never a fresh result.
+            if isinstance(failure, SnapshotStale) or failure.reason in {
+                "CANCELLED",
+                "GRANT_EXPIRED",
+                "PAGE_EXPIRED",
+            }:
+                self.retired.add(token)
+                if len(self.retired) > 4096:
+                    raise Rejected("SOURCE_REJECTED") from None
+            raise
+        finally:
+            self.rpc_active = False
+
+    def _ok(self, query: dict[str, Any]) -> None:
+        if self.rpc(query).get("@type") != "ok":
+            raise Rejected("SOURCE_REJECTED")
+
+    def _presence(self, value: bool) -> None:
+        if (self.online == value and not self.presence_uncertain) or self.presence_pending:
+            return
+        prior = (self.operation, self.step)
+        self.operation, self.step = "VIEWPORT", "PRESENCE"
+        self.presence_pending = True
+        succeeded = False
+        try:
+            self.presence_uncertain = True
+            self._ok(
+                {
+                    "@type": "setOption",
+                    "name": "online",
+                    "value": {"@type": "optionValueBoolean", "value": value},
+                }
+            )
+            self.online = value
+            self.presence_uncertain = False
+            succeeded = True
+        finally:
+            self.presence_pending = False
+            if succeeded:
+                self.operation, self.step = prior
+
+    def _auth_advance(self) -> None:
+        state = self.auth_state
+        kinds = {
+            "authorizationStateWaitPhoneNumber": "PHONE",
+            "authorizationStateWaitCode": "CODE",
+            "authorizationStateWaitPassword": "PASSWORD",
+        }
+        if state in kinds and (self.challenge_kind != kinds[state] or self.challenge_id is None):
+            self.phase, self.operation, self.step = "AUTH", "AUTH", "AUTH_CHALLENGE"
+            self.challenge_kind, self.challenge_id = kinds[state], secrets.token_hex(16)
+            self.status()
+            self.emit("auth", challenge_id=self.challenge_id, kind=self.challenge_kind)
+        elif state == "authorizationStateReady" and self.account_id is None:
+            self.challenge_id = self.challenge_kind = None
+            self._account_preview()
+        elif state and state not in {
+            *kinds,
+            "authorizationStateReady",
+            "authorizationStateWaitTdlibParameters",
+        }:
+            raise Rejected("UNSUPPORTED_AUTH")
+
+    def _account_preview(self) -> None:
+        if self.auth_state != "authorizationStateReady" or self.account_confirmed:
+            raise Rejected("ACCOUNT_REJECTED")
+        self.context("ACCOUNT", "GET_ME", "ACCOUNT_CONFIRM")
+        answer = self.rpc({"@type": "getMe"})
+        if answer["@type"] != "user" or answer.get("type", {}).get("@type") != "userTypeRegular":
+            raise Rejected("ACCOUNT_REJECTED")
+        account_id = source_int(answer.get("id"), 1)
+        if self.account_id is not None and self.account_id != account_id:
+            raise Rejected("ACCOUNT_REJECTED")
+        self.account_id = account_id
+        label = (
+            bounded_text(answer.get("first_name", ""), 512)
+            + " "
+            + bounded_text(answer.get("last_name", ""), 512)
+        ).strip()
+        # Keep numeric account identity inside the owner. Display bounded identity claims only.
+        usernames = answer.get("usernames")
+        if isinstance(usernames, dict):
+            active = usernames.get("active_usernames")
+            if isinstance(active, list) and active and isinstance(active[0], str):
+                username = bounded_text(active[0], 128)
+                if re.fullmatch(r"[A-Za-z0-9_]{1,64}", username):
+                    label += f" (@{username})"
+        phone = answer.get("phone_number", "")
+        if isinstance(phone, str) and re.fullmatch(r"[0-9]{5,32}", phone):
+            label += f" · телефон ••••{phone[-4:]}"
+        self.account_token = secrets.token_hex(16)
+        self.emit(
+            "account",
+            account_token=self.account_token,
+            label=label or "Аккаунт Telegram",
+            session_seconds=max(0, math.floor(self.session_until - self.clock())),
+        )
+
+    def connect(self, command: dict[str, Any]) -> None:
+        if self.native is not None or command.get("session_only") is not True:
+            raise Rejected("INPUT_REJECTED")
+        api_id = exact_int(command.get("api_id"), 1, (1 << 31) - 1)
+        api_hash = bounded_text(command.get("api_hash"), 32, secret=True)
+        if re.fullmatch(r"[a-fA-F0-9]{32}", api_hash) is None:
+            raise Rejected("INPUT_REJECTED")
+        self.context("CONNECT", "SDK_LOAD", "NATIVE_START")
+        self.session = OwnedSession(self.session_root)
+        self.started = self.clock()
+        self.auth_until, self.session_until = self.started + 300, self.started + 86400
+        self.native = self.native_factory(self.library, self.library_sha)
+        self.context("CONNECT", "NATIVE_FIRST_REQUEST")
+        answer = self.rpc(
+            {"@type": "getAuthorizationState"}
+        )  # First send activates the new JSON client.
+        if answer["@type"] != "authorizationStateWaitTdlibParameters":
+            raise Rejected("SOURCE_REJECTED")
+        self.auth_state = answer["@type"]
+        self.context("CONNECT", "PARAMETER_INIT", "PARAMETERS")
+        self._ok(
+            {
+                "@type": "setTdlibParameters",
+                "use_test_dc": False,
+                "database_directory": str(self.session.path / "database"),
+                "files_directory": str(self.session.path / "files"),
+                "database_encryption_key": self.session.key,
+                "use_file_database": False,
+                "use_chat_info_database": False,
+                "use_message_database": False,
+                "use_secret_chats": False,
+                "api_id": api_id,
+                "api_hash": api_hash,
+                "system_language_code": "ru",
+                "device_model": "Satori temporary engineering client",
+                "system_version": "macOS",
+                "application_version": "session-candidate-2026-10-26-v1",
+            }
+        )
+        api_hash = ""
+        self.context("CONNECT", "PRIVACY_OPTIONS")
+        for name, value in (
+            ("ignore_inline_thumbnails", True),
+            ("disable_persistent_network_statistics", True),
+            ("online", False),
+        ):
+            self._ok(
+                {
+                    "@type": "setOption",
+                    "name": name,
+                    "value": {"@type": "optionValueBoolean", "value": value},
+                }
+            )
+        # PREAUTH options ACK after parameters, before any account credential operation.
+        if self.auth_state == "authorizationStateWaitTdlibParameters":
+            answer = self.rpc({"@type": "getAuthorizationState"})
+            self.auth_state = answer["@type"]
+        self._auth_advance()
+
+    def auth_submit(self, command: dict[str, Any]) -> None:
+        if (
+            command.get("challenge_id") != self.challenge_id
+            or command.get("kind") != self.challenge_kind
+            or self.challenge_id is None
+        ):
+            raise Rejected("INPUT_REJECTED")
+        kind = self.challenge_kind
+        value = bounded_text(command.get("value"), 1024, secret=True)
+        self.challenge_id = None
+        if kind == "PHONE":
+            if re.fullmatch(r"\+?[0-9 ()-]{5,32}", value) is None:
+                raise Rejected("INPUT_REJECTED")
+            query = {
+                "@type": "setAuthenticationPhoneNumber",
+                "phone_number": value,
+                "settings": None,
+            }
+        elif kind == "CODE":
+            query = {"@type": "checkAuthenticationCode", "code": value}
+        else:
+            query = {"@type": "checkAuthenticationPassword", "password": value}
+        self._ok(query)
+        value = ""
+        answer = self.rpc({"@type": "getAuthorizationState"})
+        self.auth_state = answer["@type"]
+        self._auth_advance()
+
+    def catalog(self) -> None:
+        if not self.account_confirmed:
+            raise Rejected("ACCOUNT_REJECTED")
+        self.clear_source("CONCEALED")
+        self.context("CATALOG", "CATALOG_LOAD", "CATALOG")
+        answer = self.rpc(
+            {"@type": "loadChats", "chat_list": {"@type": "chatListMain"}, "limit": 100},
+            allowed_error=404,
+        )
+        if answer["@type"] not in {"ok", "error"}:
+            raise Rejected("SOURCE_REJECTED")
+        self.context("CATALOG", "CATALOG_LIST")
+        answer = self.rpc(
+            {"@type": "getChats", "chat_list": {"@type": "chatListMain"}, "limit": 100}
+        )
+        ids = answer.get("chat_ids")
+        if answer["@type"] != "chats" or not isinstance(ids, list) or len(ids) > 100:
+            raise Rejected("SOURCE_REJECTED")
+        ids = [catalog_chat_id(ident) for ident in ids]
+        if len(set(ids)) != len(ids):
+            raise Rejected("SOURCE_REJECTED")
+        chats: dict[str, dict[str, Any]] = {}
+        self.context("CATALOG", "CATALOG_CHAT")
+        deadline = self.clock() + 30
+        for ident in ids:
+            if self.clock() >= deadline:
+                raise Rejected("REQUEST_TIMEOUT")
+            chat = self.rpc(
+                {"@type": "getChat", "chat_id": source_int(ident)},
+                timeout=max(0.05, deadline - self.clock()),
+            )
+            if chat["@type"] != "chat" or catalog_chat_id(chat.get("id")) != ident:
+                raise Rejected("SOURCE_REJECTED")
+            chat_type = chat.get("type")
+            if not isinstance(chat_type, dict) or chat_type.get("@type") not in {
+                "chatTypePrivate",
+                "chatTypeBasicGroup",
+                "chatTypeSupergroup",
+                "chatTypeSecret",
+            }:
+                raise Rejected("SOURCE_REJECTED")
+            if chat_type["@type"] != "chatTypePrivate":
+                continue
+            private_id = source_int(chat.get("id"), 1)
+            peer_id = source_int(chat_type.get("user_id"), 1)
+            if private_id != peer_id:
+                raise Rejected("SOURCE_REJECTED")
+            if self._supported_chat(chat):
+                user = self.rpc(
+                    {"@type": "getUser", "user_id": peer_id},
+                    timeout=max(0.05, deadline - self.clock()),
+                )
+                if user.get("@type") != "user" or source_int(user.get("id"), 1) != peer_id:
+                    raise Rejected("SOURCE_REJECTED")
+                user_type = user.get("type")
+                if not isinstance(user_type, dict) or user_type.get("@type") not in {
+                    "userTypeRegular",
+                    "userTypeDeleted",
+                    "userTypeBot",
+                    "userTypeUnknown",
+                }:
+                    raise Rejected("SOURCE_REJECTED")
+                if user_type["@type"] != "userTypeRegular":
+                    continue
+                token = secrets.token_hex(16)
+                chats[token] = {
+                    "id": source_int(chat.get("id"), 1),
+                    "title": bounded_text(chat.get("title"), 2048),
+                    "user_id": source_int(chat["type"].get("user_id"), 1),
+                }
+        self.catalog_id, self.catalog_until, self.chats = (
+            secrets.token_hex(16),
+            self.clock() + 60,
+            chats,
+        )
+        self.emit(
+            "catalog",
+            catalog_id=self.catalog_id,
+            expires_in_seconds=60,
+            chats=[{"chat_token": k, "title": v["title"]} for k, v in chats.items()],
+            bounded=True,
+        )
+
+    @staticmethod
+    def _supported_chat(chat: dict[str, Any]) -> bool:
+        return (
+            isinstance(chat.get("type"), dict)
+            and chat["type"].get("@type") == "chatTypePrivate"
+            and chat.get("has_protected_content") is False
+            and chat.get("message_auto_delete_time") == 0
+        )
+
+    def select_chat(self, command: dict[str, Any]) -> None:
+        if (
+            self.selected_chat is not None
+            or not self.account_confirmed
+            or self.catalog_id is None
+            or command.get("catalog_id") != self.catalog_id
+            or self.clock() >= self.catalog_until
+            or command.get("read_view_consent") is not True
+            or command.get("chat_token") not in self.chats
+        ):
+            raise Rejected("SELECTION_REJECTED")
+        token = command["chat_token"]
+        selected = self.chats[token]
+        self.context("SELECT", "SELECT_RECHECK", "SELECTED")
+        fresh = self.rpc({"@type": "getChat", "chat_id": selected["id"]})
+        if (
+            fresh["@type"] != "chat"
+            or source_int(fresh.get("id"), 1) != selected["id"]
+            or not self._supported_chat(fresh)
+            or source_int(fresh["type"].get("user_id"), 1) != selected["user_id"]
+        ):
+            raise Rejected("SELECTION_REJECTED")
+        self.selected_token, self.selected_chat = token, selected
+        self.grant_until = min(self.session_until, self.clock() + 900)
+        self.emit(
+            "selection",
+            chat_token=token,
+            title=selected["title"],
+            grant_seconds=math.floor(self.grant_until - self.clock()),
+        )
+
+    def read(self) -> None:
+        if self.selected_chat is None or not self.account_confirmed:
+            raise Rejected("SELECTION_REJECTED")
+        self.read_inflight = True
+        try:
+            self._read_page()
+        finally:
+            self.read_inflight = False
+
+    def _read_page(self) -> None:
+        self.tick()
+        if self.opened_chat is not None:
+            self._flush_metrics()
+        self.page_id = None
+        self.messages.clear()
+        self.context("READ", "SELECT_RECHECK", "READ")
+        chat_id = self.selected_chat["id"]
+        fresh = self.rpc({"@type": "getChat", "chat_id": chat_id})
+        if (
+            fresh["@type"] != "chat"
+            or source_int(fresh.get("id"), 1) != chat_id
+            or not self._supported_chat(fresh)
+            or source_int(fresh["type"].get("user_id"), 1) != self.selected_chat["user_id"]
+        ):
+            raise Rejected("SOURCE_CHANGED")
+        self.context("READ", "OPEN_CHAT")
+        if self.opened_chat is None:
+            self._ok({"@type": "openChat", "chat_id": chat_id})
+        self.context("READ", "HISTORY")
+        answer = self.rpc(
+            {
+                "@type": "getChatHistory",
+                "chat_id": chat_id,
+                "from_message_id": 0,
+                "offset": 0,
+                "limit": 50,
+                "only_local": False,
+            }
+        )
+        self.context("READ", "NORMALIZE")
+        messages = self.normalize(answer, chat_id)
+        self.page_id, self.page_until = (
+            secrets.token_hex(16),
+            min(self.grant_until, self.clock() + 300),
+        )
+        self.messages = {m.handle: m for m in messages}
+        self.last_sample_id, self.last_sample_time, self.last_sample_rows = -1, None, {}
+        self.emit(
+            "page",
+            page_id=self.page_id,
+            expires_in_seconds=max(0, math.floor(self.page_until - self.clock())),
+            messages=[
+                {
+                    "handle": m.handle,
+                    "sender": "Я" if m.sender_id == self.account_id else "Собеседник",
+                    "text": m.text,
+                    "date": m.date,
+                }
+                for m in messages
+            ],
+            bounded=True,
+            omitted=len(answer["messages"]) - len(messages),
+        )
+        self.context("IDLE", "IDLE_DRAIN", "IDLE")
+
+    def normalize(self, answer: dict[str, Any], chat_id: int) -> list[Message]:
+        rows = answer.get("messages")
+        if answer.get("@type") != "messages" or not isinstance(rows, list) or len(rows) > 50:
+            raise Rejected("SOURCE_REJECTED")
+        output: list[Message] = []
+        seen: set[int] = set()
+        total = 0
+        wall_now = self.wall()
+        for row in rows:
+            if (
+                not isinstance(row, dict)
+                or row.get("@type") != "message"
+                or row.get("chat_id") != chat_id
+            ):
+                raise Rejected("SOURCE_REJECTED")
+            ident = source_int(row.get("id"), 1)
+            if ident in seen:
+                raise Rejected("SOURCE_REJECTED")
+            seen.add(ident)
+            date = source_int(row.get("date"), 0, (1 << 31) - 1)
+            sender, content = row.get("sender_id", {}), row.get("content", {})
+            if (
+                date < wall_now - 86400
+                or date > wall_now + 300
+                or row.get("is_secret") is True
+                or row.get("can_be_saved") is not True
+                or row.get("self_destruct_type") is not None
+                or type(row.get("auto_delete_in")) not in {int, float}
+                or row["auto_delete_in"] != 0
+                or row.get("forward_info") is not None
+                or row.get("reply_to") is not None
+                or not isinstance(sender, dict)
+                or sender.get("@type") != "messageSenderUser"
+                or not isinstance(content, dict)
+                or content.get("@type") != "messageText"
+            ):
+                continue
+            formatted = content.get("text", {})
+            if not isinstance(formatted, dict) or not isinstance(formatted.get("text"), str):
+                raise Rejected("SOURCE_REJECTED")
+            text = formatted["text"]
+            length = len(text.encode("utf-8", "strict"))
+            if length > 16 * 1024 or total + length > 256 * 1024:
+                continue
+            sender_id = source_int(sender.get("user_id"), 1)
+            if self.selected_chat is None or sender_id not in {
+                self.account_id,
+                self.selected_chat["user_id"],
+            }:
+                continue
+            total += length
+            output.append(
+                Message(
+                    ident, sender_id, secrets.token_hex(16), bounded_text(text, 16 * 1024), date
+                )
+            )
+        return list(reversed(output))
+
+    def viewport(self, command: dict[str, Any]) -> None:
+        self.context("VIEWPORT", "VIEWPORT_VALIDATE")
+        requested_page = command.get("page_id")
+        if isinstance(requested_page, str) and requested_page in self.retired_pages:
+            # Only an exact previously displayed page is harmless stale GUI work.
+            # Permission/time guards precede the ignore; an arbitrary ID still fails.
+            self.tick(allow_maintenance=False)
+            if self.selected_chat is None or not self.account_confirmed:
+                raise Rejected("SELECTION_REJECTED")
+            return
+        if not self.page_id or command.get("page_id") != self.page_id or self.selected_chat is None:
+            raise Rejected("VIEWPORT_REJECTED")
+        sample = exact_int(command.get("sample_id"), 0, (1 << 31) - 1)
+        if (
+            sample <= self.last_sample_id
+            or type(command.get("foreground")) is not bool
+            or type(command.get("active")) is not bool
+        ):
+            raise Rejected("VIEWPORT_REJECTED")
+        view, rows = command.get("viewport"), command.get("rows")
+        if (
+            not isinstance(view, list)
+            or len(view) != 2
+            or not isinstance(rows, list)
+            or len(rows) > 50
+        ):
+            raise Rejected("VIEWPORT_REJECTED")
+        top, bottom = (exact_int(x, 0, MAX_COORD) for x in view)
+        if bottom <= top:
+            raise Rejected("VIEWPORT_REJECTED")
+        current: dict[str, tuple[int, int, int]] = {}
+        all_handles: set[str] = set()
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != {"handle", "top", "bottom"}:
+                raise Rejected("VIEWPORT_REJECTED")
+            handle = row.get("handle")
+            if not isinstance(handle, str) or handle not in self.messages or handle in all_handles:
+                raise Rejected("VIEWPORT_REJECTED")
+            all_handles.add(handle)
+            a, b = exact_int(row["top"], 0, MAX_COORD), exact_int(row["bottom"], 0, MAX_COORD)
+            if b <= a:
+                raise Rejected("VIEWPORT_REJECTED")
+            lo, hi = max(a, top), min(b, bottom)
+            if hi > lo:
+                current[handle] = (lo - a, hi - a, b - a)
+        now = self.clock()
+        visible = command["foreground"]
+        self.last_presence_sample, self.last_presence_active = now, visible and command["active"]
+        self._presence(self.last_presence_active)
+        elapsed = 0 if self.last_sample_time is None else now - self.last_sample_time
+        if visible:
+            visible_ids: list[int] = []
+            for handle, (lo, hi, height) in current.items():
+                message = self.messages[handle]
+                if not message.acked:
+                    visible_ids.append(message.native_id)
+                if 0 <= elapsed <= 1 and handle in self.last_sample_rows:
+                    ms = min(1000, math.floor(elapsed * 1000))
+                    message.seen_ms = min((1 << 31) - 1, message.seen_ms + ms)
+                    if self.last_sample_active and command["active"]:
+                        message.active_ms = min(message.seen_ms, message.active_ms + ms)
+                message.seen_ranges.append(
+                    (math.floor(lo * 1000 / height), math.ceil(hi * 1000 / height))
+                )
+                message.last_height_ratio = min(
+                    (1 << 31) - 1, math.floor(height * 1000 / (bottom - top))
+                )
+                message.metrics_dirty = True
+                message.last_seen = now
+            if visible_ids:
+                self.context("VIEWPORT", "VIEW_ACK")
+                self._ok(
+                    {
+                        "@type": "viewMessages",
+                        "chat_id": self.selected_chat["id"],
+                        "message_ids": visible_ids,
+                        "source": {"@type": "messageSourceChatHistory"},
+                        "force_read": False,
+                    }
+                )
+                for message in self.messages.values():
+                    if message.native_id in visible_ids:
+                        message.acked = True
+        self.last_sample_id, self.last_sample_time = sample, now
+        self.last_sample_active = visible and command["active"]
+        self.last_sample_rows = current if visible else {}
+        for handle, message in self.messages.items():
+            if handle in self.last_sample_rows:
+                message.hidden_since = None
+            elif message.hidden_since is None:
+                message.hidden_since = now
+        due = {
+            m.handle
+            for m in self.messages.values()
+            if m.metrics_dirty
+            and (
+                (m.hidden_since is not None and now - m.hidden_since > 0.3) or m.seen_ms >= 300_000
+            )
+        }
+        if due:
+            self._flush_metrics(due)
+        self.context("IDLE", "IDLE_DRAIN", "IDLE")
+
+    def _flush_metrics(self, handles: set[str] | None = None) -> None:
+        if self.selected_chat is None or self.page_id is None:
+            return
+        self.context("VIEWPORT", "VIEW_METRICS")
+        self.metrics_pending = True
+        try:
+            for message in self.messages.values():
+                if (
+                    not message.metrics_dirty
+                    or not message.acked
+                    or (handles is not None and message.handle not in handles)
+                ):
+                    continue
+                union: list[list[int]] = []
+                for a, b in sorted(message.seen_ranges):
+                    if union and a <= union[-1][1]:
+                        union[-1][1] = max(union[-1][1], b)
+                    else:
+                        union.append([a, b])
+                ratio = min(1000, sum(b - a for a, b in union))
+                self._ok(
+                    {
+                        "@type": "sendMessageViewMetrics",
+                        "chat_id": self.selected_chat["id"],
+                        "message_id": message.native_id,
+                        "time_in_view_ms": message.seen_ms,
+                        "active_time_in_view_ms": message.active_ms,
+                        "height_to_viewport_ratio_per_mille": message.last_height_ratio,
+                        "seen_range_ratio_per_mille": ratio,
+                    }
+                )
+                # Upstream aggregates supplied durations; never report cumulative time twice.
+                message.seen_ms = message.active_ms = 0
+                message.seen_ranges.clear()
+                message.metrics_dirty = False
+        finally:
+            self.metrics_pending = False
+
+    def clear_source(self, reason: str, *, presence: bool = True) -> None:
+        self.page_id, self.page_until = None, 0
+        self.messages.clear()
+        self.last_sample_time, self.last_sample_rows = None, {}
+        self.last_sample_active = False
+        self.selected_chat, self.selected_token, self.grant_until = None, None, 0
+        self.catalog_id, self.catalog_until, self.chats = None, 0, {}
+        self.emit("cleared", reason=reason)
+        if self.opened_chat is not None and self.native and not self.closed_native:
+            chat_id, self.opened_chat = self.opened_chat, None
+            self.context("CONCEAL", "CLOSE_CHAT")
+            self._ok({"@type": "closeChat", "chat_id": chat_id})
+        if (
+            presence
+            and self.native
+            and (self.online or self.presence_uncertain)
+            and not self.closed_native
+        ):
+            self._presence(False)
+
+    def stale_page(self, stale: SnapshotStale) -> None:
+        """Drop one stale projection without renewing or revoking its source grant."""
+        self.tick(allow_maintenance=False)
+        if self.interrupted.is_set():
+            failure = Rejected("CANCELLED")
+            if self.pause_interrupted_view(failure):
+                # Conceal or Close now owns retirement of the whole view.
+                return
+            raise failure
+        if (
+            not self.account_confirmed
+            or self.auth_state != "authorizationStateReady"
+            or self.selected_chat is None
+            or self.selected_token is None
+            or stale.page_id != self.page_id
+            or (
+                stale.page_id is None
+                and not (stale.from_read and stale.request_id and self.current_command == "read")
+            )
+            or stale.request_id != self.current_request
+        ):
+            raise Rejected("SOURCE_REJECTED")
+        if stale.page_id is not None:
+            if len(self.retired_pages) >= 4096:
+                raise Rejected("SOURCE_REJECTED")
+            self.retired_pages.add(stale.page_id)
+        # No maintenance or source RPC is dispatched from this transition. This
+        # includes pending/dirty metrics, which describe the retired projection.
+        self.messages.clear()
+        self.page_id, self.page_until = None, 0.0
+        self.last_sample_id, self.last_sample_time, self.last_sample_rows = -1, None, {}
+        self.last_sample_active = False
+        self.command_deadline = None
+        self.phase = "SELECTED"
+        self.emit("page_stale", reason="NEW_MESSAGE", page_id=stale.page_id)
+        self.current_request = None
+        self.current_command = None
+        self.context("IDLE", "NONE", "SELECTED")
+
+    def pause_expired_view(self, failure: Rejected) -> bool:
+        """Expire source access without ending the independently bounded login."""
+        if (
+            failure.reason not in {"GRANT_EXPIRED", "PAGE_EXPIRED"}
+            or not self.account_confirmed
+            or self.auth_state != "authorizationStateReady"
+            or self.clock() >= self.session_until
+            or self.output_lost
+            or self.closing
+            or self.stopped
+        ):
+            return False
+        self.command_deadline = None
+        self.clear_source(failure.reason, presence=not self.interrupted.is_set())
+        self.context("CONCEAL", "NONE", "READY")
+        self.current_request = None
+        self.current_command = None
+        return True
+
+    def pause_interrupted_view(self, failure: Rejected) -> bool:
+        # The owned input reader queued Conceal, Close or EOF and interrupted the
+        # receive lane. Let that boundary finish before any new source request.
+        if (
+            failure.reason != "CANCELLED"
+            or not self.interrupted.is_set()
+            or not self.account_confirmed
+            or self.auth_state != "authorizationStateReady"
+            or self.current_command not in {None, "catalog", "select_chat", "read", "viewport"}
+            or self.output_lost
+            or self.closing
+            or self.stopped
+        ):
+            return False
+        self.current_request = None
+        self.current_command = None
+        self.command_deadline = None
+        return True
+
+    def command(self, command: Any) -> None:
+        if (
+            not isinstance(command, dict)
+            or command.get("v") != 1
+            or type(command.get("v")) is not int
+        ):
+            raise Rejected("INPUT_REJECTED")
+        ident, operation = command.get("request_id"), command.get("command")
+        fields = {
+            "connect": {"session_only", "api_id", "api_hash"},
+            "auth_submit": {"challenge_id", "kind", "value"},
+            "confirm_account": {"account_token"},
+            "account_preview": set(),
+            "catalog": set(),
+            "select_chat": {"catalog_id", "chat_token", "read_view_consent"},
+            "read": set(),
+            "viewport": {"page_id", "sample_id", "foreground", "active", "viewport", "rows"},
+            "conceal": set(),
+            "close": set(),
+        }
+        if (
+            not isinstance(ident, str)
+            or not REQUEST_ID.fullmatch(ident)
+            or ident in self.request_ids
+            or len(self.request_ids) >= 4096
+            or not isinstance(operation, str)
+            or operation not in fields
+            or set(command) != {"v", "request_id", "command"} | fields[operation]
+        ):
+            raise Rejected("INPUT_REJECTED")
+        self.current_request = ident
+        self.current_command = operation
+        self.request_ids.add(ident)
+        if operation == "close":
+            self.close("USER_CLOSE")
+            return
+        if self.interrupted.is_set() and operation != "conceal":
+            raise Rejected("CANCELLED")
+        self.command_deadline = None if operation in {"connect", "conceal"} else self.clock() + 30
+        retired_viewport = (
+            operation == "viewport"
+            and isinstance(command.get("page_id"), str)
+            and command["page_id"] in self.retired_pages
+        )
+        if operation == "conceal":
+            # This queued command owns the interruption. Maintenance may now
+            # finish the ordinary offline option before retiring its source view.
+            self.interrupted.clear()
+        self.tick(allow_maintenance=not retired_viewport)
+        if operation == "connect":
+            self.connect(command)
+        elif operation == "auth_submit":
+            self.auth_submit(command)
+        elif operation == "account_preview":
+            self._account_preview()
+        elif operation == "confirm_account":
+            if (
+                self.account_token is None
+                or command["account_token"] != self.account_token
+                or self.account_id is None
+            ):
+                raise Rejected("ACCOUNT_REJECTED")
+            self.account_token, self.account_confirmed, self.phase = None, True, "READY"
+            self.emit("ready", session_seconds=math.floor(self.session_until - self.clock()))
+            self.context("ACCOUNT", "ACCOUNT_CONFIRM", "READY")
+        elif operation == "catalog":
+            self.catalog()
+        elif operation == "select_chat":
+            self.select_chat(command)
+        elif operation == "read":
+            self.read()
+        elif operation == "viewport":
+            self.viewport(command)
+        elif operation == "conceal":
+            self.account_token = None
+            if self.page_id:
+                self.tick()
+                self._flush_metrics()
+            self.clear_source("CONCEALED")
+            if self.account_confirmed:
+                self.phase = "READY"
+            self.context("CONCEAL", "NONE")
+        self.current_request = None
+        self.current_command = None
+        self.command_deadline = None
+
+    def drain(self) -> None:
+        self.tick()
+        if self.native is None:
+            return
+        self.operation, self.step = "IDLE", "IDLE_DRAIN"
+        for _ in range(32):
+            value = self.native.receive(0)
+            # Native decoding has a larger transport budget than source projection;
+            # recheck time/permission bounds before acting on each received frame.
+            self.tick(allow_maintenance=False)
+            if value is None:
+                break
+            if value.get("@extra") is not None:
+                if value["@extra"] in self.retired:
+                    continue
+                raise Rejected("SOURCE_REJECTED")
+            self._update(value)
+        if not self.account_confirmed:
+            self._auth_advance()
+
+    def close(self, reason: str, failure: Rejected | None = None) -> None:
+        if self.stopped:
+            return
+        self.closing = True
+        self.interrupted.clear()
+        failure_context = (self.operation, self.step) if failure else None
+        if (
+            reason == "USER_CLOSE"
+            and not self.output_lost
+            and self.page_id
+            and self.clock() < min(self.page_until, self.grant_until, self.session_until)
+        ):
+            try:
+                self.command_deadline = self.clock() + 5
+                self._flush_metrics()
+            except Rejected as metric_failure:
+                failure, reason = metric_failure, metric_failure.reason
+                failure_context = (self.operation, self.step)
+            except Exception:
+                failure, reason = Rejected("RUNTIME_FAILURE"), "RUNTIME_FAILURE"
+                failure_context = (self.operation, self.step)
+        self.command_deadline = None
+        self.messages.clear()
+        self.page_id = self.selected_chat = self.selected_token = self.account_token = None
+        self.chats.clear()
+        self.emit(
+            "cleared", reason=reason if reason in SCHEMA["cleared_reasons"] else "SOURCE_REJECTED"
+        )
+        self.phase, self.operation, self.step = "CLOSING", "CLOSE", "NATIVE_CLOSE"
+        self.status(
+            reason, failure.decoder if failure else "NONE", failure.bucket if failure else "NONE"
+        )
+        closed = self.native is None or self.closed_native
+        if self.native is not None and not self.closed_native:
+            try:
+                token = secrets.token_hex(16)
+                self.native.send({"@type": "close", "@extra": token})
+                deadline = self.clock() + 5
+                while self.clock() < deadline:
+                    value = self.native.receive(0.05)
+                    if (
+                        value
+                        and value.get("@type") == "updateAuthorizationState"
+                        and value.get("authorization_state", {}).get("@type")
+                        == "authorizationStateClosed"
+                    ):
+                        closed = True
+                        break
+            except Rejected as close_failure:
+                if failure is None:
+                    failure, reason = close_failure, close_failure.reason
+                    failure_context = (self.operation, self.step)
+                closed = False
+            except Exception:
+                if failure is None:
+                    failure, reason = Rejected("RUNTIME_FAILURE"), "RUNTIME_FAILURE"
+                    failure_context = (self.operation, self.step)
+                closed = False
+        cleanup = "NOT_CREATED"
+        if self.session:
+            cleanup = "CONFIRMED" if closed and self.session.cleanup() else "PENDING"
+        self.stopped = True
+        self.phase, self.step = "STOPPED", "SESSION_CLEANUP"
+        if failure_context is not None:
+            self.operation, self.step = failure_context
+        self.status(
+            reason, failure.decoder if failure else "NONE", failure.bucket if failure else "NONE"
+        )
+        self.emit("closed", cleanup=cleanup, reason=reason)
+
+
+def read_commands(
+    stream: Any,
+    commands: queue.Queue[Any],
+    bad_input: threading.Event,
+    interrupted: threading.Event,
+) -> None:
+    """Blocking fixture adapter; production uses OwnedCommandReader instead."""
+    try:
+        while True:
+            line = stream.readline(INPUT_CAP + 1)
+            if not line:
+                interrupted.set()
+                commands.put(None, timeout=1)
+                return
+            if len(line) > INPUT_CAP or not line.endswith(b"\n"):
+                interrupted.set()
+                bad_input.set()
+                return
+            value = parse_json(line)
+            if isinstance(value, dict) and value.get("command") in {"close", "conceal"}:
+                interrupted.set()
+            commands.put(value, timeout=1)
+    except Exception:
+        interrupted.set()
+        bad_input.set()
+
+
+class OwnedCommandReader:
+    """One raw stdin duplicate, cooperatively stopped before interpreter teardown."""
+
+    def __init__(
+        self,
+        source_fd: int,
+        commands: queue.Queue[Any],
+        bad_input: threading.Event,
+        interrupted: threading.Event,
+    ) -> None:
+        self.commands, self.bad_input, self.interrupted = commands, bad_input, interrupted
+        self.stopping = threading.Event()
+        self.fd: int | None = os.dup(source_fd)
+        try:
+            os.set_inheritable(self.fd, False)
+            os.set_blocking(self.fd, False)
+        except Exception:
+            os.close(self.fd)
+            self.fd = None
+            raise
+        self.thread = threading.Thread(target=self._run, name="private-stdin", daemon=False)
+
+    def start(self) -> None:
+        try:
+            self.thread.start()
+        except Exception:
+            if self.fd is not None:
+                os.close(self.fd)
+                self.fd = None
+            raise
+
+    def stop(self) -> bool:
+        self.stopping.set()
+        if self.thread.ident is None:
+            if self.fd is not None:
+                os.close(self.fd)
+                self.fd = None
+            return True
+        self.thread.join(timeout=2)
+        return not self.thread.is_alive()
+
+    def _put(self, value: Any) -> bool:
+        deadline = time.monotonic() + 1
+        while not self.stopping.is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise queue.Full
+            try:
+                self.commands.put(value, timeout=min(0.05, remaining))
+                return True
+            except queue.Full:
+                continue
+        return False
+
+    def _run(self) -> None:
+        pending = bytearray()
+        try:
+            fd = self.fd
+            if fd is None:
+                raise ValueError("reader ownership")
+            while not self.stopping.is_set():
+                if not select.select([fd], [], [], 0.05)[0]:
+                    continue
+                try:
+                    chunk = os.read(fd, min(4096, INPUT_CAP + 1 - len(pending)))
+                except BlockingIOError:
+                    continue
+                if not chunk:
+                    if pending:
+                        raise ValueError("partial command")
+                    self.interrupted.set()
+                    self._put(None)
+                    return
+                pending.extend(chunk)
+                while not self.stopping.is_set():
+                    newline = pending.find(b"\n")
+                    if newline < 0:
+                        if len(pending) >= INPUT_CAP:
+                            raise ValueError("command bound")
+                        break
+                    if newline + 1 > INPUT_CAP:
+                        raise ValueError("command bound")
+                    line = bytes(pending[: newline + 1])
+                    del pending[: newline + 1]
+                    value = parse_json(line)
+                    if isinstance(value, dict) and value.get("command") in {"close", "conceal"}:
+                        self.interrupted.set()
+                    if not self._put(value):
+                        return
+        except Exception:
+            self.interrupted.set()
+            self.bad_input.set()
+        finally:
+            pending.clear()
+            if self.fd is not None:
+                os.close(self.fd)
+                self.fd = None
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Temporary Telegram session worker")
+    parser.add_argument("--library", type=Path, required=True)
+    parser.add_argument("--library-sha256", required=True)
+    parser.add_argument("--session-root", type=Path, required=True)
+    args = parser.parse_args()
+    if (
+        not args.library.is_absolute()
+        or not re.fullmatch(r"[0-9a-f]{64}", args.library_sha256)
+        or not args.session_root.is_absolute()
+    ):
+        return 2
+    commands: queue.Queue[Any] = queue.Queue(maxsize=16)
+    bad_input = threading.Event()
+
+    def emit(value: dict[str, Any]) -> None:
+        sys.stdout.buffer.write(
+            json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode(
+                "utf-8"
+            )
+            + b"\n"
+        )
+        sys.stdout.buffer.flush()
+
+    try:
+        engine = Engine(args.library, args.library_sha256, args.session_root, emit)
+    except Rejected:
+        silence_failed_stdout()
+        return 3
+
+    reader: OwnedCommandReader | None = None
+    failed = False
+    try:
+        reader = OwnedCommandReader(sys.stdin.fileno(), commands, bad_input, engine.interrupted)
+        reader.start()
+        while not engine.stopped:
+            if bad_input.is_set():
+                raise Rejected("INPUT_REJECTED")
+            try:
+                try:
+                    command = commands.get(timeout=0.05)
+                except queue.Empty:
+                    engine.drain()
+                    continue
+                if command is None:
+                    engine.close("USER_CLOSE")
+                    break
+                try:
+                    engine.command(command)
+                finally:
+                    if isinstance(command, dict):
+                        command.clear()
+            except SnapshotStale as stale:
+                engine.stale_page(stale)
+            except Rejected as failure:
+                if not (
+                    engine.pause_expired_view(failure) or engine.pause_interrupted_view(failure)
+                ):
+                    raise
+    except Rejected as failure:
+        failed = True
+        try:
+            engine.status(failure.reason, failure.decoder, failure.bucket)
+        except Rejected:
+            pass
+        finally:
+            engine.close(failure.reason, failure)
+    except Exception:
+        failed = True
+        try:
+            engine.status("RUNTIME_FAILURE")
+        except Rejected:
+            pass
+        finally:
+            engine.close("RUNTIME_FAILURE")
+    finally:
+        try:
+            if not engine.stopped:
+                engine.close("RUNTIME_FAILURE")
+        finally:
+            if reader is not None and not reader.stop():
+                failed = True
+            while True:
+                try:
+                    pending_command = commands.get_nowait()
+                except queue.Empty:
+                    break
+                if isinstance(pending_command, dict):
+                    pending_command.clear()
+            if engine.output_lost:
+                silence_failed_stdout()
+    return 3 if failed or engine.output_lost else 0
+
+
+def silence_failed_stdout() -> None:
+    """Prevent interpreter-finalization retries on this worker's broken output pipe."""
+    try:
+        sink = os.open(os.devnull, os.O_WRONLY)
+        try:
+            os.dup2(sink, sys.stdout.fileno())
+        finally:
+            os.close(sink)
+    except OSError:
+        pass
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

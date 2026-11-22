@@ -147,6 +147,12 @@ class ReflectionProposalRow(Base):
             "target_owner IN ('satori_positions', 'satori_inclinations', 'personality', 'values')",
             name="target_owner_valid",
         ),
+        CheckConstraint(
+            "(body_state = 'available' AND payload IS NOT NULL "
+            "AND json_type(payload) = 'object' AND body_action_id IS NULL) OR "
+            "(body_state = 'erased' AND payload IS NULL AND body_action_id IS NOT NULL)",
+            name="body_consistent",
+        ),
     )
 
     proposal_id: Mapped[str] = mapped_column(String(128), primary_key=True)
@@ -155,9 +161,15 @@ class ReflectionProposalRow(Base):
     )
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
     target_owner: Mapped[str] = mapped_column(String(32), nullable=False)
-    payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    payload: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     evidence_source_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    body_state: Mapped[str] = mapped_column(String(16), nullable=False, server_default="available")
+    body_action_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("erasure_body_applications.action_id", ondelete="RESTRICT"),
+        nullable=True,
+    )
 
 
 class ReflectionOutcomeRow(Base):

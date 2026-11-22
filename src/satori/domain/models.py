@@ -558,8 +558,50 @@ def _expire_due[TClaim: (UserModelClaim, WorldModelClaim)](
     return OwnerFormationPlan(tuple(changed), tuple(revisions))
 
 
+def _withdraw_support[TClaim: (UserModelClaim, WorldModelClaim)](
+    claims: Sequence[TClaim],
+    *,
+    affected_claim_ids: frozenset[str],
+    now: datetime,
+) -> OwnerFormationPlan[TClaim]:
+    """The separate owner-withdrawal receipt supplies this operation's revision origin."""
+
+    now = aware_utc(now, "source withdrawal time")
+    changed: list[TClaim] = []
+    for claim in claims:
+        if claim.claim_id not in affected_claim_ids or claim.status not in {
+            ModelClaimStatus.CURRENT,
+            ModelClaimStatus.DISPUTED,
+        }:
+            continue
+        if now < claim.updated_at:
+            raise ValueError("source_withdrawal_time_invalid")
+        changed.append(
+            replace(
+                claim,
+                aggregate_version=claim.aggregate_version + 1,
+                status=ModelClaimStatus.RETRACTED,
+                valid_until=now,
+                superseded_by_claim_id=None,
+                updated_at=now,
+            )
+        )
+    return OwnerFormationPlan(claims=tuple(changed), revisions=())
+
+
 class UserModelManager:
     """Sole owner of minimal counterparty user-model claims."""
+
+    def withdraw_support(
+        self,
+        claims: Sequence[UserModelClaim],
+        *,
+        affected_claim_ids: frozenset[str],
+        now: datetime,
+    ) -> OwnerFormationPlan[UserModelClaim]:
+        """Retire unsafe current text without treating withdrawal as counterevidence."""
+
+        return _withdraw_support(claims, affected_claim_ids=affected_claim_ids, now=now)
 
     def evaluate(
         self,
@@ -787,6 +829,17 @@ class UserModelManager:
 
 class WorldModelManager:
     """Sole owner of counterparty-relative current situations and statuses."""
+
+    def withdraw_support(
+        self,
+        claims: Sequence[WorldModelClaim],
+        *,
+        affected_claim_ids: frozenset[str],
+        now: datetime,
+    ) -> OwnerFormationPlan[WorldModelClaim]:
+        """Preserve reported history and confidence while retiring unsafe current text."""
+
+        return _withdraw_support(claims, affected_claim_ids=affected_claim_ids, now=now)
 
     def evaluate(
         self,

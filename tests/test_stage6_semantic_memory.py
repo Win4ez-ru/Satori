@@ -33,6 +33,7 @@ from satori.core.semantic import (
     SemanticFormationRequest,
     SemanticValueKind,
 )
+from satori.domain.memory_scope import MemoryScope
 from satori.domain.semantic_memory import (
     SemanticClaimStatus,
     SemanticEvidenceSourceKind,
@@ -47,6 +48,7 @@ from tests.fakes import (
     FakeSemanticFormationProvider,
     FrozenClock,
 )
+from tests.source_policy_support import enroll_for_cli
 from tests.test_stage4_conversation_memory import (
     INTERACTION_TIME,
     activate,
@@ -55,6 +57,8 @@ from tests.test_stage4_conversation_memory import (
     settings,
     skip_episode_provider,
 )
+
+MEMORY_SCOPE = MemoryScope("identity-stage4", "local-default")
 
 
 def episode_from_user() -> FakeEpisodeFormationProvider:
@@ -153,17 +157,19 @@ def services(
     episode: FakeEpisodeFormationProvider | None = None,
     conversation: FakeConversationProvider | None = None,
     embedding: FakeEmbeddingProvider | None = None,
+    counterparty_id: str = "local-default",
 ) -> ConversationServices:
     return build_conversation_services(
         database,
         build_initial_self_services(database),
         conversation or conversation_provider(),
         episode or episode_from_user(),
-        settings(),
+        settings().model_copy(update={"default_counterparty_id": counterparty_id}),
         clock=FrozenClock(INTERACTION_TIME + timedelta(days=day)),
         id_generator=id_sequence(prefix),
         embedding_provider=embedding,
         semantic_provider=semantic,
+        source_policy_required=False,
     )
 
 
@@ -194,8 +200,8 @@ def test_explicit_fact_has_typed_identity_confidence_and_full_lineage(
 
     talk(active, "Меня зовут Алексей.", "explicit")
 
-    claim = active.semantic_claims.list()[0]
-    memory = active.memories.execute()[0]
+    claim = active.semantic_claims.list(scope=MEMORY_SCOPE)[0]
+    memory = active.memories.execute(scope=MEMORY_SCOPE)[0]
     assert claim.subject == "user"
     assert claim.predicate == "name"
     assert claim.value == "Алексей"
@@ -227,12 +233,12 @@ def test_retry_and_duplicate_derivation_do_not_inflate_confidence(
     )
     active = services(migrated_database, semantic=provider, prefix="retry")
     talk(active, "Меня зовут Алексей.", "retry")
-    memory_id = active.memories.execute()[0].memory_id
-    before = active.semantic_claims.list()[0]
+    memory_id = active.memories.execute(scope=MEMORY_SCOPE)[0].memory_id
+    before = active.semantic_claims.list(scope=MEMORY_SCOPE)[0]
 
     assert active.process_semantic is not None
     replay = asyncio.run(active.process_semantic.execute(memory_id, trace_id="trace-replay"))
-    after = active.semantic_claims.list()[0]
+    after = active.semantic_claims.list(scope=MEMORY_SCOPE)[0]
 
     assert len(provider.requests) == 1
     assert replay.source_memory_id == memory_id
@@ -250,7 +256,7 @@ def test_concurrent_same_source_processing_commits_one_terminal_decision(
     activate(migrated_database)
     upstream = services(migrated_database, semantic=None, prefix="race-source")
     talk(upstream, "Меня зовут Алексей.", "race-source")
-    memory_id = upstream.memories.execute()[0].memory_id
+    memory_id = upstream.memories.execute(scope=MEMORY_SCOPE)[0].memory_id
     provider = ConcurrentSemanticProvider()
     active = build_conversation_services(
         migrated_database,
@@ -261,6 +267,7 @@ def test_concurrent_same_source_processing_commits_one_terminal_decision(
         clock=FrozenClock(INTERACTION_TIME + timedelta(days=1)),
         id_generator=id_sequence("race"),
         semantic_provider=provider,
+        source_policy_required=False,
     )
     processor = active.process_semantic
     assert processor is not None
@@ -275,7 +282,7 @@ def test_concurrent_same_source_processing_commits_one_terminal_decision(
     first, second = asyncio.run(race())
     assert first.decision_id == second.decision_id
     assert len(provider.requests) == 2
-    assert len(active.semantic_claims.list()) == 1
+    assert len(active.semantic_claims.list(scope=MEMORY_SCOPE)) == 1
     with migrated_database.engine.connect() as connection:
         assert (
             connection.execute(
@@ -305,7 +312,7 @@ def test_overgeneralization_assistant_hallucination_and_skip_are_conservative(
     )
     first = services(migrated_database, semantic=inferred, prefix="overgeneralize")
     talk(first, "Сегодня я выпил кофе.", "overgeneralize")
-    assert first.semantic_claims.list() == ()
+    assert first.semantic_claims.list(scope=MEMORY_SCOPE) == ()
 
     hallucinated = semantic_provider(
         lambda request: one_claim(request, predicate="residence_city", value="Москва")
@@ -319,12 +326,12 @@ def test_overgeneralization_assistant_hallucination_and_skip_are_conservative(
         if memory.memory_id == source_request.source_memory_id
     )
     assert source_memory.evidence[0].quote == "Привет."
-    assert second.semantic_claims.list() == ()
+    assert second.semantic_claims.list(scope=MEMORY_SCOPE) == ()
 
     skipped = semantic_provider(lambda request: SemanticFormationProposal(1, ()))
     third = services(migrated_database, semantic=skipped, prefix="skip", day=2)
     talk(third, "Сегодня идёт дождь.", "skip")
-    assert third.semantic_claims.list() == ()
+    assert third.semantic_claims.list(scope=MEMORY_SCOPE) == ()
 
     with migrated_database.engine.connect() as connection:
         kinds = connection.execute(
@@ -344,7 +351,7 @@ def test_unknown_predicate_is_rejected_and_negation_remains_explicit(
     )
     first = services(migrated_database, semantic=unknown, prefix="unknown")
     talk(first, "Мой любимый цвет синий.", "unknown")
-    assert first.semantic_claims.list() == ()
+    assert first.semantic_claims.list(scope=MEMORY_SCOPE) == ()
 
     negative = semantic_provider(
         lambda request: one_claim(
@@ -357,7 +364,7 @@ def test_unknown_predicate_is_rejected_and_negation_remains_explicit(
     )
     second = services(migrated_database, semantic=negative, prefix="negative", day=1)
     talk(second, "Мне не нравится кофе.", "negative")
-    claim = second.semantic_claims.list()[0]
+    claim = second.semantic_claims.list(scope=MEMORY_SCOPE)[0]
     assert claim.polarity is False
     assert claim.claim_kind is SemanticClaimKind.ATTRIBUTED_STATEMENT
     assert claim.confidence == 0.85
@@ -377,7 +384,7 @@ def test_independent_explicit_evidence_merges_once_and_strengthens(
     second = services(migrated_database, semantic=provider, prefix="merge-b", day=1)
     talk(second, "Мой текущий проект — SATORI.", "merge-b")
 
-    claims = second.semantic_claims.list()
+    claims = second.semantic_claims.list(scope=MEMORY_SCOPE)
     assert len(claims) == 1
     assert claims[0].aggregate_version == 2
     assert claims[0].confidence == 0.92
@@ -408,20 +415,20 @@ def test_single_value_contradiction_is_superseded_by_new_explicit_correction(
     provider = semantic_provider(factory)
     first = services(migrated_database, semantic=provider, prefix="city-a")
     talk(first, "Мой город — Москва.", "city-a")
-    old_id = first.semantic_claims.list()[0].claim_id
+    old_id = first.semantic_claims.list(scope=MEMORY_SCOPE)[0].claim_id
     correction_target.append(old_id)
     second = services(migrated_database, semantic=provider, prefix="city-b", day=1)
     talk(second, "Исправление: я живу в Санкт-Петербург.", "city-b")
 
-    active = second.semantic_claims.list()
-    historical = second.semantic_claims.list(active_only=False)
+    active = second.semantic_claims.list(scope=MEMORY_SCOPE)
+    historical = second.semantic_claims.list(scope=MEMORY_SCOPE, active_only=False)
     old = next(claim for claim in historical if claim.claim_id == old_id)
     assert len(active) == 1
     assert active[0].value == "Санкт-Петербург"
     assert old.status is SemanticClaimStatus.SUPERSEDED
     assert old.superseded_by_claim_id == active[0].claim_id
     assert old.valid_until == active[0].valid_from
-    inspected = second.semantic_claims.inspect(old.claim_id)
+    inspected = second.semantic_claims.inspect(old.claim_id, scope=MEMORY_SCOPE)
     assert inspected is not None
     assert inspected[1][-1].kind.value == "superseded"
     assert inspected[1][-1].reason_code == "explicit_correction"
@@ -475,17 +482,17 @@ def test_hypothesis_and_inference_keep_labels_and_yield_to_stronger_evidence(
     )
     second = services(migrated_database, semantic=provider, prefix="infer-b", day=1)
     talk(second, "Снова занимаюсь Python.", "infer-b")
-    hypothesis = second.semantic_claims.list()[0]
+    hypothesis = second.semantic_claims.list(scope=MEMORY_SCOPE)[0]
     assert hypothesis.claim_kind is SemanticClaimKind.HYPOTHESIS
     assert hypothesis.confidence == 0.50
 
     third = services(migrated_database, semantic=provider, prefix="infer-c", day=2)
     talk(third, "Я уверенно изучаю Python.", "infer-c")
-    inferred = third.semantic_claims.list()[0]
+    inferred = third.semantic_claims.list(scope=MEMORY_SCOPE)[0]
     assert inferred.claim_kind is SemanticClaimKind.INFERRED_FACT
     assert inferred.confidence == 0.65
     assert len({item.root_interaction_id for item in inferred.evidence}) == 2
-    all_after_inference = third.semantic_claims.list(active_only=False)
+    all_after_inference = third.semantic_claims.list(scope=MEMORY_SCOPE, active_only=False)
     preserved_hypothesis = next(
         claim for claim in all_after_inference if claim.claim_id == hypothesis.claim_id
     )
@@ -494,8 +501,8 @@ def test_hypothesis_and_inference_keep_labels_and_yield_to_stronger_evidence(
 
     fourth = services(migrated_database, semantic=provider, prefix="infer-d", day=3)
     talk(fourth, "Я точно изучаю Python.", "infer-d")
-    active = fourth.semantic_claims.list()
-    all_claims = fourth.semantic_claims.list(active_only=False)
+    active = fourth.semantic_claims.list(scope=MEMORY_SCOPE)
+    all_claims = fourth.semantic_claims.list(scope=MEMORY_SCOPE, active_only=False)
     assert len(active) == 1
     assert active[0].claim_kind is SemanticClaimKind.EXPLICIT_FACT
     preserved = next(claim for claim in all_claims if claim.claim_id == inferred.claim_id)
@@ -547,8 +554,8 @@ def test_competing_inferences_become_disputed_and_leave_active_recall(
         )
         talk(latest, utterance, f"dispute-{day}")
     assert latest is not None
-    assert latest.semantic_claims.list() == ()
-    all_claims = latest.semantic_claims.list(active_only=False)
+    assert latest.semantic_claims.list(scope=MEMORY_SCOPE) == ()
+    all_claims = latest.semantic_claims.list(scope=MEMORY_SCOPE, active_only=False)
     assert len(all_claims) == 2
     assert {claim.status for claim in all_claims} == {SemanticClaimStatus.DISPUTED}
 
@@ -561,8 +568,8 @@ def test_backfill_is_restartable_and_partial_failure_preserves_upstream_state(
     activate(migrated_database)
     upstream = services(migrated_database, semantic=None, prefix="upstream")
     talk(upstream, "Меня зовут Алексей.", "upstream")
-    assert len(upstream.history.execute().interactions) == 1
-    assert len(upstream.memories.execute()) == 1
+    assert len(upstream.history.execute(scope=MEMORY_SCOPE).interactions) == 1
+    assert len(upstream.memories.execute(scope=MEMORY_SCOPE)) == 1
 
     failure = FakeSemanticFormationProvider(error=RuntimeError("semantic offline"))
     failed = services(
@@ -573,10 +580,12 @@ def test_backfill_is_restartable_and_partial_failure_preserves_upstream_state(
         episode=skip_episode_provider(),
     )
     assert failed.backfill_semantic is not None
-    first_report = asyncio.run(failed.backfill_semantic.execute(trace_id="failure", limit=10))
+    first_report = asyncio.run(
+        failed.backfill_semantic.execute(scope=MEMORY_SCOPE, trace_id="failure", limit=10)
+    )
     assert first_report.failed == 1
-    assert len(failed.history.execute().interactions) == 1
-    assert len(failed.memories.execute()) == 1
+    assert len(failed.history.execute(scope=MEMORY_SCOPE).interactions) == 1
+    assert len(failed.memories.execute(scope=MEMORY_SCOPE)) == 1
 
     healthy_provider = semantic_provider(
         lambda request: one_claim(request, predicate="name", value="Алексей")
@@ -589,11 +598,15 @@ def test_backfill_is_restartable_and_partial_failure_preserves_upstream_state(
         episode=skip_episode_provider(),
     )
     assert healthy.backfill_semantic is not None
-    healthy_report = asyncio.run(healthy.backfill_semantic.execute(trace_id="healthy", limit=10))
-    repeat_report = asyncio.run(healthy.backfill_semantic.execute(trace_id="repeat", limit=10))
+    healthy_report = asyncio.run(
+        healthy.backfill_semantic.execute(scope=MEMORY_SCOPE, trace_id="healthy", limit=10)
+    )
+    repeat_report = asyncio.run(
+        healthy.backfill_semantic.execute(scope=MEMORY_SCOPE, trace_id="repeat", limit=10)
+    )
     assert (healthy_report.considered, healthy_report.applied) == (1, 1)
     assert repeat_report.considered == 0
-    assert len(healthy.semantic_claims.list()) == 1
+    assert len(healthy.semantic_claims.list(scope=MEMORY_SCOPE)) == 1
 
 
 def test_semantic_recall_is_separate_untrusted_grounded_and_not_new_evidence(
@@ -615,7 +628,7 @@ def test_semantic_recall_is_separate_untrusted_grounded_and_not_new_evidence(
         embedding=embedding,
     )
     talk(source, fact_text, "recall-source")
-    claim = source.semantic_claims.list()[0]
+    claim = source.semantic_claims.list(scope=MEMORY_SCOPE)[0]
     before_evidence = claim.evidence
 
     response = FakeConversationProvider(
@@ -639,17 +652,26 @@ def test_semantic_recall_is_separate_untrusted_grounded_and_not_new_evidence(
     reply = asyncio.run(recall.talk.execute(TalkInput(recall_text, "trace-recall", "recall-query")))
 
     assert reply.context_manifest.retrieved_semantic_claim_ids == (claim.claim_id,)
-    assert len(response.requests[0].messages) == 9
+    request_messages = response.requests[0].messages
+    assert request_messages[-1].role.value == "user"
+    assert request_messages[-1].content == recall_text
+    assert (
+        sum(
+            "Trusted current-turn peer expression v35" in message.content
+            for message in request_messages
+        )
+        == 1
+    )
     semantic_message = next(
         message.content
-        for message in response.requests[0].messages
+        for message in request_messages
         if "Retrieved semantic memory data (UNTRUSTED)" in message.content
     )
     assert "Retrieved semantic memory data (UNTRUSTED)" in semantic_message
     payload = json.loads(semantic_message.splitlines()[-1])
     assert payload["claims"][0]["claim_id"] == claim.claim_id
     assert payload["claims"][0]["claim_kind"] == "explicit_fact"
-    after = recall.semantic_claims.list()[0]
+    after = recall.semantic_claims.list(scope=MEMORY_SCOPE)[0]
     assert after.evidence == before_evidence
     assert after.aggregate_version == claim.aggregate_version
 
@@ -667,8 +689,10 @@ def test_semantic_cli_lists_inspects_and_processes_missing_sources(
     )
     active = services(migrated_database, semantic=provider, prefix="cli-semantic")
     talk(active, "Меня зовут Алексей.", "cli-semantic")
-    claim_id = active.semantic_claims.list()[0].claim_id
-    cli_settings = settings(str(migrated_database.engine.url))
+    claim_id = active.semantic_claims.list(scope=MEMORY_SCOPE)[0].claim_id
+    cli_settings = settings(str(migrated_database.engine.url)).model_copy(
+        update={"source_policy_directory": enroll_for_cli(migrated_database)}
+    )
 
     def run_cli(arguments: list[str]) -> int:
         return main(

@@ -17,11 +17,35 @@ from satori.domain.affect import (
     MoodDelta,
     MoodState,
 )
+from satori.domain.affect_history import (
+    AffectiveTransitionHeader,
+    AffectiveTransitionHistory,
+    validate_affective_numeric_record,
+)
+from satori.domain.erasure_appraisal import (
+    MAX_APPRAISAL_TARGETS,
+    AppraisalBodyAction,
+    AppraisalBodyTarget,
+)
+from satori.domain.source_policy import SourcePolicyError
+from satori.infrastructure.persistence.erasure_body_codec import decode_body_action
 from satori.infrastructure.persistence.models.affect import (
     AffectiveStateRow,
     AffectiveTransitionRow,
 )
+from satori.infrastructure.persistence.models.conversation import (
+    ConversationInteractionRow,
+    ConversationMessageRow,
+    ConversationSessionRow,
+)
+from satori.infrastructure.persistence.models.erasure_bodies import ErasureBodyApplicationRow
 from satori.infrastructure.persistence.models.initial_self import AuditEventRow
+from satori.infrastructure.persistence.models.source_policy import SourceInputRow
+from satori.infrastructure.persistence.source_policy import (
+    _require_historical_source_inputs,
+    policy_snapshot,
+    require_source_inputs,
+)
 
 
 def _as_float(value: object, field_name: str) -> float:
@@ -50,29 +74,262 @@ class SQLAlchemyAffectiveStateRepository:
         return self._session.execute(statement).scalar_one_or_none() is not None
 
     def get_transition_for_interaction(self, interaction_id: str) -> AffectiveTransition | None:
-        row = self._session.execute(
-            select(AffectiveTransitionRow).where(
-                AffectiveTransitionRow.interaction_id == interaction_id
+        header = self._header_for_interaction(interaction_id)
+        if (
+            header is None
+            or header.explanation_state != "available"
+            or not self._input_available(header)
+        ):
+            return None
+        row = self._session.scalar(
+            select(AffectiveTransitionRow)
+            .where(
+                AffectiveTransitionRow.interaction_id == interaction_id,
+                AffectiveTransitionRow.explanation_state == "available",
+                AffectiveTransitionRow.explanation_action_id.is_(None),
+                AffectiveTransitionRow.reason_codes.is_not(None),
             )
-        ).scalar_one_or_none()
+            .execution_options(populate_existing=True)
+        )
         return self._map_transition(row) if row is not None else None
 
     def list_transitions(self, *, limit: int | None = None) -> Sequence[AffectiveTransition]:
-        query = select(AffectiveTransitionRow).order_by(
-            AffectiveTransitionRow.committed_at.desc(),
-            AffectiveTransitionRow.transition_id.desc(),
+        self._check_limit(limit)
+        results = []
+        for header in self.list_transition_headers():
+            record = self.get_transition_for_interaction(header.interaction_id)
+            if record is not None:
+                results.append(record)
+                if len(results) == limit:
+                    break
+        return tuple(results)
+
+    @staticmethod
+    def _check_limit(limit: int | None) -> None:
+        if limit is not None and (type(limit) is not int or limit < 1):
+            raise ValueError("transition history limit must be positive")
+
+    def _header_for_interaction(self, interaction_id: str) -> AffectiveTransitionHeader | None:
+        columns = tuple(
+            AffectiveTransitionRow.__table__.c[name]
+            for name in AffectiveTransitionHeader.__dataclass_fields__
+        )
+        row = (
+            self._session.execute(
+                select(*columns).where(AffectiveTransitionRow.interaction_id == interaction_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return AffectiveTransitionHeader(**row) if row is not None else None
+
+    def list_transition_headers(
+        self, *, limit: int | None = None
+    ) -> tuple[AffectiveTransitionHeader, ...]:
+        self._check_limit(limit)
+        columns = tuple(
+            AffectiveTransitionRow.__table__.c[name]
+            for name in AffectiveTransitionHeader.__dataclass_fields__
+        )
+        query = select(*columns).order_by(
+            AffectiveTransitionRow.committed_at.desc(), AffectiveTransitionRow.transition_id.desc()
         )
         if limit is not None:
-            if type(limit) is not int or limit < 1:
-                raise ValueError("transition history limit must be positive")
             query = query.limit(limit)
-        rows = tuple(self._session.execute(query).scalars())
-        return tuple(self._map_transition(row) for row in rows)
+        return tuple(
+            AffectiveTransitionHeader(**row) for row in self._session.execute(query).mappings()
+        )
 
-    def apply_transition(self, transition: AffectiveTransition, *, audit_event_id: str) -> bool:
-        existing = self.get_transition_for_interaction(transition.interaction_id)
+    def list_numerical_history(
+        self, *, limit: int | None = None
+    ) -> tuple[AffectiveTransitionHistory, ...]:
+        self._check_limit(limit)
+        columns = tuple(
+            column for column in AffectiveTransitionRow.__table__.c if column.name != "reason_codes"
+        )
+        query = select(*columns).order_by(
+            AffectiveTransitionRow.committed_at.desc(), AffectiveTransitionRow.transition_id.desc()
+        )
+        if limit is not None:
+            query = query.limit(limit)
+        return tuple(
+            validate_affective_numeric_record(dict(row))
+            for row in self._session.execute(query).mappings()
+        )
+
+    def _input_available(self, header: AffectiveTransitionHeader) -> bool:
+        input_id = header.source_input_id
+        if policy_snapshot(self._session) is None:
+            return True
+        if input_id is None:
+            return False
+        row = self._session.get(SourceInputRow, input_id)
+        if (
+            row is None
+            or row.proof_status != "complete"
+            or row.legacy
+            or row.identity_id != header.identity_id
+            or header.source_message_id not in row.root_message_ids
+            or not self._primary_scope_matches(
+                identity_id=header.identity_id,
+                interaction_id=header.interaction_id,
+                message_id=header.source_message_id,
+                completed=True,
+            )
+        ):
+            return False
+        try:
+            _require_historical_source_inputs(self._session, input_id)
+        except SourcePolicyError:
+            return False
+        return True
+
+    def _primary_scope_matches(
+        self,
+        *,
+        identity_id: str,
+        interaction_id: str,
+        message_id: str,
+        counterparty_id: str | None = None,
+        completed: bool = False,
+    ) -> bool:
+        query = (
+            select(ConversationMessageRow.message_id)
+            .join(
+                ConversationInteractionRow,
+                ConversationInteractionRow.interaction_id == ConversationMessageRow.interaction_id,
+            )
+            .join(
+                ConversationSessionRow,
+                ConversationSessionRow.session_id == ConversationInteractionRow.session_id,
+            )
+            .where(
+                ConversationMessageRow.message_id == message_id,
+                ConversationMessageRow.interaction_id == interaction_id,
+                ConversationMessageRow.session_id == ConversationSessionRow.session_id,
+                ConversationMessageRow.role == "user",
+                ConversationMessageRow.sequence == 1,
+                ConversationMessageRow.schema_version == 1,
+                ConversationInteractionRow.schema_version == 1,
+                ConversationSessionRow.schema_version == 1,
+                ConversationSessionRow.scope_verified.is_(True),
+                ConversationSessionRow.identity_id == identity_id,
+                ConversationInteractionRow.status == "completed"
+                if completed
+                else ConversationInteractionRow.status.in_(("pending", "completed")),
+            )
+        )
+        if counterparty_id is not None:
+            query = query.where(ConversationSessionRow.counterparty_id == counterparty_id)
+        return self._session.scalar(query) is not None
+
+    def _validate_input_link(self, transition: AffectiveTransition, input_id: str | None) -> None:
+        managed = policy_snapshot(self._session) is not None
+        if input_id is None:
+            if managed:
+                raise SourcePolicyError("source_input_required")
+            return
+        source = self._session.get(SourceInputRow, input_id)
+        if (
+            source is None
+            or source.identity_id != transition.identity_id
+            or source.proof_status != "complete"
+            or source.legacy
+            or transition.source_message_id not in source.root_message_ids
+            or not self._primary_scope_matches(
+                identity_id=transition.identity_id,
+                interaction_id=transition.interaction_id,
+                message_id=transition.source_message_id,
+            )
+        ):
+            raise SourcePolicyError("appraisal_body_provenance_unproven")
+
+    def erase_explanation_bodies(
+        self, targets: tuple[AppraisalBodyTarget, ...], *, action_id: str
+    ) -> None:
+        from satori.infrastructure.persistence.appraisal_material import read_appraisal_material
+
+        if (
+            not 1 <= len(targets) <= MAX_APPRAISAL_TARGETS
+            or any(not isinstance(target, AppraisalBodyTarget) for target in targets)
+            or len({target.transition_id for target in targets}) != len(targets)
+        ):
+            raise SourcePolicyError("appraisal_body_target_invalid")
+        receipt = self._session.get(ErasureBodyApplicationRow, action_id)
+        if receipt is None:
+            raise SourcePolicyError("body_action_missing")
+        try:
+            approved = decode_body_action(receipt.action)
+        except (ValueError, TypeError, KeyError, RecursionError):
+            raise SourcePolicyError("body_action_target_mismatch") from None
+        if not isinstance(approved, AppraisalBodyAction) or (
+            approved.action_id != receipt.action_id
+            or approved.floor_id != receipt.floor_id
+            or approved.proposal.root.identity_id != receipt.identity_id
+            or approved.proposal.root.message_id != receipt.root_message_id
+            or approved.proposal.root.lineage_id != receipt.lineage_id
+            or approved.proposal.request_id != receipt.request_id
+            or approved.result_body_revision != receipt.body_revision
+            or any(target not in approved.proposal.targets for target in targets)
+        ):
+            raise SourcePolicyError("body_action_target_mismatch")
+        index = read_appraisal_material(
+            self._session, tuple(target.transition_id for target in targets), require_terminal=False
+        )
+        for target in targets:
+            transition = index.transitions.get(target.transition_id)
+            if (
+                transition is None
+                or not self._primary_scope_matches(
+                    identity_id=approved.proposal.root.identity_id,
+                    interaction_id=str(transition["interaction_id"]),
+                    message_id=str(transition["source_message_id"]),
+                    counterparty_id=approved.proposal.root.counterparty_id,
+                    completed=True,
+                )
+                or transition["identity_id"] != approved.proposal.root.identity_id
+                or transition["explanation_state"] != "available"
+                or transition["explanation_action_id"] is not None
+                or transition["source_input_id"] != target.source_input_id
+                or transition["audit_event_id"] != target.audit_event_id
+                or index.digest(target.transition_id, terminal=False) != target.body_digest
+                or index.digest(target.transition_id, terminal=True) != target.terminal_digest
+                or index.metadata_reference_count(target.transition_id)
+                != target.metadata_reference_count
+            ):
+                raise SourcePolicyError("body_owner_state_changed")
+        connection = self._session.connection()
+        for target in targets:
+            changed = connection.exec_driver_sql(
+                "UPDATE audit_events SET "
+                "details=json_remove(details,'$.appraisal_reason_codes') WHERE event_id=?",
+                (target.audit_event_id,),
+            )
+            if changed.rowcount != 1:
+                raise SourcePolicyError("body_owner_state_changed")
+            changed = connection.exec_driver_sql(
+                "UPDATE affective_transitions SET "
+                "reason_codes=NULL,explanation_state='erased',explanation_action_id=? "
+                "WHERE transition_id=? AND explanation_state='available' AND "
+                "explanation_action_id IS NULL",
+                (action_id, target.transition_id),
+            )
+            if changed.rowcount != 1:
+                raise SourcePolicyError("body_owner_state_changed")
+        self._session.expire_all()
+
+    def apply_transition(
+        self,
+        transition: AffectiveTransition,
+        *,
+        audit_event_id: str,
+        source_input_id: str | None = None,
+    ) -> bool:
+        existing = self._header_for_interaction(transition.interaction_id)
         if existing is not None:
             return False
+        require_source_inputs(self._session, source_input_id)
+        self._validate_input_link(transition, source_input_id)
         after = transition.after
         values = self._state_values(after)
         values.pop("identity_id")
@@ -87,12 +344,11 @@ class SQLAlchemyAffectiveStateRepository:
             .returning(AffectiveStateRow.identity_id)
         ).scalar_one_or_none()
         if updated_identity is None:
-            if self.get_transition_for_interaction(transition.interaction_id) is not None:
+            if self._header_for_interaction(transition.interaction_id) is not None:
                 return False
             raise AffectiveStateConflict(
                 "affective state changed after tentative expression was generated"
             )
-        self._session.add(self._transition_row(transition))
         self._session.add(
             AuditEventRow(
                 event_id=audit_event_id,
@@ -117,6 +373,12 @@ class SQLAlchemyAffectiveStateRepository:
                     "decision_reason_code": "bounded_appraisal_applied",
                     "appraisal_reason_codes": list(transition.proposal.reason_codes),
                 },
+            )
+        )
+        self._session.flush()
+        self._session.add(
+            self._transition_row(
+                transition, source_input_id=source_input_id, audit_event_id=audit_event_id
             )
         )
         self._session.flush()
@@ -169,7 +431,13 @@ class SQLAlchemyAffectiveStateRepository:
         )
 
     @classmethod
-    def _transition_row(cls, transition: AffectiveTransition) -> AffectiveTransitionRow:
+    def _transition_row(
+        cls,
+        transition: AffectiveTransition,
+        *,
+        source_input_id: str | None = None,
+        audit_event_id: str | None = None,
+    ) -> AffectiveTransitionRow:
         proposal = transition.proposal
         return AffectiveTransitionRow(
             transition_id=transition.transition_id,
@@ -209,6 +477,8 @@ class SQLAlchemyAffectiveStateRepository:
             provider=transition.provider,
             model=transition.model,
             appraisal_method=transition.appraisal_method,
+            source_input_id=source_input_id,
+            audit_event_id=audit_event_id,
         )
 
     @staticmethod
@@ -228,6 +498,12 @@ class SQLAlchemyAffectiveStateRepository:
 
     @classmethod
     def _map_transition(cls, row: AffectiveTransitionRow) -> AffectiveTransition:
+        if (
+            row.explanation_state != "available"
+            or row.explanation_action_id is not None
+            or row.reason_codes is None
+        ):
+            raise SourcePolicyError("appraisal_explanation_unavailable")
         payload = row.appraisal_payload
         proposal = AffectiveAppraisalProposal(
             schema_version=row.appraisal_schema_version,

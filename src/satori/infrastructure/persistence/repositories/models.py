@@ -1,12 +1,19 @@
 """SQLAlchemy adapter for Stage 9 user/world model owners."""
 
 from collections.abc import Sequence
+from datetime import datetime
 
-from sqlalchemy import exists, select, update
+from sqlalchemy import exists, literal, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from satori.core.models import ModelEpistemicKind, ModelScalar, ModelSourceMessage, ModelValueKind
+from satori.domain.audit_metadata import AuditMetadataFamily
+from satori.domain.erasure_knowledge import (
+    ErasedKnowledgeHeader,
+    KnowledgeBodyKind,
+    KnowledgeBodyTarget,
+)
 from satori.domain.models import (
     MODEL_FORMATION_VERSION,
     ModelClaimEvidence,
@@ -18,8 +25,13 @@ from satori.domain.models import (
     ModelRevisionKind,
     OwnerFormationPlan,
     UserModelClaim,
+    UserModelManager,
     WorldModelClaim,
+    WorldModelManager,
 )
+from satori.domain.source_policy import SourcePolicyError
+from satori.infrastructure.persistence.audit_metadata_writer import bind_metadata
+from satori.infrastructure.persistence.memory_scope import require_live_message_content
 from satori.infrastructure.persistence.models.conversation import (
     ConversationInteractionRow,
     ConversationMessageRow,
@@ -35,6 +47,25 @@ from satori.infrastructure.persistence.models.models import (
     WorldModelClaimRevisionRow,
     WorldModelClaimRow,
 )
+from satori.infrastructure.persistence.repositories.knowledge_bodies import (
+    available_owner_predicate,
+    current_owner_row,
+    erase_owned_knowledge_bodies,
+    erased_knowledge_header,
+    repair_owner_rows,
+    require_available_knowledge_target,
+)
+from satori.infrastructure.persistence.source_policy import (
+    eligible_payload,
+    payload_admission_predicate,
+    policy_snapshot,
+    record_owner_withdrawal,
+    record_payload,
+    require_evidence_roots,
+    require_owner_reconciled,
+    require_source_inputs,
+    root_admission_predicate,
+)
 
 
 class SQLAlchemyCurrentModelsRepository:
@@ -42,6 +73,116 @@ class SQLAlchemyCurrentModelsRepository:
 
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def erase_knowledge_bodies(
+        self, targets: tuple[KnowledgeBodyTarget, ...], *, action_id: str
+    ) -> None:
+        erase_owned_knowledge_bodies(
+            self._session,
+            targets,
+            action_id=action_id,
+            allowed_kinds=frozenset(
+                (
+                    KnowledgeBodyKind.USER_MODEL_CLAIM,
+                    KnowledgeBodyKind.WORLD_MODEL_CLAIM,
+                )
+            ),
+        )
+
+    def get_erased_knowledge_header(
+        self, kind: KnowledgeBodyKind, aggregate_id: str
+    ) -> ErasedKnowledgeHeader | None:
+        return erased_knowledge_header(
+            self._session,
+            kind,
+            aggregate_id,
+            allowed_kinds=frozenset(
+                (
+                    KnowledgeBodyKind.USER_MODEL_CLAIM,
+                    KnowledgeBodyKind.WORLD_MODEL_CLAIM,
+                )
+            ),
+        )
+
+    def withdraw_source_support(
+        self,
+        *,
+        excluded_message_ids: frozenset[str],
+        request_id: str,
+        policy_generation: int,
+        now: datetime,
+    ) -> None:
+        """Route retirement through both existing managers; retain immutable source history."""
+
+        snapshot = policy_snapshot(self._session)
+        if snapshot is None:
+            return
+        identity_id = snapshot.identity_id
+        user_rows = repair_owner_rows(
+            self._session,
+            UserModelClaimRow,
+            UserModelClaimRow.identity_id == identity_id,
+            UserModelClaimRow.status.in_(("current", "disputed")),
+        )
+        world_rows = repair_owner_rows(
+            self._session,
+            WorldModelClaimRow,
+            WorldModelClaimRow.identity_id == identity_id,
+            WorldModelClaimRow.status.in_(("current", "disputed")),
+        )
+        users = tuple(self._map_user_claim(row) for row in user_rows)
+        worlds = tuple(self._map_world_claim(row) for row in world_rows)
+        user_plan = UserModelManager().withdraw_support(
+            users,
+            affected_claim_ids=frozenset(
+                claim.claim_id
+                for claim in users
+                if not eligible_payload(
+                    self._session, "user_model_claim", claim.claim_id, claim.aggregate_version
+                )
+            ),
+            now=now,
+        )
+        world_plan = WorldModelManager().withdraw_support(
+            worlds,
+            affected_claim_ids=frozenset(
+                claim.claim_id
+                for claim in worlds
+                if not eligible_payload(
+                    self._session, "world_model_claim", claim.claim_id, claim.aggregate_version
+                )
+            ),
+            now=now,
+        )
+        before_users = {claim.claim_id: claim for claim in users}
+        before_worlds = {claim.claim_id: claim for claim in worlds}
+        self._persist_user_plan(user_plan)
+        self._persist_world_plan(world_plan)
+        for kind, changed, prior in (
+            ("user_model_claim", user_plan.claims, before_users),
+            ("world_model_claim", world_plan.claims, before_worlds),
+        ):
+            for claim in changed:
+                before = prior[claim.claim_id]
+                record_owner_withdrawal(
+                    self._session,
+                    owner=kind,
+                    aggregate_id=claim.claim_id,
+                    request_id=request_id,
+                    policy_generation=policy_generation,
+                    before_status=before.status.value,
+                    after_status=claim.status.value,
+                    before_version=before.aggregate_version,
+                    after_version=claim.aggregate_version,
+                    root_message_ids=tuple(
+                        sorted(
+                            edge.source_message_id
+                            for edge in claim.evidence
+                            if edge.source_message_id in excluded_message_ids
+                        )
+                    ),
+                    now=now,
+                )
 
     def get_decision(self, idempotency_key: str) -> ModelFormationDecision | None:
         row = self._session.execute(
@@ -54,6 +195,7 @@ class SQLAlchemyCurrentModelsRepository:
     def get_source_messages(
         self, source_interaction_id: str, *, limit: int
     ) -> tuple[ModelSourceMessage, ...]:
+        require_owner_reconciled(self._session, "current_models")
         if limit < 1:
             raise ValueError("model source-message limit must be positive")
         interaction = self._session.get(ConversationInteractionRow, source_interaction_id)
@@ -80,11 +222,16 @@ class SQLAlchemyCurrentModelsRepository:
                 )
                 .where(
                     ConversationMessageRow.role == "user",
+                    ConversationMessageRow.session_id == ConversationInteractionRow.session_id,
+                    ConversationSessionRow.scope_verified.is_(True)
+                    if policy_snapshot(self._session) is not None
+                    else literal(True),
                     ConversationInteractionRow.status == "completed",
                     ConversationInteractionRow.model_processing_required.is_(True),
                     ConversationInteractionRow.started_at <= interaction.started_at,
                     ConversationSessionRow.identity_id == session.identity_id,
                     ConversationSessionRow.counterparty_id == session.counterparty_id,
+                    root_admission_predicate(self._session, ConversationMessageRow.message_id),
                 )
                 .order_by(
                     ConversationInteractionRow.started_at.desc(),
@@ -100,7 +247,7 @@ class SQLAlchemyCurrentModelsRepository:
                 identity_id=session.identity_id,
                 counterparty_id=session.counterparty_id,
                 observed_at=message.created_at,
-                content=message.content,
+                content=require_live_message_content(message),
             )
             for message, row_interaction in rows
         )
@@ -121,8 +268,16 @@ class SQLAlchemyCurrentModelsRepository:
         current_only: bool = False,
     ) -> tuple[UserModelClaim, ...]:
         query = select(UserModelClaimRow).where(
+            UserModelClaimRow.body_state == "available",
+            UserModelClaimRow.body_action_id.is_(None),
             UserModelClaimRow.identity_id == identity_id,
             UserModelClaimRow.counterparty_id == counterparty_id,
+            payload_admission_predicate(
+                self._session,
+                "user_model_claim",
+                UserModelClaimRow.claim_id,
+                UserModelClaimRow.aggregate_version,
+            ),
         )
         if current_only:
             query = query.where(UserModelClaimRow.status == ModelClaimStatus.CURRENT.value)
@@ -145,8 +300,16 @@ class SQLAlchemyCurrentModelsRepository:
         current_only: bool = False,
     ) -> tuple[WorldModelClaim, ...]:
         query = select(WorldModelClaimRow).where(
+            WorldModelClaimRow.body_state == "available",
+            WorldModelClaimRow.body_action_id.is_(None),
             WorldModelClaimRow.identity_id == identity_id,
             WorldModelClaimRow.counterparty_id == counterparty_id,
+            payload_admission_predicate(
+                self._session,
+                "world_model_claim",
+                WorldModelClaimRow.claim_id,
+                WorldModelClaimRow.aggregate_version,
+            ),
         )
         if current_only:
             query = query.where(WorldModelClaimRow.status == ModelClaimStatus.CURRENT.value)
@@ -164,11 +327,29 @@ class SQLAlchemyCurrentModelsRepository:
 
     def get_user_claim(self, claim_id: str) -> UserModelClaim | None:
         row = self._session.get(UserModelClaimRow, claim_id)
-        return self._map_user_claim(row) if row is not None else None
+        return (
+            self._map_user_claim(row)
+            if row is not None
+            and row.body_state == "available"
+            and row.body_action_id is None
+            and eligible_payload(
+                self._session, "user_model_claim", row.claim_id, row.aggregate_version
+            )
+            else None
+        )
 
     def get_world_claim(self, claim_id: str) -> WorldModelClaim | None:
         row = self._session.get(WorldModelClaimRow, claim_id)
-        return self._map_world_claim(row) if row is not None else None
+        return (
+            self._map_world_claim(row)
+            if row is not None
+            and row.body_state == "available"
+            and row.body_action_id is None
+            and eligible_payload(
+                self._session, "world_model_claim", row.claim_id, row.aggregate_version
+            )
+            else None
+        )
 
     def list_user_revisions(self, claim_id: str) -> tuple[ModelClaimRevision, ...]:
         rows = tuple(
@@ -203,6 +384,27 @@ class SQLAlchemyCurrentModelsRepository:
                     ConversationInteractionRow.status == "completed",
                     ConversationInteractionRow.model_processing_required.is_(True),
                     ~processed,
+                    exists(
+                        select(ConversationMessageRow.message_id).where(
+                            ConversationMessageRow.interaction_id
+                            == ConversationInteractionRow.interaction_id,
+                            ConversationMessageRow.role == "user",
+                            ConversationMessageRow.session_id
+                            == ConversationInteractionRow.session_id,
+                            exists(
+                                select(ConversationSessionRow.session_id).where(
+                                    ConversationSessionRow.session_id
+                                    == ConversationInteractionRow.session_id,
+                                    ConversationSessionRow.scope_verified.is_(True)
+                                    if policy_snapshot(self._session) is not None
+                                    else literal(True),
+                                )
+                            ),
+                            root_admission_predicate(
+                                self._session, ConversationMessageRow.message_id
+                            ),
+                        )
+                    ),
                 )
                 .order_by(
                     ConversationInteractionRow.started_at,
@@ -220,7 +422,20 @@ class SQLAlchemyCurrentModelsRepository:
         *,
         user_audit_event_id: str,
         world_audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool:
+        require_owner_reconciled(self._session, "current_models")
+        require_source_inputs(self._session, source_input_id)
+        for claim in user_plan.claims:
+            require_available_knowledge_target(
+                self._session, KnowledgeBodyKind.USER_MODEL_CLAIM, claim.claim_id
+            )
+        for world_claim in world_plan.claims:
+            require_available_knowledge_target(
+                self._session, KnowledgeBodyKind.WORLD_MODEL_CLAIM, world_claim.claim_id
+            )
+        self._validate_user_sources(user_plan, source_input_id)
+        self._validate_world_sources(world_plan, source_input_id)
         statement = (
             sqlite_insert(ModelFormationDecisionRow)
             .values(**self._decision_values(decision))
@@ -231,6 +446,22 @@ class SQLAlchemyCurrentModelsRepository:
             return False
         self._persist_user_plan(user_plan)
         self._persist_world_plan(world_plan)
+        for claim in user_plan.claims:
+            record_payload(
+                self._session,
+                "user_model_claim",
+                claim.claim_id,
+                claim.aggregate_version,
+                source_input_id,
+            )
+        for world_claim in world_plan.claims:
+            record_payload(
+                self._session,
+                "world_model_claim",
+                world_claim.claim_id,
+                world_claim.aggregate_version,
+                source_input_id,
+            )
         self._session.add_all(
             (
                 self._audit_row(
@@ -238,16 +469,80 @@ class SQLAlchemyCurrentModelsRepository:
                     decision,
                     owner=ModelOwner.USER,
                     claim_ids=decision.user_claim_ids,
+                    source_input_id=source_input_id,
                 ),
                 self._audit_row(
                     world_audit_event_id,
                     decision,
                     owner=ModelOwner.WORLD,
                     claim_ids=decision.world_claim_ids,
+                    source_input_id=source_input_id,
                 ),
             )
         )
         return True
+
+    def _validate_user_sources(
+        self,
+        plan: OwnerFormationPlan[UserModelClaim],
+        input_id: str | None,
+    ) -> None:
+        if policy_snapshot(self._session) is None:
+            return
+        for claim in plan.claims:
+            row = self._session.get(UserModelClaimRow, claim.claim_id)
+            existing: tuple[ModelClaimEvidence, ...] = ()
+            if row is not None:
+                if not eligible_payload(
+                    self._session, "user_model_claim", row.claim_id, row.aggregate_version
+                ):
+                    raise SourcePolicyError("source_payload_unavailable")
+                if (
+                    row.identity_id != claim.identity_id
+                    or row.claim_key != claim.claim_key
+                    or row.counterparty_id != claim.counterparty_id
+                    or claim.aggregate_version != row.aggregate_version + 1
+                ):
+                    raise ValueError("model_aggregate_target_invalid")
+                existing = self._map_user_claim(row).evidence
+            elif claim.aggregate_version != 1:
+                raise ValueError("model_aggregate_target_invalid")
+            require_evidence_roots(
+                self._session,
+                input_id,
+                tuple(edge.source_message_id for edge in claim.evidence if edge not in existing),
+            )
+
+    def _validate_world_sources(
+        self,
+        plan: OwnerFormationPlan[WorldModelClaim],
+        input_id: str | None,
+    ) -> None:
+        if policy_snapshot(self._session) is None:
+            return
+        for claim in plan.claims:
+            row = self._session.get(WorldModelClaimRow, claim.claim_id)
+            existing: tuple[ModelClaimEvidence, ...] = ()
+            if row is not None:
+                if not eligible_payload(
+                    self._session, "world_model_claim", row.claim_id, row.aggregate_version
+                ):
+                    raise SourcePolicyError("source_payload_unavailable")
+                if (
+                    row.identity_id != claim.identity_id
+                    or row.claim_key != claim.claim_key
+                    or row.counterparty_id != claim.counterparty_id
+                    or claim.aggregate_version != row.aggregate_version + 1
+                ):
+                    raise ValueError("model_aggregate_target_invalid")
+                existing = self._map_world_claim(row).evidence
+            elif claim.aggregate_version != 1:
+                raise ValueError("model_aggregate_target_invalid")
+            require_evidence_roots(
+                self._session,
+                input_id,
+                tuple(edge.source_message_id for edge in claim.evidence if edge not in existing),
+            )
 
     def _persist_user_plan(self, plan: OwnerFormationPlan[UserModelClaim]) -> None:
         new, changed = self._partition_user_claims(plan.claims)
@@ -299,7 +594,10 @@ class SQLAlchemyCurrentModelsRepository:
         new: list[UserModelClaim] = []
         changed: list[tuple[UserModelClaim, int]] = []
         for claim in claims:
-            current = self._session.get(UserModelClaimRow, claim.claim_id)
+            require_available_knowledge_target(
+                self._session, KnowledgeBodyKind.USER_MODEL_CLAIM, claim.claim_id
+            )
+            current = current_owner_row(self._session, UserModelClaimRow, claim.claim_id)
             if current is None:
                 new.append(claim)
             else:
@@ -312,7 +610,10 @@ class SQLAlchemyCurrentModelsRepository:
         new: list[WorldModelClaim] = []
         changed: list[tuple[WorldModelClaim, int]] = []
         for claim in claims:
-            current = self._session.get(WorldModelClaimRow, claim.claim_id)
+            require_available_knowledge_target(
+                self._session, KnowledgeBodyKind.WORLD_MODEL_CLAIM, claim.claim_id
+            )
+            current = current_owner_row(self._session, WorldModelClaimRow, claim.claim_id)
             if current is None:
                 new.append(claim)
             else:
@@ -326,6 +627,7 @@ class SQLAlchemyCurrentModelsRepository:
             .where(
                 UserModelClaimRow.claim_id == claim.claim_id,
                 UserModelClaimRow.aggregate_version == expected_version,
+                available_owner_predicate(self._session, UserModelClaimRow),
             )
             .values(**self._mutable_claim_values(claim))
         )
@@ -339,6 +641,7 @@ class SQLAlchemyCurrentModelsRepository:
             .where(
                 WorldModelClaimRow.claim_id == claim.claim_id,
                 WorldModelClaimRow.aggregate_version == expected_version,
+                available_owner_predicate(self._session, WorldModelClaimRow),
             )
             .values(**self._mutable_claim_values(claim))
         )
@@ -451,6 +754,12 @@ class SQLAlchemyCurrentModelsRepository:
         return WorldModelClaimRevisionRow(**cls._revision_values(item))
 
     def _map_user_claim(self, row: UserModelClaimRow) -> UserModelClaim:
+        if (
+            row.body_state != "available"
+            or row.body_action_id is not None
+            or row.normalized_value is None
+        ):
+            raise SourcePolicyError("knowledge_body_unavailable")
         return UserModelClaim(
             claim_id=row.claim_id,
             claim_key=row.claim_key,
@@ -479,6 +788,14 @@ class SQLAlchemyCurrentModelsRepository:
         )
 
     def _map_world_claim(self, row: WorldModelClaimRow) -> WorldModelClaim:
+        if (
+            row.body_state != "available"
+            or row.body_action_id is not None
+            or row.normalized_value is None
+            or row.subject_label is None
+            or row.normalized_subject_label is None
+        ):
+            raise SourcePolicyError("knowledge_body_unavailable")
         return WorldModelClaim(
             claim_id=row.claim_id,
             claim_key=row.claim_key,
@@ -645,34 +962,44 @@ class SQLAlchemyCurrentModelsRepository:
             model=row.model,
         )
 
-    @staticmethod
     def _audit_row(
+        self,
         event_id: str,
         decision: ModelFormationDecision,
         *,
         owner: ModelOwner,
         claim_ids: tuple[str, ...],
+        source_input_id: str | None = None,
     ) -> AuditEventRow:
         prefix = owner.value
-        return AuditEventRow(
-            event_id=event_id,
-            schema_version=1,
-            event_type=f"models.{prefix}_{decision.kind.value}",
-            aggregate_type=f"{prefix}_model",
-            aggregate_id=f"{decision.identity_id}:{decision.counterparty_id}",
-            occurred_at=decision.decided_at,
-            trace_id=decision.trace_id,
-            details={
-                "decision_id": decision.decision_id,
-                "source_interaction_id": decision.source_interaction_id,
-                "formation_version": decision.formation_version,
-                "policy_version": decision.policy_version,
-                "reason_code": decision.reason_code,
-                "claim_ids": list(claim_ids),
-                "created_count": getattr(decision, f"{prefix}_created_count"),
-                "merged_count": getattr(decision, f"{prefix}_merged_count"),
-                "superseded_count": getattr(decision, f"{prefix}_superseded_count"),
-                "disputed_count": getattr(decision, f"{prefix}_disputed_count"),
-                "rejected_count": getattr(decision, f"{prefix}_rejected_count"),
-            },
+        return bind_metadata(
+            self._session,
+            AuditEventRow(
+                event_id=event_id,
+                schema_version=1,
+                event_type=f"models.{prefix}_{decision.kind.value}",
+                aggregate_type=f"{prefix}_model",
+                aggregate_id=f"{decision.identity_id}:{decision.counterparty_id}",
+                occurred_at=decision.decided_at,
+                trace_id=decision.trace_id,
+                details={
+                    "decision_id": decision.decision_id,
+                    "source_interaction_id": decision.source_interaction_id,
+                    "formation_version": decision.formation_version,
+                    "policy_version": decision.policy_version,
+                    "reason_code": decision.reason_code,
+                    "claim_ids": list(claim_ids),
+                    "created_count": getattr(decision, f"{prefix}_created_count"),
+                    "merged_count": getattr(decision, f"{prefix}_merged_count"),
+                    "superseded_count": getattr(decision, f"{prefix}_superseded_count"),
+                    "disputed_count": getattr(decision, f"{prefix}_disputed_count"),
+                    "rejected_count": getattr(decision, f"{prefix}_rejected_count"),
+                },
+            ),
+            family=AuditMetadataFamily.USER_MODEL_FORMATION
+            if owner is ModelOwner.USER
+            else AuditMetadataFamily.WORLD_MODEL_FORMATION,
+            identity_id=decision.identity_id,
+            owner_record_id=decision.decision_id,
+            source_input_id=source_input_id,
         )

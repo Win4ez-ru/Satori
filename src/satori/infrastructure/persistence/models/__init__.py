@@ -5,10 +5,19 @@ from satori.infrastructure.persistence.models.affect import (
     AffectiveStateRow,
     AffectiveTransitionRow,
 )
+from satori.infrastructure.persistence.models.audit_metadata import AuditMetadataBindingRow
 from satori.infrastructure.persistence.models.conversation import (
     ConversationInteractionRow,
     ConversationMessageRow,
     ConversationSessionRow,
+)
+from satori.infrastructure.persistence.models.erasure_bodies import (
+    ErasureBodyApplicationRow,
+    ErasureBodyBindingRow,
+)
+from satori.infrastructure.persistence.models.erasure_intent import (
+    ErasurePolicyBindingRow,
+    ErasurePreparationRow,
 )
 from satori.infrastructure.persistence.models.initial_self import (
     AuditEventRow,
@@ -22,6 +31,7 @@ from satori.infrastructure.persistence.models.memory import (
     EpisodeFormationDecisionRow,
     EpisodicMemoryRow,
     MemoryEvidenceRow,
+    MemoryLifecycleDecisionRow,
 )
 from satori.infrastructure.persistence.models.models import (
     ModelFormationDecisionRow,
@@ -68,11 +78,20 @@ from satori.infrastructure.persistence.models.semantic import (
     SemanticClaimRow,
     SemanticFormationDecisionRow,
 )
+from satori.infrastructure.persistence.models.source_policy import (
+    OwnerSourceWithdrawalRow,
+    SourceExcludedRootRow,
+    SourceInputRow,
+    SourceOwnerRepairRow,
+    SourcePayloadRow,
+    SourcePolicyBindingRow,
+)
 
 __all__ = (
     "AffectiveStateRow",
     "AffectiveTransitionRow",
     "AuditEventRow",
+    "AuditMetadataBindingRow",
     "Base",
     "ConversationInteractionRow",
     "ConversationMessageRow",
@@ -80,10 +99,16 @@ __all__ = (
     "EpisodeFormationDecisionRow",
     "EpisodicMemoryEmbeddingRow",
     "EpisodicMemoryRow",
+    "ErasureBodyApplicationRow",
+    "ErasureBodyBindingRow",
+    "ErasurePolicyBindingRow",
+    "ErasurePreparationRow",
     "InclinationEvidenceRow",
     "InclinationRevisionRow",
     "MemoryEvidenceRow",
+    "MemoryLifecycleDecisionRow",
     "ModelFormationDecisionRow",
+    "OwnerSourceWithdrawalRow",
     "PersonalityCheckpointApprovalRow",
     "PersonalityCheckpointRow",
     "PersonalityCheckpointTraitRow",
@@ -110,6 +135,11 @@ __all__ = (
     "SemanticClaimRevisionRow",
     "SemanticClaimRow",
     "SemanticFormationDecisionRow",
+    "SourceExcludedRootRow",
+    "SourceInputRow",
+    "SourceOwnerRepairRow",
+    "SourcePayloadRow",
+    "SourcePolicyBindingRow",
     "UserModelClaimEvidenceRow",
     "UserModelClaimRevisionRow",
     "UserModelClaimRow",

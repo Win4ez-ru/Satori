@@ -112,6 +112,7 @@ def create_interaction(
         settings(counterparty_id),
         clock=FrozenClock(INTERACTION_TIME + timedelta(days=day)),
         id_generator=id_sequence(prefix),
+        source_policy_required=False,
     )
     reply = asyncio.run(
         services.talk.execute(TalkInput(content, f"trace-{prefix}", f"request-{prefix}"))
@@ -181,6 +182,7 @@ def test_atomic_replay_restart_export_and_cross_counterparty_evidence(
         settings("alice"),
         clock=FrozenClock(INTERACTION_TIME + timedelta(days=4)),
         id_generator=id_sequence("position-context"),
+        source_policy_required=False,
     )
     context_reply = asyncio.run(
         context_services.talk.execute(
@@ -259,6 +261,7 @@ def test_post_response_position_failure_preserves_committed_reply(
         clock=FrozenClock(INTERACTION_TIME + timedelta(days=1)),
         id_generator=id_sequence("position-failure"),
         position_provider=provider,
+        source_policy_required=False,
     )
 
     async def execute() -> tuple[str, str, PostResponseReport]:

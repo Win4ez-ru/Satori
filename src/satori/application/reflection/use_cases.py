@@ -13,6 +13,11 @@ from satori.application.reflection.ports import (
     ReflectionGenerationPort,
     ReflectionUnitOfWork,
 )
+from satori.application.source_policy.admission import prepare_source_input, require_source_inputs
+from satori.application.source_policy.dispatch import (
+    admit_provider_dispatch,
+    source_dispatch_admission,
+)
 from satori.core.clock import Clock
 from satori.core.ids import IdGenerator
 from satori.core.inclinations import (
@@ -45,6 +50,7 @@ from satori.core.reflection import (
     ReflectionSource,
     ReflectionTargetOwner,
 )
+from satori.domain.erasure_reflection import ReflectionProposalHeader
 from satori.domain.inclinations import (
     INCLINATION_POLICY_VERSION,
     InclinationDecisionKind,
@@ -99,6 +105,7 @@ from satori.domain.reflection import (
     source_set_hash,
     validate_candidate_sources,
 )
+from satori.domain.source_policy import PayloadRef
 
 ReflectionUnitOfWorkFactory = Callable[[], ReflectionUnitOfWork]
 PositionsUnitOfWorkFactory = Callable[[], PositionsUnitOfWork]
@@ -122,6 +129,7 @@ class ReflectionInspection:
     attempts: tuple[ReflectionAttempt, ...]
     proposals: tuple[ReflectionProposal, ...]
     outcomes: tuple[ReflectionOutcome, ...]
+    unavailable_proposals: tuple[ReflectionProposalHeader, ...] = ()
 
 
 @dataclass(slots=True)
@@ -164,6 +172,7 @@ class GetReflections:
                 attempts=unit.reflection.list_attempts(run_id),
                 proposals=unit.reflection.list_proposals(run_id),
                 outcomes=unit.reflection.list_outcomes(run_id),
+                unavailable_proposals=unit.reflection.list_unavailable_proposal_headers(run_id),
             )
 
 
@@ -401,6 +410,21 @@ class ProcessReflection:
                 for item in stored_positions[:REFLECTION_MAX_TARGET_POSITIONS]
             )
             max_proposals = REFLECTION_MAX_PROPOSALS
+        with self.reflection_uow_factory() as unit:
+            input_id = prepare_source_input(
+                unit,
+                root_message_ids=tuple(item.root_message_id for item in sources),
+                payload_refs=(
+                    *(
+                        PayloadRef("position", item.position_id, item.aggregate_version)
+                        for item in positions
+                    ),
+                    *(
+                        PayloadRef("inclination", item.inclination_id, item.aggregate_version)
+                        for item in inclinations[:REFLECTION_MAX_TARGET_INCLINATIONS]
+                    ),
+                ),
+            )
         request = ReflectionGenerationRequest(
             schema_version=run.schema_version,
             trace_id=trace_id,
@@ -417,7 +441,9 @@ class ProcessReflection:
         )
         started_at = self.clock.now()
         try:
-            response = await self.provider.generate_structured(request)
+            with source_dispatch_admission(self.reflection_uow_factory, input_id):
+                admit_provider_dispatch()
+                response = await self.provider.generate_structured(request)
             if response.document.schema_version != run.schema_version:
                 raise ValueError("reflection response schema does not match its run")
             allowed = frozenset(item.source_id for item in sources)
@@ -466,9 +492,19 @@ class ProcessReflection:
             metrics=response.metrics.as_log_fields() if response.metrics is not None else {},
         )
         with self.reflection_uow_factory() as unit:
-            unit.reflection.record_attempt(
-                updated, attempt, proposals, expected_run_version=run.aggregate_version
-            )
+            require_source_inputs(unit, input_id)
+            if input_id is None:
+                unit.reflection.record_attempt(
+                    updated, attempt, proposals, expected_run_version=run.aggregate_version
+                )
+            else:
+                unit.reflection.record_attempt(
+                    updated,
+                    attempt,
+                    proposals,
+                    expected_run_version=run.aggregate_version,
+                    source_input_id=input_id,
+                )
             unit.commit()
         return ReflectionProcessReport(updated, attempt.reason_code, created, True)
 
@@ -637,13 +673,19 @@ class ApplyReflectionProposals:
             run = unit.reflection.get_run(run_id)
             if run is None:
                 raise ValueError("reflection run does not exist")
+            # Terminal replay depends only on retained run metadata. Source quotes and
+            # proposal bodies may have been independently erased after routing.
+            if run.status is ReflectionRunStatus.COMPLETED:
+                return run
+            if not run.status.requires_routing:
+                raise ValueError("reflection run has no proposals ready for routing")
+            proposal_ids = unit.reflection.list_proposal_ids(run_id)
             proposals = unit.reflection.list_proposals(run_id)
             outcomes = unit.reflection.list_outcomes(run_id)
+            completed_ids = {item.proposal_id for item in outcomes}
+            if set(proposal_ids) - completed_ids - {item.proposal_id for item in proposals}:
+                raise ValueError("reflection proposal body is unavailable")
             sources = unit.reflection.load_generation_sources(run_id)
-        if run.status is ReflectionRunStatus.COMPLETED:
-            return run
-        if not run.status.requires_routing:
-            raise ValueError("reflection run has no proposals ready for routing")
         if run.status is ReflectionRunStatus.PROPOSALS_READY:
             applying = replace(
                 run,
@@ -702,6 +744,11 @@ class ApplyReflectionProposals:
             )
             now = self.clock.now()
             with self.positions_uow_factory() as unit:
+                input_id = prepare_source_input(
+                    unit,
+                    root_message_ids=tuple(item.root_message_id for item in source_by_id.values()),
+                    payload_refs=(PayloadRef("reflection_proposal", proposal.proposal_id),),
+                )
                 existing = unit.positions.list_positions(
                     identity_id=run.identity_id, current_only=False
                 )
@@ -753,12 +800,13 @@ class ApplyReflectionProposals:
                     identity_id=run.identity_id,
                     trace_id=trace_id,
                     audit_event_id=self.id_generator.new(),
+                    source_input_id=input_id,
                 )
                 unit.commit()
 
         with self.reflection_uow_factory() as unit:
             terminal_outcomes = unit.reflection.list_outcomes(run_id)
-            if len(terminal_outcomes) != len(proposals):
+            if {item.proposal_id for item in terminal_outcomes} != set(proposal_ids):
                 raise RuntimeError("reflection routing left nonterminal proposals")
             latest = unit.reflection.get_run(run_id)
             if latest is None:
@@ -805,12 +853,22 @@ class ApplyReflectionProposals:
             )
         now = self.clock.now()
         with self.positions_uow_factory() as unit:
+            input_id = prepare_source_input(
+                unit,
+                root_message_ids=tuple(item.root_message_id for item in source_by_id.values()),
+                payload_refs=(PayloadRef("reflection_proposal", proposal.proposal_id),),
+            )
             existing = unit.positions.list_inclinations(identity_id=run.identity_id)
+            held_lookup = getattr(unit.positions, "list_held_inclination_keys", None)
+            held_keys = (
+                held_lookup(identity_id=run.identity_id) if held_lookup is not None else frozenset()
+            )
             evaluation = self.manager.evaluate_inclination(
                 candidate,
                 identity_id=run.identity_id,
                 sources=tuple(owner_sources),
                 existing_inclinations=existing,
+                held_keys=held_keys,
                 reflection_outcome_id=outcome_id,
                 now=now,
                 new_id=self.id_generator.new,
@@ -840,6 +898,7 @@ class ApplyReflectionProposals:
                 identity_id=run.identity_id,
                 trace_id=trace_id,
                 audit_event_id=self.id_generator.new(),
+                source_input_id=input_id,
             )
             unit.commit()
 

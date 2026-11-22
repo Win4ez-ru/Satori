@@ -8,18 +8,20 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from satori.application.personality.ports import (
+    PersonalityCheckpointApprovalHeader,
     PersonalityCheckpointApprovalRecord,
     PersonalityCheckpointRecord,
     PersonalityEvidenceRecord,
     PersonalityEvidenceWrite,
     PersonalityEvolutionWrite,
-    PersonalityRestoreEventRecord,
+    PersonalityRestoreEventHeader,
     PersonalityRestoreWrite,
     PersonalityRevisionRecord,
     PersonalityTraitDiff,
     PersonalityUnitOfWork,
     ResolvedPersonalitySource,
 )
+from satori.application.source_policy.admission import prepare_source_input
 from satori.core.clock import Clock
 from satori.core.ids import IdGenerator
 from satori.core.personality import (
@@ -60,6 +62,7 @@ from satori.domain.reflection import (
     ReflectionOutcomeDecision,
     reflection_outcome_id,
 )
+from satori.domain.source_policy import PayloadRef
 
 PersonalityUnitOfWorkFactory = Callable[[], PersonalityUnitOfWork]
 
@@ -130,8 +133,8 @@ class PersonalityInspection:
     checkpoints: tuple[PersonalityCheckpointRecord, ...]
     revisions: tuple[PersonalityRevisionRecord, ...]
     evidence: tuple[PersonalityEvidenceRecord, ...]
-    approvals: tuple[PersonalityCheckpointApprovalRecord, ...]
-    restores: tuple[PersonalityRestoreEventRecord, ...]
+    approvals: tuple[PersonalityCheckpointApprovalHeader, ...]
+    restores: tuple[PersonalityRestoreEventHeader, ...]
     budgets: PersonalityBudgetInspection
 
 
@@ -204,6 +207,11 @@ class ApplyPersonalityReflection:
                 reflection_proposal_id=reflection_proposal_id,
                 proposal=proposal,
             )
+            input_id = prepare_source_input(
+                unit,
+                root_message_ids=tuple(item.source.root_message_id for item in resolved),
+                payload_refs=(PayloadRef("reflection_proposal", reflection_proposal_id),),
+            )
             approved = unit.personality.get_approved_checkpoint(identity_id)
             if approved is None:
                 raise CorruptSatoriState("personality approved checkpoint is missing")
@@ -253,6 +261,7 @@ class ApplyPersonalityReflection:
             recorded = unit.personality.record_reflection_decision(
                 outcome,
                 evolution,
+                source_input_id=input_id,
                 identity_id=identity_id,
                 trace_id=trace_id,
                 audit_event_id=self.id_generator.new(),
@@ -363,8 +372,8 @@ class GetPersonalityEvolution:
                 checkpoints=unit.personality.list_checkpoints(identity_id),
                 revisions=unit.personality.list_revisions(identity_id),
                 evidence=unit.personality.list_evidence(identity_id),
-                approvals=unit.personality.list_checkpoint_approvals(identity_id),
-                restores=unit.personality.list_restore_events(identity_id),
+                approvals=unit.personality.list_checkpoint_approval_headers(identity_id),
+                restores=unit.personality.list_restore_headers(identity_id),
                 budgets=_budget_inspection(
                     personality,
                     activation=activation.snapshot,
@@ -439,6 +448,8 @@ class GetPersonalityEvolution:
                     "checkpoint_hash": item.checkpoint_hash,
                     "expected_aggregate_version": item.expected_aggregate_version,
                     "approved_at": item.approved_at.isoformat(),
+                    "reason_state": item.reason_state,
+                    "reason_action_id": item.reason_action_id,
                 }
                 for item in inspection.approvals
             ],
@@ -453,6 +464,8 @@ class GetPersonalityEvolution:
                     "after_aggregate_version": item.after_aggregate_version,
                     "trait_diffs": [_trait_diff_payload(diff) for diff in item.trait_diffs],
                     "restored_at": item.restored_at.isoformat(),
+                    "reason_state": item.reason_state,
+                    "reason_action_id": item.reason_action_id,
                 }
                 for item in inspection.restores
             ],
@@ -473,12 +486,12 @@ class ApprovePersonalityCheckpoint:
         proposal: PersonalityCheckpointApprovalProposal,
         *,
         trace_id: str,
-    ) -> PersonalityCheckpointApprovalRecord:
+    ) -> PersonalityCheckpointApprovalRecord | PersonalityCheckpointApprovalHeader:
         with self.unit_of_work_factory() as unit:
             existing = next(
                 (
                     item
-                    for item in unit.personality.list_checkpoint_approvals(identity_id)
+                    for item in unit.personality.list_checkpoint_approval_headers(identity_id)
                     if item.checkpoint_id == proposal.checkpoint_id
                 ),
                 None,
@@ -486,7 +499,13 @@ class ApprovePersonalityCheckpoint:
             if existing is not None:
                 if existing.checkpoint_hash != proposal.checkpoint_hash:
                     raise CorruptSatoriState("checkpoint approval hash changed")
-                return existing
+                if existing.reason_state == "erased":
+                    return existing
+                return next(
+                    item
+                    for item in unit.personality.list_checkpoint_approvals(identity_id)
+                    if item.approval_id == existing.approval_id
+                )
             current = unit.personality.get_current(identity_id)
             checkpoint = unit.personality.get_checkpoint(proposal.checkpoint_id)
             if (
@@ -524,14 +543,20 @@ class ApprovePersonalityCheckpoint:
             replay = next(
                 (
                     item
-                    for item in unit.personality.list_checkpoint_approvals(identity_id)
+                    for item in unit.personality.list_checkpoint_approval_headers(identity_id)
                     if item.checkpoint_id == proposal.checkpoint_id
                 ),
                 None,
             )
             if replay is None:
                 raise RuntimeError("personality checkpoint approval replay disappeared")
-            return replay
+            if replay.reason_state == "erased":
+                return replay
+            return next(
+                item
+                for item in unit.personality.list_checkpoint_approvals(identity_id)
+                if item.approval_id == replay.approval_id
+            )
 
 
 @dataclass(frozen=True, slots=True)

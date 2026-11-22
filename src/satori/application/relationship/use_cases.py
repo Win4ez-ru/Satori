@@ -2,16 +2,23 @@
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from satori.application.relationship.contracts import (
+    RELATIONSHIP_EXPRESSION_CONTEXT_SCHEMA_VERSION,
+    RelationshipBackfillReport,
     RelationshipExpressionContext,
     RelationshipHistory,
     RelationshipProcessingReport,
     RelationshipStatus,
 )
 from satori.application.relationship.ports import RelationshipUnitOfWork
+from satori.application.source_policy.admission import prepare_source_input, require_source_inputs
+from satori.application.source_policy.dispatch import (
+    admit_provider_dispatch,
+    source_dispatch_admission,
+)
 from satori.core.clock import Clock
 from satori.core.ids import IdGenerator
 from satori.core.ports.providers import StructuredGenerationPort
@@ -21,9 +28,12 @@ from satori.core.relationship import (
     RelationshipAppraisalResponse,
 )
 from satori.domain.relationship import (
+    NEGATIVE_CATEGORIES,
     RELATIONSHIP_APPRAISAL_SCHEMA_VERSION,
     RELATIONSHIP_POLICY_VERSION,
     RelationshipDecision,
+    RelationshipDecisionKind,
+    RelationshipEventCategory,
     RelationshipManager,
     RelationshipState,
     RelationshipTransition,
@@ -64,13 +74,47 @@ def _centered_level(value: float, maturity: float) -> str:
     return "very_high"
 
 
-def expression_for(state: RelationshipState) -> RelationshipExpressionContext:
+def _recent_strain(
+    state: RelationshipState,
+    transitions: Sequence[RelationshipTransition],
+) -> bool:
+    """Derive a short relationship-expression arc only from owner-committed transitions."""
+
+    recent = tuple(transitions)
+    if not recent:
+        return False
+    latest = recent[0]
+    if (
+        latest.relationship_id != state.relationship_id
+        or latest.after.state_version > state.state_version
+        or latest.after.processed_interaction_count != state.processed_interaction_count
+    ):
+        return False
+    latest_categories = set(latest.categories)
+    if latest_categories.intersection(NEGATIVE_CATEGORIES):
+        return True
+    if RelationshipEventCategory.REPAIR_ATTEMPT not in latest_categories or len(recent) < 2:
+        return False
+    previous = recent[1]
+    if (
+        previous.relationship_id != state.relationship_id
+        or latest.before.processed_interaction_count != previous.after.processed_interaction_count
+    ):
+        return False
+    return bool(set(previous.categories).intersection(NEGATIVE_CATEGORIES))
+
+
+def expression_for(
+    state: RelationshipState,
+    *,
+    recent_transitions: Sequence[RelationshipTransition] = (),
+) -> RelationshipExpressionContext:
     """Project evidence maturity separately so neutral midpoints do not claim certainty."""
 
     maturity = state.maturity
     vector = state.vector
     return RelationshipExpressionContext(
-        schema_version=1,
+        schema_version=RELATIONSHIP_EXPRESSION_CONTEXT_SCHEMA_VERSION,
         state_version=state.state_version,
         maturity=("low" if maturity < 0.25 else "developing" if maturity < 0.6 else "established"),
         familiarity=_level(vector.familiarity),
@@ -79,6 +123,7 @@ def expression_for(state: RelationshipState) -> RelationshipExpressionContext:
         closeness=_level(vector.closeness),
         intellectual_respect=_centered_level(vector.intellectual_respect, maturity),
         affection=_level(vector.affection),
+        recent_strain=_recent_strain(state, recent_transitions),
     )
 
 
@@ -120,7 +165,13 @@ class GetRelationshipForSession:
         if target is None:
             raise ValueError("relationship session does not exist")
         identity_id, counterparty_id = target
-        return expression_for(self.ensure.execute(identity_id, counterparty_id))
+        self.ensure.execute(identity_id, counterparty_id)
+        with self.unit_of_work_factory() as unit_of_work:
+            state = unit_of_work.relationship.get_state(identity_id, counterparty_id)
+            if state is None:
+                raise RuntimeError("relationship state disappeared during expression projection")
+            recent = unit_of_work.relationship.list_transitions(state.relationship_id, limit=2)
+        return expression_for(state, recent_transitions=recent)
 
 
 @dataclass(slots=True)
@@ -141,12 +192,15 @@ class ProcessRelationshipForInteraction:
         with self.unit_of_work_factory() as unit_of_work:
             existing = unit_of_work.relationship.get_decision(interaction_id)
             source = unit_of_work.relationship.get_source(interaction_id)
-            if existing is not None:
-                return self._replay(existing, total_started)
             if source is None or not source.processing_required:
                 raise ValueError("interaction is not eligible for Stage 8 relationship processing")
+            if existing is not None:
+                return self._replay(existing, total_started)
             if unit_of_work.relationship.has_earlier_undecided_source(source):
                 raise ValueError("an earlier relationship source must be processed first")
+            input_id = prepare_source_input(
+                unit_of_work, root_message_ids=(source.user_message_id,)
+            )
         self.ensure.execute(source.identity_id, source.counterparty_id)
 
         appraisal_started = self.monotonic()
@@ -155,16 +209,18 @@ class ProcessRelationshipForInteraction:
             extra={"satori_fields": {"interaction_id": interaction_id}},
         )
         try:
-            response = await self.provider.generate_structured(
-                RelationshipAppraisalRequest(
-                    schema_version=RELATIONSHIP_APPRAISAL_SCHEMA_VERSION,
-                    interaction_id=source.interaction_id,
-                    user_message_id=source.user_message_id,
-                    user_content=source.user_content,
-                    observed_at=source.completed_at,
-                    trace_id=trace_id,
+            with source_dispatch_admission(self.unit_of_work_factory, input_id):
+                admit_provider_dispatch()
+                response = await self.provider.generate_structured(
+                    RelationshipAppraisalRequest(
+                        schema_version=RELATIONSHIP_APPRAISAL_SCHEMA_VERSION,
+                        interaction_id=source.interaction_id,
+                        user_message_id=source.user_message_id,
+                        user_content=source.user_content,
+                        observed_at=source.completed_at,
+                        trace_id=trace_id,
+                    )
                 )
-            )
         except Exception as error:
             self.logger.warning(
                 "relationship_appraisal_failed",
@@ -206,6 +262,7 @@ class ProcessRelationshipForInteraction:
 
         commit_started = self.monotonic()
         with self.unit_of_work_factory() as unit_of_work:
+            require_source_inputs(unit_of_work, input_id)
             repository = unit_of_work.relationship
             existing = repository.get_decision(interaction_id)
             if existing is not None:
@@ -272,6 +329,7 @@ class ProcessRelationshipForInteraction:
                 after=mutation.state_after_processing,
                 transition=transition,
                 audit_event_id=self.id_generator.new(),
+                source_input_id=input_id,
             ):
                 replay = repository.get_decision(interaction_id)
                 if replay is None:
@@ -338,6 +396,70 @@ class ProcessRelationshipForInteraction:
             relationship_commit_ms=0.0,
             total_ms=(self.monotonic() - total_started) * 1000,
             replayed=True,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class BackfillRelationships:
+    """Explicitly recover eligible relationship sources in canonical order."""
+
+    unit_of_work_factory: RelationshipUnitOfWorkFactory
+    process_relationship: ProcessRelationshipForInteraction
+
+    async def execute(
+        self,
+        identity_id: str,
+        counterparty_id: str,
+        *,
+        limit: int,
+    ) -> RelationshipBackfillReport:
+        if limit < 1:
+            raise ValueError("relationship backfill limit must be positive")
+        with self.unit_of_work_factory() as unit_of_work:
+            source_ids = tuple(
+                unit_of_work.relationship.list_unprocessed_source_ids(
+                    identity_id,
+                    counterparty_id,
+                    limit=limit,
+                )
+            )
+            sources = tuple(
+                unit_of_work.relationship.get_source(interaction_id)
+                for interaction_id in source_ids
+            )
+        if any(source is None for source in sources):
+            raise RuntimeError("relationship backfill source disappeared")
+
+        attempted = applied = skipped = rejected = replayed = failed = 0
+        for interaction_id, source in zip(source_ids, sources, strict=True):
+            assert source is not None
+            attempted += 1
+            try:
+                report = await self.process_relationship.execute(
+                    interaction_id,
+                    trace_id=source.trace_id,
+                )
+            except Exception:
+                failed += 1
+                break
+            if report.replayed:
+                replayed += 1
+            elif report.decision_kind == RelationshipDecisionKind.APPLIED.value:
+                applied += 1
+            elif report.decision_kind == RelationshipDecisionKind.SKIPPED.value:
+                skipped += 1
+            elif report.decision_kind == RelationshipDecisionKind.REJECTED.value:
+                rejected += 1
+            else:
+                raise RuntimeError("relationship backfill received an unknown decision kind")
+        return RelationshipBackfillReport(
+            considered=len(source_ids),
+            attempted=attempted,
+            applied=applied,
+            skipped=skipped,
+            rejected=rejected,
+            replayed=replayed,
+            failed=failed,
         )
 
 

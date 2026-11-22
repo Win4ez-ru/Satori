@@ -6,6 +6,8 @@ from typing import Protocol
 from satori.application.conversation.ports import ConversationHistoryRepository
 from satori.application.unit_of_work import UnitOfWork
 from satori.domain.affect import AffectiveStateSnapshot, AffectiveTransition
+from satori.domain.affect_history import AffectiveTransitionHeader, AffectiveTransitionHistory
+from satori.domain.erasure_appraisal import AppraisalBodyTarget
 
 
 class AffectiveStateRepository(Protocol):
@@ -23,7 +25,28 @@ class AffectiveStateRepository(Protocol):
     def list_transitions(self, *, limit: int | None = None) -> Sequence[AffectiveTransition]:
         """Return newest-first immutable transition records."""
 
-    def apply_transition(self, transition: AffectiveTransition, *, audit_event_id: str) -> bool:
+    def list_transition_headers(
+        self, *, limit: int | None = None
+    ) -> Sequence[AffectiveTransitionHeader]:
+        """Return metadata without loading unavailable explanations."""
+
+    def list_numerical_history(
+        self, *, limit: int | None = None
+    ) -> Sequence[AffectiveTransitionHistory]:
+        """Return all retained numerical records, including unavailable explanations."""
+
+    def erase_explanation_bodies(
+        self, targets: tuple[AppraisalBodyTarget, ...], *, action_id: str
+    ) -> None:
+        """Clear exact paired explanation copies without committing the transaction."""
+
+    def apply_transition(
+        self,
+        transition: AffectiveTransition,
+        *,
+        audit_event_id: str,
+        source_input_id: str | None = None,
+    ) -> bool:
         """Optimistically apply one transition and audit; False means exact replay."""
 
 

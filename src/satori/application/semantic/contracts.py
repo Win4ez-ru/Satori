@@ -3,6 +3,8 @@
 import json
 from dataclasses import dataclass
 
+from satori.domain.source_policy import PayloadRef
+
 
 @dataclass(frozen=True, slots=True)
 class RetrievedSemanticClaim:
@@ -26,6 +28,7 @@ class RetrievedSemanticContext:
 
     status: str
     claims: tuple[RetrievedSemanticClaim, ...]
+    source_payload_refs: tuple[PayloadRef, ...] = ()
 
     @property
     def claim_ids(self) -> tuple[str, ...]:

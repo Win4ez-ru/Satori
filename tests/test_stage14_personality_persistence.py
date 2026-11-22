@@ -197,6 +197,7 @@ def _seed_personality_run(
                     session_id=session_id,
                     identity_id=identity_id,
                     counterparty_id="local-default",
+                    scope_verified=True,
                     schema_version=1,
                     kind="implicit",
                     status="closed",

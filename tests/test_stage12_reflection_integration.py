@@ -304,6 +304,7 @@ def test_serial_post_response_invokes_automatic_reflection_only_after_derived_wo
         id_generator=id_sequence("post-response-reflection"),
         position_provider=FakePositionProvider(),
         reflection_provider=provider,
+        source_policy_required=False,
     )
 
     report = asyncio.run(
@@ -349,6 +350,7 @@ def test_post_response_reports_automatic_reflection_provider_failure(
         id_generator=id_sequence("post-response-reflection-failure"),
         position_provider=FakePositionProvider(),
         reflection_provider=provider,
+        source_policy_required=False,
     )
 
     report = asyncio.run(
@@ -510,6 +512,7 @@ def test_target_transaction_rolls_back_outcome_and_position_then_resumes(
         identity_id: str,
         trace_id: str,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool:
         original(
             repository,
@@ -518,6 +521,7 @@ def test_target_transaction_rolls_back_outcome_and_position_then_resumes(
             identity_id=identity_id,
             trace_id=trace_id,
             audit_event_id=audit_event_id,
+            source_input_id=source_input_id,
         )
         raise RuntimeError("controlled failure after target record")
 

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from satori.core.models import ModelEpistemicKind, ModelScalar, ModelValueKind
+from satori.domain.source_policy import PayloadRef
 from satori.domain.validation import aware_utc, non_blank, positive_version, unit_interval
 
 CURRENT_MODELS_CONTEXT_SCHEMA_VERSION = 1
@@ -55,6 +56,7 @@ class CurrentModelsContext:
     user_claims: tuple[CurrentModelContextClaim, ...]
     world_claims: tuple[CurrentModelContextClaim, ...]
     excluded_claim_count: int
+    source_payload_refs: tuple[PayloadRef, ...] = ()
 
     def __post_init__(self) -> None:
         positive_version(self.schema_version, "current models context schema_version")

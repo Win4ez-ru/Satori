@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from satori.composition import build_initial_self_services
 from satori.domain.audit import ActivationAuditEvent
@@ -252,8 +253,30 @@ def test_missing_activation_audit_is_detected_as_corruption(
     """A core mutation without its required audit cannot load as healthy state."""
 
     activate(migrated_database)
-    with migrated_database.engine.begin() as connection:
+    with (
+        pytest.raises(IntegrityError, match="audit_metadata_immutable"),
+        migrated_database.engine.begin() as connection,
+    ):
         connection.execute(text("DELETE FROM audit_events"))
+    # Inject damaged storage beyond the normal write barrier in this disposable fixture.
+    with migrated_database.engine.connect() as connection:
+        guard = connection.exec_driver_sql(
+            "SELECT sql FROM sqlite_schema WHERE type='trigger' "
+            "AND name='audit_events_metadata_delete'"
+        ).scalar_one()
+        assert isinstance(guard, str)
+        connection.commit()
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.commit()
+        try:
+            with connection.begin():
+                connection.exec_driver_sql("DROP TRIGGER audit_events_metadata_delete")
+                connection.execute(text("DELETE FROM audit_events"))
+                connection.exec_driver_sql(guard)
+        finally:
+            connection.rollback()
+            connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+            assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 1
 
     with pytest.raises(CorruptSatoriState):
         build_initial_self_services(migrated_database).get_self.execute()

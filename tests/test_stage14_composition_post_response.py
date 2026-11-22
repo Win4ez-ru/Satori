@@ -47,6 +47,9 @@ _TEST_NOW = datetime(2026, 8, 23, tzinfo=UTC)
 
 @dataclass(slots=True)
 class _InteractionLog:
+    def get_header(self, interaction_id: str) -> None:
+        assert interaction_id == "interaction-1"
+
     def get(self, interaction_id: str) -> SimpleNamespace:
         assert interaction_id == "interaction-1"
         return SimpleNamespace(
@@ -261,6 +264,7 @@ def test_composed_post_response_calls_no_reflection_provider_before_eligibility(
         clock=FrozenClock(INTERACTION_TIME),
         id_generator=id_sequence("stage14-ineligible-post"),
         reflection_provider=provider,
+        source_policy_required=False,
     )
 
     report = asyncio.run(
@@ -290,6 +294,7 @@ def test_composed_v3_router_commits_owner_and_survives_service_restart(
         clock=FrozenClock(NOW),
         id_generator=id_sequence("composition-routing"),
         reflection_provider=provider,
+        source_policy_required=False,
     )
 
     report = asyncio.run(
@@ -316,6 +321,7 @@ def test_composed_v3_router_commits_owner_and_survives_service_restart(
             settings("local-default"),
             clock=FrozenClock(NOW),
             id_generator=id_sequence("composition-restart"),
+            source_policy_required=False,
         )
         restarted_inspection = restarted.personality.evolution.inspect(fixture.identity_id)
     finally:

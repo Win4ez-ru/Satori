@@ -1,0 +1,19 @@
+{
+  "capability": "reviewed_reply_v1",
+  "wire_version": 2,
+  "read_wire_version": 1,
+  "native_schema_commit": "bc9c263e2bfee06aaab41e82db51a103376030bc",
+  "readonly_worker_sha256": "69235f84d83bc49a01fba8a4e342775027d2a1a433fbef5bb25e88c127bef910",
+  "commands": {
+    "reply_preview": ["action_id", "message_handle", "page_id", "text"],
+    "reply_approve": ["action_id", "confirmed", "payload_digest"],
+    "reply_send": ["action_id", "approval_id"],
+    "reply_reconcile": ["action_id"],
+    "reply_discard": []
+  },
+  "approval_max_seconds": 60,
+  "native_functions_added": ["sendMessage", "getMessage"],
+  "automatic_retries": false,
+  "terminal_update_is_send_receipt": false,
+  "live_send_acceptance": "NOT_RUN"
+}
