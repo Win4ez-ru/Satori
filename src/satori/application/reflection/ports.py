@@ -1,5 +1,6 @@
 """Application-owned ports for versioned Stage 12-14 reflection."""
 
+from datetime import datetime
 from typing import Protocol
 
 from satori.application.unit_of_work import UnitOfWork
@@ -10,6 +11,7 @@ from satori.core.reflection import (
     ReflectionPurpose,
     ReflectionSource,
 )
+from satori.domain.erasure_reflection import ReflectionBodyTarget, ReflectionProposalHeader
 from satori.domain.reflection import (
     ReflectionAttempt,
     ReflectionOutcome,
@@ -48,6 +50,15 @@ class PersonalityReflectionRouter(Protocol):
 
 
 class ReflectionRepository(Protocol):
+    def withdraw_source_support(
+        self,
+        *,
+        excluded_message_ids: frozenset[str],
+        request_id: str,
+        policy_generation: int,
+        now: datetime,
+    ) -> None: ...
+
     def list_runs(
         self,
         *,
@@ -76,6 +87,16 @@ class ReflectionRepository(Protocol):
 
     def list_proposals(self, run_id: str) -> tuple[ReflectionProposal, ...]: ...
 
+    def list_proposal_ids(self, run_id: str) -> tuple[str, ...]: ...
+
+    def list_unavailable_proposal_headers(
+        self, run_id: str
+    ) -> tuple[ReflectionProposalHeader, ...]: ...
+
+    def erase_payload_bodies(
+        self, targets: tuple[ReflectionBodyTarget, ...], *, action_id: str
+    ) -> None: ...
+
     def list_outcomes(self, run_id: str) -> tuple[ReflectionOutcome, ...]: ...
 
     def create_run(
@@ -89,6 +110,7 @@ class ReflectionRepository(Protocol):
         proposals: tuple[ReflectionProposal, ...],
         *,
         expected_run_version: int,
+        source_input_id: str | None = None,
     ) -> None: ...
 
     def record_outcome(

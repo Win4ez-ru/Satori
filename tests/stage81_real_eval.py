@@ -36,7 +36,8 @@ from satori.__main__ import (
     _configured_semantic_provider,
     _open_services,
 )
-from satori.application.conversation.contracts import SatoriReply, TalkInput
+from satori.application.conversation.contracts import BehaviorPolicy, SatoriReply, TalkInput
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V26
 from satori.application.conversation.post_processing import PostResponseReport
 from satori.application.conversation.response_validation import ResponseRegenerationReason
 from satori.application.conversation.use_cases import ConversationProvider
@@ -72,11 +73,12 @@ from satori.infrastructure.persistence.database import Database
 from satori.infrastructure.providers.inference_scheduler import OllamaInferenceScheduler
 from satori.infrastructure.providers.ollama_http import OllamaHttpClient
 from satori.infrastructure.seeds.loader import JsonSeedLoader
+from satori.infrastructure.source_policy.installation import enroll_installation
 from satori.observability.logging import configure_logging
 from satori.performance import distribution
 
 CORPUS_PATH = Path(__file__).parent / "fixtures" / "stage81_dialogue_coherence_v2.json"
-REPORT_SCHEMA_VERSION = 4
+REPORT_SCHEMA_VERSION = 5
 SUITES = (
     "exact",
     "coherence",
@@ -138,6 +140,9 @@ NEGATIVE_RELATIONSHIP_CATEGORIES = (
     "boundary_pressure",
 )
 
+# Keep this explicit so the generic real regression cannot silently lag production composition.
+EVALUATOR_BEHAVIOR_POLICY = BEHAVIOR_POLICY_V26
+
 
 @dataclass(frozen=True, slots=True)
 class ProviderAttempt:
@@ -185,6 +190,8 @@ class RecordingConversationProvider:
         try:
             response = await self.delegate.generate(request)
         except Exception as error:
+            typed_error = error if isinstance(error, ConversationProviderError) else None
+            usage = typed_error.usage if typed_error is not None else None
             self.attempts.append(
                 ProviderAttempt(
                     wall_ms=round((time.perf_counter() - started) * 1000, 3),
@@ -195,15 +202,18 @@ class RecordingConversationProvider:
                     request_content_chars=sum(len(message.content) for message in request.messages),
                     temperature=request.parameters.temperature,
                     max_output_tokens=request.parameters.max_output_tokens,
-                    input_tokens=None,
-                    output_tokens=None,
+                    input_tokens=(usage.input_tokens if usage is not None else None),
+                    output_tokens=(usage.output_tokens if usage is not None else None),
                     provider_metrics=(
-                        error.metrics.as_log_fields()
-                        if isinstance(error, ConversationProviderError)
-                        and error.metrics is not None
+                        typed_error.metrics.as_log_fields()
+                        if typed_error is not None and typed_error.metrics is not None
                         else None
                     ),
-                    finish_status=None,
+                    finish_status=(
+                        "completed"
+                        if typed_error is not None and typed_error.response_completed
+                        else None
+                    ),
                     succeeded=False,
                     error_type=type(error).__name__,
                 )
@@ -388,6 +398,7 @@ async def _condition_relationship(
     initial_self: InitialSelfServices,
     settings: Settings,
     conditioning: dict[str, int],
+    behavior_policy: BehaviorPolicy,
 ) -> dict[str, Any]:
     provider = FixedRelationshipProvider(POSITIVE_RELATIONSHIP_CATEGORIES)
     services = build_conversation_services(
@@ -397,6 +408,7 @@ async def _condition_relationship(
         SkipEpisodeProvider(),
         settings,
         relationship_provider=provider,
+        behavior_policy=behavior_policy,
     )
     id_generator = Uuid4Generator()
     processed = 0
@@ -456,16 +468,21 @@ async def _build_runtime(
     *,
     alembic_config: Path,
     conditioning: dict[str, int] | None = None,
+    behavior_policy: BehaviorPolicy = EVALUATOR_BEHAVIOR_POLICY,
 ) -> tuple[EvaluationRuntime, dict[str, Any] | None]:
     settings = base_settings.model_copy(
         update={
             "database_url": _database_url(database_path),
             "chat_log_path": str(database_path.with_suffix(".runtime.jsonl")),
+            "source_policy_directory": database_path.with_suffix(".source-policy"),
         }
     )
     database, initial_self = _open_services(settings, alembic_config=alembic_config)
     initial_self.activate.execute(
         JsonSeedLoader().load_canonical(), trace_id="stage81-real-eval-activation"
+    )
+    enroll_installation(
+        database, settings.source_policy_directory, reviewed=True, new_installation=True
     )
     conditioning_report = (
         await _condition_relationship(
@@ -473,6 +490,7 @@ async def _build_runtime(
             initial_self,
             settings,
             conditioning,
+            behavior_policy,
         )
         if conditioning is not None
         else None
@@ -537,6 +555,7 @@ async def _build_runtime(
             http_client=client(settings.relationship_appraisal_provider_base_url),
             scheduler=scheduler(settings.relationship_appraisal_provider_base_url),
         ),
+        behavior_policy=behavior_policy,
     )
     return (
         EvaluationRuntime(
@@ -601,13 +620,56 @@ def _sanitized_manifest(reply: SatoriReply) -> dict[str, Any]:
         "policy_id": manifest.policy_id,
         "policy_schema_version": manifest.policy_schema_version,
         "character_context_schema_version": manifest.character_context_schema_version,
+        "cognition_position_stance": manifest.cognition_position_stance,
+        "cognition_preserve_uncertainty": manifest.cognition_preserve_uncertainty,
+        "cognition_intent_registry_version": manifest.cognition_intent_registry_version,
+        "cognition_primary_intent": manifest.cognition_primary_intent,
+        "cognition_intent_tags": list(manifest.cognition_intent_tags),
+        "cognition_required_point_codes": list(manifest.cognition_required_point_codes),
+        "cognition_forbidden_claim_codes": list(manifest.cognition_forbidden_claim_codes),
+        "cognition_response_verbosity": manifest.cognition_response_verbosity,
+        "cognition_template_registry_version": manifest.cognition_template_registry_version,
+        "cognition_template_id": manifest.cognition_template_id,
+        "cognition_template_schema_version": manifest.cognition_template_schema_version,
         "character_expression_plan_schema_version": (
             manifest.character_expression_plan_schema_version
         ),
         "character_expression_register": manifest.character_expression_register,
         "character_owned_reaction": manifest.character_owned_reaction,
         "character_semantic_move": manifest.character_semantic_move,
+        "character_wit": manifest.character_wit,
+        "character_care": manifest.character_care,
+        "character_openness": manifest.character_openness,
+        "character_initiative": manifest.character_initiative,
         "character_relational_ease": manifest.character_relational_ease,
+        "character_contribution_mode": manifest.character_contribution_mode,
+        "character_delivery_decision_schema_version": (
+            manifest.character_delivery_decision_schema_version
+        ),
+        "character_delivery_goal": manifest.character_delivery_goal,
+        "character_delivery_voice": manifest.character_delivery_voice,
+        "character_delivery_grounding": manifest.character_delivery_grounding,
+        "character_delivery_continuation": manifest.character_delivery_continuation,
+        "character_delivery_pressure": manifest.character_delivery_pressure,
+        "character_delivery_position_stance": manifest.character_delivery_position_stance,
+        "character_delivery_preserve_uncertainty": (
+            manifest.character_delivery_preserve_uncertainty
+        ),
+        "character_presence_projection_schema_version": (
+            manifest.character_presence_projection_schema_version
+        ),
+        "character_presence_personality_signals": list(
+            manifest.character_presence_personality_signals
+        ),
+        "character_presence_value_signals": list(manifest.character_presence_value_signals),
+        "character_presence_affect_signals": list(manifest.character_presence_affect_signals),
+        "character_presence_relationship_signals": list(
+            manifest.character_presence_relationship_signals
+        ),
+        "character_motivational_posture": manifest.character_motivational_posture,
+        "character_pressure_level": manifest.character_pressure_level,
+        "character_acknowledgement_mode": manifest.character_acknowledgement_mode,
+        "character_continuation_mode": manifest.character_continuation_mode,
         "included_sections": list(manifest.included_sections),
         "user_content_chars": manifest.user_content_chars,
         "retrieval_status": manifest.retrieval_status,
@@ -619,11 +681,13 @@ def _sanitized_manifest(reply: SatoriReply) -> dict[str, Any]:
         "mood_state_version": manifest.mood_state_version,
         "relationship_state_version": manifest.relationship_state_version,
         "relationship_expression_profile": manifest.relationship_expression_profile,
+        "relationship_recent_strain": manifest.relationship_recent_strain,
         "affect_expression_profile": manifest.affect_expression_profile,
         "recent_conversation_turn_count": manifest.recent_conversation_turn_count,
         "recent_conversation_chars": manifest.recent_conversation_chars,
         "disclosure_primary_mode": manifest.disclosure_primary_mode,
         "disclosure_facets": list(manifest.disclosure_facets),
+        "disclosure_request_kind": manifest.disclosure_request_kind,
         "dialogue_coherence_schema_version": manifest.dialogue_coherence_schema_version,
         "consecutive_same_user_message_count": (manifest.consecutive_same_user_message_count),
         "recent_assistant_high_similarity": manifest.recent_assistant_high_similarity,

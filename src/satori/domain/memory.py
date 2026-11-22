@@ -1,8 +1,11 @@
 """Stage 4 episodic-memory owner policy and immutable records."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from satori.core.episode import EpisodeFormationProposal
 from satori.domain.conversation_history import (
@@ -11,6 +14,10 @@ from satori.domain.conversation_history import (
     InteractionStatus,
 )
 from satori.domain.validation import aware_utc, non_blank, positive_version, unit_interval
+
+if TYPE_CHECKING:
+    from satori.domain.memory_lifecycle import MemoryLifecycleDecision, MemoryLifecycleProposal
+    from satori.domain.memory_scope import MemoryScope
 
 EPISODIC_MEMORY_SCHEMA_VERSION = 1
 EPISODE_FORMATION_POLICY_VERSION = 1
@@ -35,9 +42,10 @@ class MemoryProvenanceKind(StrEnum):
 
 
 class MemoryLifecycleStatus(StrEnum):
-    """Minimal lifecycle before later forgetting/consolidation stages."""
+    """Owner-controlled episode recall availability, separate from source erasure."""
 
     ACTIVE = "active"
+    ARCHIVED = "archived"
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,10 +91,14 @@ class EpisodicMemory:
     formation_version: int
     lifecycle_status: MemoryLifecycleStatus
     evidence: tuple[EpisodicMemoryEvidence, ...]
+    aggregate_version: int = 1
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "memory_id", non_blank(self.memory_id, "memory_id", maximum=128))
         positive_version(self.schema_version, "memory schema_version")
+        positive_version(self.aggregate_version, "memory aggregate_version")
+        if not isinstance(self.lifecycle_status, MemoryLifecycleStatus):
+            raise ValueError("memory lifecycle_status must be a typed status")
         object.__setattr__(
             self,
             "source_interaction_id",
@@ -184,6 +196,31 @@ class EpisodeDecisionDraft:
 
 class MemoryManager:
     """Deterministically validate an untrusted episode proposal against its source."""
+
+    def evaluate_lifecycle(
+        self,
+        proposal: MemoryLifecycleProposal,
+        memory: EpisodicMemory,
+        *,
+        scope: MemoryScope,
+        decision_id: str,
+        decided_at: datetime,
+        trace_id: str,
+        approved_by: str = "local_operator",
+    ) -> MemoryLifecycleDecision:
+        """Approve a digest-bound local transition after canonical scope admission."""
+
+        from satori.domain.memory_lifecycle import evaluate_memory_lifecycle
+
+        return evaluate_memory_lifecycle(
+            proposal,
+            memory,
+            scope=scope,
+            decision_id=decision_id,
+            decided_at=decided_at,
+            trace_id=trace_id,
+            approved_by=approved_by,
+        )
 
     def evaluate(
         self,

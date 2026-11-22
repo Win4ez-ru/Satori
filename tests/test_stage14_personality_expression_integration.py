@@ -55,6 +55,7 @@ def _talk_at(
         id_generator=SequenceIdGenerator(
             *(f"{client_request_id}-personality-expression-{index}" for index in range(100))
         ),
+        source_policy_required=False,
     )
     return asyncio.run(
         conversation.talk.execute(
@@ -111,9 +112,13 @@ def test_evolved_expression_cue_is_persisted_reloaded_and_replayed_without_provi
     assert reply.context_manifest.personality_aggregate_version == 2
     assert reply.context_manifest.personality_expression_schema_version == 2
     assert reply.context_manifest.personality_expression_cues == expected_cues
-    assert "Чуть заметнее проявляй спокойный реалистичный оптимизм." in "\n".join(
-        message.content for message in provider.requests[0].messages
-    )
+    provider_context = "\n".join(message.content for message in provider.requests[0].messages)
+    assert "оставь направление вперёд без принудительной бодрости" in provider_context
+    assert "Trusted current-turn peer expression v35" in provider_context
+    assert "сохранять спокойный реалистичный оптимизм" not in provider_context
+    assert "сейчас чуть заметнее исходного уровня" not in provider_context
+    assert "Единая request-local режиссура реплики Сатори" not in provider_context
+    assert "Чуть заметнее проявляй спокойный реалистичный оптимизм." not in provider_context
 
     with SQLAlchemyConversationHistoryUnitOfWork(migrated_database.session_factory) as unit_of_work:
         stored = unit_of_work.conversation_history.get_by_client_request_id(

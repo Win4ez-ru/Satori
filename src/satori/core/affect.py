@@ -6,6 +6,9 @@ from datetime import datetime
 
 from satori.core.provider_metrics import ProviderExecutionMetrics
 
+APPRAISAL_PREVIOUS_EXCHANGE_SCHEMA_VERSION = 1
+APPRAISAL_PREVIOUS_EXCHANGE_MAX_CONTENT_CHARS = 2000
+
 
 def _non_blank(value: str, field_name: str, *, maximum: int = 500) -> str:
     if not isinstance(value, str) or not value.strip():
@@ -138,6 +141,42 @@ class AppraisalSemanticContext:
 
 
 @dataclass(frozen=True, slots=True)
+class AppraisalPreviousExchange:
+    """One prior available pair used as untrusted interpretation context, not new evidence."""
+
+    schema_version: int
+    interaction_id: str
+    user_message_id: str
+    user_content: str
+    assistant_message_id: str
+    assistant_content: str
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.schema_version) is not int
+            or self.schema_version != APPRAISAL_PREVIOUS_EXCHANGE_SCHEMA_VERSION
+        ):
+            raise ValueError("previous exchange schema_version is unsupported")
+        for field_name in ("interaction_id", "user_message_id", "assistant_message_id"):
+            object.__setattr__(
+                self,
+                field_name,
+                _non_blank(getattr(self, field_name), field_name, maximum=128),
+            )
+        if self.user_message_id == self.assistant_message_id:
+            raise ValueError("previous exchange user and assistant message IDs must differ")
+        for field_name in ("user_content", "assistant_content"):
+            content = getattr(self, field_name)
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError(f"previous exchange {field_name} must not be blank")
+        if (
+            len(self.user_content) + len(self.assistant_content)
+            > APPRAISAL_PREVIOUS_EXCHANGE_MAX_CONTENT_CHARS
+        ):
+            raise ValueError("previous exchange content exceeds the character bound")
+
+
+@dataclass(frozen=True, slots=True)
 class AffectiveAppraisalRequest:
     """Bounded trust-separated input for one current-user-event appraisal."""
 
@@ -152,16 +191,28 @@ class AffectiveAppraisalRequest:
     mood_state: AppraisalMoodState
     episodic_context: tuple[AppraisalEpisodicContext, ...] = ()
     semantic_context: tuple[AppraisalSemanticContext, ...] = ()
+    previous_exchange: AppraisalPreviousExchange | None = None
 
     def __post_init__(self) -> None:
-        if type(self.schema_version) is not int or self.schema_version < 1:
-            raise ValueError("appraisal request schema_version must be positive")
+        if type(self.schema_version) is not int or self.schema_version not in {1, 2}:
+            raise ValueError("appraisal request schema_version is unsupported")
+        if self.previous_exchange is not None and not isinstance(
+            self.previous_exchange, AppraisalPreviousExchange
+        ):
+            raise ValueError("previous_exchange must be a typed prior pair")
+        if (self.schema_version == 2) != (self.previous_exchange is not None):
+            raise ValueError("appraisal request schema 2 requires previous exchange context")
         object.__setattr__(self, "trace_id", _non_blank(self.trace_id, "trace_id", maximum=128))
         object.__setattr__(
             self,
             "interaction_id",
             _non_blank(self.interaction_id, "interaction_id", maximum=128),
         )
+        if (
+            self.previous_exchange is not None
+            and self.previous_exchange.interaction_id == self.interaction_id
+        ):
+            raise ValueError("previous exchange must differ from the current interaction")
         if self.appraised_at.tzinfo is None or self.appraised_at.utcoffset() is None:
             raise ValueError("appraised_at must be timezone-aware")
         if not isinstance(self.user_content, str) or not self.user_content.strip():

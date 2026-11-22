@@ -1,9 +1,13 @@
 # ADR 0014: Semantic memory, evidence and consolidation
 
-- Status: Accepted
+- Status: Superseded in part by [ADR-0055](0055-canonical-memory-scope-and-legacy-quarantine.md)
 - Date: 2026-07-30
 - Supersedes: none
 - Related: ADR 0005, ADR 0007, ADR 0012, ADR 0013
+
+ADR-0055 replaces installation-global claim identity with a proven counterparty namespace and
+requires complete same-scope evidence. Existing confidence, merge/conflict, revision and owner
+policies remain unchanged within each partition.
 
 ## Context
 

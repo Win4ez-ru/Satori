@@ -8,7 +8,10 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from satori.application.source_policy.dispatch import admit_provider_dispatch
 from satori.core.conversation import (
+    ConversationProviderError,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     ConversationProviderResponse,
     ConversationUsage,
@@ -39,21 +42,25 @@ class _OpenAITransport(Protocol):
 
 
 class _OpenAITextContent(BaseModel):
-    model_config = ConfigDict(extra="ignore", strict=True, str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="ignore", strict=True, str_strip_whitespace=True, hide_input_in_errors=True
+    )
 
     type: Literal["output_text"]
     text: str = Field(min_length=1)
 
 
 class _OpenAIRefusalContent(BaseModel):
-    model_config = ConfigDict(extra="ignore", strict=True, str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="ignore", strict=True, str_strip_whitespace=True, hide_input_in_errors=True
+    )
 
     type: Literal["refusal"]
     refusal: str = Field(min_length=1)
 
 
 class _OpenAIOutputMessage(BaseModel):
-    model_config = ConfigDict(extra="ignore", strict=True)
+    model_config = ConfigDict(extra="ignore", strict=True, hide_input_in_errors=True)
 
     type: Literal["message"]
     role: Literal["assistant"]
@@ -61,15 +68,23 @@ class _OpenAIOutputMessage(BaseModel):
 
 
 class _OpenAIOutputTokenDetails(BaseModel):
-    model_config = ConfigDict(extra="ignore", strict=True)
+    model_config = ConfigDict(extra="ignore", strict=True, hide_input_in_errors=True)
 
     reasoning_tokens: int | None = Field(default=None, ge=0)
 
 
+class _OpenAIInputTokenDetails(BaseModel):
+    model_config = ConfigDict(extra="ignore", strict=True, hide_input_in_errors=True)
+
+    cached_tokens: int | None = Field(default=None, ge=0)
+    cache_write_tokens: int | None = Field(default=None, ge=0)
+
+
 class _OpenAIUsage(BaseModel):
-    model_config = ConfigDict(extra="ignore", strict=True)
+    model_config = ConfigDict(extra="ignore", strict=True, hide_input_in_errors=True)
 
     input_tokens: int | None = Field(default=None, ge=0)
+    input_tokens_details: _OpenAIInputTokenDetails | None = None
     output_tokens: int | None = Field(default=None, ge=0)
     output_tokens_details: _OpenAIOutputTokenDetails | None = None
 
@@ -80,17 +95,29 @@ class _OpenAIIncompleteReason(StrEnum):
 
 
 class _OpenAIIncompleteDetails(BaseModel):
-    model_config = ConfigDict(extra="ignore", strict=True, str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="ignore", strict=True, str_strip_whitespace=True, hide_input_in_errors=True
+    )
 
     reason: str = Field(min_length=1)
 
 
 class _OpenAIResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore", strict=True, str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="ignore", strict=True, str_strip_whitespace=True, hide_input_in_errors=True
+    )
 
     model: str = Field(min_length=1)
-    status: Literal["completed", "incomplete", "failed", "cancelled"]
+    status: Literal[
+        "completed",
+        "incomplete",
+        "failed",
+        "cancelled",
+        "queued",
+        "in_progress",
+    ]
     output: list[object]
+    service_tier: Literal["default"]
     usage: _OpenAIUsage | None = None
     incomplete_details: _OpenAIIncompleteDetails | None = None
 
@@ -161,6 +188,8 @@ class OpenAIConversationAdapter:
             ],
             "max_output_tokens": provider_output_limit,
             "reasoning": {"effort": self.reasoning_effort},
+            "service_tier": "default",
+            "prompt_cache_options": {"mode": "explicit"},
             "store": False,
         }
         if self.reasoning_effort == "none":
@@ -172,6 +201,7 @@ class OpenAIConversationAdapter:
             pool_size=1,
         )
         try:
+            admit_provider_dispatch()
             body = client.post_json(
                 "/responses",
                 payload,
@@ -179,21 +209,34 @@ class OpenAIConversationAdapter:
                 max_response_bytes=MAX_HTTP_RESPONSE_BYTES,
             )
         except OpenAIHttpStatusError as error:
-            error_type = (
-                ProviderUnavailable
-                if error.status in {408, 409, 425, 429} or error.status >= 500
-                else GenerationFailed
-            )
+            error_type: type[ConversationProviderError]
+            if error.status == 429:
+                error_type = ProviderUnavailable
+                reason = ConversationProviderFailureReason.RATE_OR_QUOTA_LIMITED
+            elif error.status in {408, 409, 425} or error.status >= 500:
+                error_type = ProviderUnavailable
+                reason = ConversationProviderFailureReason.TEMPORARILY_UNAVAILABLE
+            elif error.status in {401, 403}:
+                error_type = GenerationFailed
+                reason = ConversationProviderFailureReason.CREDENTIALS_REJECTED
+            elif error.status == 404:
+                error_type = GenerationFailed
+                reason = ConversationProviderFailureReason.RESOURCE_NOT_FOUND
+            else:
+                error_type = GenerationFailed
+                reason = ConversationProviderFailureReason.REQUEST_REJECTED
             raise error_type(
                 OPENAI_PROVIDER_NAME,
                 self.model,
                 f"OpenAI returned HTTP {error.status}",
+                reason=reason,
             ) from error
         except OpenAITransportError as error:
             raise ProviderUnavailable(
                 OPENAI_PROVIDER_NAME,
                 self.model,
                 "OpenAI is unavailable or timed out",
+                reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
             ) from error
         finally:
             if owned_client:
@@ -205,29 +248,117 @@ class OpenAIConversationAdapter:
                 OPENAI_PROVIDER_NAME,
                 self.model,
                 "OpenAI response exceeded the adapter byte limit",
+                reason=ConversationProviderFailureReason.RESPONSE_TOO_LARGE,
             )
         try:
             raw: object = json.loads(body.decode("utf-8"))
             parsed = _OpenAIResponse.model_validate(raw)
-            usage, metrics, visible_output_tokens = self._project_usage(
-                parsed.usage,
-                requested_output_limit=requested_output_limit,
-                provider_output_limit=provider_output_limit,
-            )
+            try:
+                usage, metrics, visible_output_tokens = self._project_usage(
+                    parsed.usage,
+                    requested_output_limit=requested_output_limit,
+                    provider_output_limit=provider_output_limit,
+                )
+            except ValueError:
+                raise InvalidProviderResponse(
+                    OPENAI_PROVIDER_NAME,
+                    self.model,
+                    "OpenAI returned inconsistent usage metadata",
+                    reason=ConversationProviderFailureReason.USAGE_METADATA_INVALID,
+                    provider_response_observed=True,
+                    response_completed=parsed.status == "completed",
+                    service_tier_verified=True,
+                ) from None
             if parsed.status == "incomplete":
-                reason = _safe_incomplete_reason(parsed.incomplete_details)
+                incomplete_reason = _safe_incomplete_reason(parsed.incomplete_details)
+                failure_reason = (
+                    ConversationProviderFailureReason.OUTPUT_TOKEN_LIMIT
+                    if incomplete_reason is _OpenAIIncompleteReason.MAX_OUTPUT_TOKENS
+                    else ConversationProviderFailureReason.INCOMPLETE_UNKNOWN
+                )
                 raise GenerationFailed(
                     OPENAI_PROVIDER_NAME,
                     self.model,
-                    f"OpenAI response ended with status incomplete; reason={reason}",
+                    f"OpenAI response ended with status incomplete; reason={incomplete_reason}",
+                    reason=failure_reason,
                     metrics=metrics,
+                    usage=usage,
+                    provider_response_observed=True,
+                    service_tier_verified=True,
                 )
-            if parsed.status in {"failed", "cancelled"}:
+            if parsed.status in {"failed", "cancelled", "queued", "in_progress"}:
+                failure_reason = (
+                    ConversationProviderFailureReason.GENERATION_CANCELLED
+                    if parsed.status == "cancelled"
+                    else ConversationProviderFailureReason.GENERATION_FAILED
+                )
                 raise GenerationFailed(
                     OPENAI_PROVIDER_NAME,
                     self.model,
                     f"OpenAI response ended with status {parsed.status}",
+                    reason=failure_reason,
                     metrics=metrics,
+                    usage=usage,
+                    provider_response_observed=True,
+                    service_tier_verified=True,
+                )
+            text_parts: list[str] = []
+            for raw_item in parsed.output:
+                if isinstance(raw_item, dict) and raw_item.get("type") == "reasoning":
+                    continue
+                if not isinstance(raw_item, dict) or raw_item.get("type") != "message":
+                    raise InvalidProviderResponse(
+                        OPENAI_PROVIDER_NAME,
+                        self.model,
+                        "OpenAI returned an unsupported output item",
+                        reason=ConversationProviderFailureReason.RESPONSE_MALFORMED,
+                        metrics=metrics,
+                        usage=usage,
+                        provider_response_observed=True,
+                        response_completed=True,
+                        service_tier_verified=True,
+                    )
+                try:
+                    item = _OpenAIOutputMessage.model_validate(raw_item)
+                except ValidationError:
+                    raise InvalidProviderResponse(
+                        OPENAI_PROVIDER_NAME,
+                        self.model,
+                        "OpenAI returned a malformed assistant output item",
+                        reason=ConversationProviderFailureReason.RESPONSE_MALFORMED,
+                        metrics=metrics,
+                        usage=usage,
+                        provider_response_observed=True,
+                        response_completed=True,
+                        service_tier_verified=True,
+                    ) from None
+                if any(isinstance(part, _OpenAIRefusalContent) for part in item.content):
+                    raise GenerationFailed(
+                        OPENAI_PROVIDER_NAME,
+                        self.model,
+                        "OpenAI refused to generate a conversational response",
+                        reason=ConversationProviderFailureReason.RESPONSE_REFUSED,
+                        metrics=metrics,
+                        usage=usage,
+                        provider_response_observed=True,
+                        response_completed=True,
+                        service_tier_verified=True,
+                    )
+                text_parts.extend(
+                    part.text for part in item.content if isinstance(part, _OpenAITextContent)
+                )
+            text = "\n".join(text_parts).strip()
+            if not text:
+                raise InvalidProviderResponse(
+                    OPENAI_PROVIDER_NAME,
+                    self.model,
+                    "OpenAI response contains no assistant output_text",
+                    reason=ConversationProviderFailureReason.MISSING_ASSISTANT_TEXT,
+                    metrics=metrics,
+                    usage=usage,
+                    provider_response_observed=True,
+                    response_completed=True,
+                    service_tier_verified=True,
                 )
             if self.reasoning_effort != "none" and self.reasoning_token_allowance > 0:
                 if visible_output_tokens is None:
@@ -235,33 +366,25 @@ class OpenAIConversationAdapter:
                         OPENAI_PROVIDER_NAME,
                         self.model,
                         "OpenAI usage required to enforce the visible output limit",
+                        reason=ConversationProviderFailureReason.USAGE_METADATA_INVALID,
                         metrics=metrics,
+                        usage=usage,
+                        provider_response_observed=True,
+                        response_completed=True,
+                        service_tier_verified=True,
                     )
                 if visible_output_tokens > requested_output_limit:
                     raise InvalidProviderResponse(
                         OPENAI_PROVIDER_NAME,
                         self.model,
                         "OpenAI visible output exceeded the requested output limit",
+                        reason=(ConversationProviderFailureReason.VISIBLE_OUTPUT_LIMIT_EXCEEDED),
                         metrics=metrics,
+                        usage=usage,
+                        provider_response_observed=True,
+                        response_completed=True,
+                        service_tier_verified=True,
                     )
-            text_parts: list[str] = []
-            for raw_item in parsed.output:
-                try:
-                    item = _OpenAIOutputMessage.model_validate(raw_item)
-                except ValidationError:
-                    continue
-                if any(isinstance(part, _OpenAIRefusalContent) for part in item.content):
-                    raise GenerationFailed(
-                        OPENAI_PROVIDER_NAME,
-                        self.model,
-                        "OpenAI refused to generate a conversational response",
-                    )
-                text_parts.extend(
-                    part.text for part in item.content if isinstance(part, _OpenAITextContent)
-                )
-            text = "\n".join(text_parts).strip()
-            if not text:
-                raise ValueError("response contains no assistant output_text")
             return ConversationProviderResponse(
                 text=text,
                 provider=OPENAI_PROVIDER_NAME,
@@ -272,12 +395,13 @@ class OpenAIConversationAdapter:
             )
         except (GenerationFailed, InvalidProviderResponse):
             raise
-        except (UnicodeError, json.JSONDecodeError, ValidationError, ValueError) as error:
+        except (UnicodeError, json.JSONDecodeError, ValidationError, ValueError):
             raise InvalidProviderResponse(
                 OPENAI_PROVIDER_NAME,
                 self.model,
                 "OpenAI returned a malformed Responses API result",
-            ) from error
+                reason=ConversationProviderFailureReason.RESPONSE_MALFORMED,
+            ) from None
 
     @staticmethod
     def _project_usage(
@@ -299,9 +423,21 @@ class OpenAIConversationAdapter:
             visible_output_tokens = output_tokens - reasoning_tokens
         projected_usage = None
         if usage is not None:
+            cached_input_tokens = (
+                usage.input_tokens_details.cached_tokens
+                if usage.input_tokens_details is not None
+                else None
+            )
+            cache_write_input_tokens = (
+                usage.input_tokens_details.cache_write_tokens
+                if usage.input_tokens_details is not None
+                else None
+            )
             projected_usage = ConversationUsage(
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
+                cached_input_tokens=cached_input_tokens,
+                cache_write_input_tokens=cache_write_input_tokens,
             )
         metrics = ProviderExecutionMetrics(
             requested_output_token_limit=requested_output_limit,

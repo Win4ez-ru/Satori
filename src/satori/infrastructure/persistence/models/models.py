@@ -25,6 +25,14 @@ EPISTEMIC_KIND_CHECK = "epistemic_kind IN ('explicit_fact', 'inference', 'hypoth
 class UserModelClaimRow(Base):
     __tablename__ = "user_model_claims"
     __table_args__ = (
+        CheckConstraint(
+            (
+                "(body_state = 'available' AND value IS NOT NULL AND normalized_value IS NOT"
+                " NULL AND body_action_id IS NULL) OR (body_state = 'erased' AND value IS NU"
+                "LL AND normalized_value IS NULL AND body_action_id IS NOT NULL)"
+            ),
+            name="body_consistent",
+        ),
         CheckConstraint("schema_version >= 1", name="schema_version_positive"),
         CheckConstraint("aggregate_version >= 1", name="aggregate_version_positive"),
         CheckConstraint("policy_version >= 1", name="policy_version_positive"),
@@ -67,8 +75,8 @@ class UserModelClaimRow(Base):
     normalization_version: Mapped[int] = mapped_column(Integer, nullable=False)
     predicate: Mapped[str] = mapped_column(String(64), nullable=False)
     value_kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    value: Mapped[object] = mapped_column(JSON, nullable=False)
-    normalized_value: Mapped[str] = mapped_column(String(160), nullable=False)
+    value: Mapped[object | None] = mapped_column(JSON, nullable=True)
+    normalized_value: Mapped[str | None] = mapped_column(String(160), nullable=True)
     epistemic_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -82,10 +90,29 @@ class UserModelClaimRow(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
 
+    body_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="available", server_default="available"
+    )
+    body_action_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("erasure_body_applications.action_id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+
 
 class WorldModelClaimRow(Base):
     __tablename__ = "world_model_claims"
     __table_args__ = (
+        CheckConstraint(
+            (
+                "(body_state = 'available' AND subject_label IS NOT NULL AND normalized_subj"
+                "ect_label IS NOT NULL AND value IS NOT NULL AND normalized_value IS NOT NUL"
+                "L AND body_action_id IS NULL) OR (body_state = 'erased' AND subject_label I"
+                "S NULL AND normalized_subject_label IS NULL AND value IS NULL AND normalize"
+                "d_value IS NULL AND body_action_id IS NOT NULL)"
+            ),
+            name="body_consistent",
+        ),
         CheckConstraint("schema_version >= 1", name="schema_version_positive"),
         CheckConstraint("aggregate_version >= 1", name="aggregate_version_positive"),
         CheckConstraint("policy_version >= 1", name="policy_version_positive"),
@@ -132,12 +159,12 @@ class WorldModelClaimRow(Base):
     formation_version: Mapped[int] = mapped_column(Integer, nullable=False)
     normalization_version: Mapped[int] = mapped_column(Integer, nullable=False)
     subject_kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    subject_label: Mapped[str] = mapped_column(String(120), nullable=False)
-    normalized_subject_label: Mapped[str] = mapped_column(String(120), nullable=False)
+    subject_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    normalized_subject_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
     predicate: Mapped[str] = mapped_column(String(64), nullable=False)
     value_kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    value: Mapped[object] = mapped_column(JSON, nullable=False)
-    normalized_value: Mapped[str] = mapped_column(String(160), nullable=False)
+    value: Mapped[object | None] = mapped_column(JSON, nullable=True)
+    normalized_value: Mapped[str | None] = mapped_column(String(160), nullable=True)
     epistemic_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -150,6 +177,15 @@ class WorldModelClaimRow(Base):
     )
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+
+    body_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="available", server_default="available"
+    )
+    body_action_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("erasure_body_applications.action_id", ondelete="RESTRICT"),
+        nullable=True,
+    )
 
 
 class UserModelClaimEvidenceRow(Base):

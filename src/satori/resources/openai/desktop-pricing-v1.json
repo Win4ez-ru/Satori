@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "review_id": "openai-standard-short-20261118",
+  "reviewed_at": "2026-11-18T18:42:40+00:00",
+  "expires_at": "2027-02-16T18:42:40+00:00",
+  "currency": "USD",
+  "tokens_per_unit": 1000000,
+  "service_tier": "default",
+  "context_tier": "short",
+  "generation_model": "gpt-6-luna",
+  "generation_input": "0.10",
+  "generation_output": "0.50",
+  "generation_cached_input": "0.01",
+  "generation_cache_write_30m": "0.125",
+  "generation_cache_write_12h": "0.25",
+  "embedding_model": "text-embedding-3-small",
+  "embedding_input": "0.02",
+  "budget_cache_write_factor": "2.5",
+  "rub_per_usd_ceiling": "150",
+  "fx_is_guard_assumption_not_quote": true,
+  "recommended_api_cap_rub": 1000,
+  "maximum_api_cap_rub": 1000,
+  "user_total_monthly_target_rub": 3000,
+  "configured_host_rub": 710,
+  "remaining_for_voice_other_rub": 1290,
+  "allocation_not_invoice_or_total_usage_verification": true,
+  "sources": [
+    "https://developers.openai.com/api/docs/pricing",
+    "https://developers.openai.com/api/docs/models/gpt-6-luna"
+  ],
+  "no_live_billing_query": true,
+  "compatible_reviews": [
+    {
+      "review_id": "openai-standard-short-20261106",
+      "reviewed_at": "2026-11-06T06:49:55+00:00",
+      "expires_at": "2026-11-13T06:49:55+00:00",
+      "rub_per_usd_ceiling": "150",
+      "price_schedule_sha256": "c7851e285fb36f16718de4e700f7b62f9d1d2616ec0799103389aa7925f27b6f"
+    }
+  ]
+}

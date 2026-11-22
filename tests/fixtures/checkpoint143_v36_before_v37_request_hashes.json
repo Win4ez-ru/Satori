@@ -1,0 +1,665 @@
+{
+  "affect": "neutral",
+  "include_prior_cue": true,
+  "native_parameters": {
+    "achievement-corrected": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "achievement-listen": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "achievement-negative": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "achievement-tired": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "activity-corrected": {
+      "max_output_tokens": 80,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "activity-fresh": {
+      "max_output_tokens": 80,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "activity-negative": {
+      "max_output_tokens": 80,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "activity-open": {
+      "max_output_tokens": 80,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "activity-strained": {
+      "max_output_tokens": 80,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "answer-and-task": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "care-with-complete-task": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "care-with-current-correction": {
+      "max_output_tokens": 56,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "care-with-direct-question": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "care-with-explicit-help": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "care-with-listen-request": {
+      "max_output_tokens": 128,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "care-with-unrecognized-clarification-command": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "casual-close": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "casual-multiple": {
+      "max_output_tokens": 112,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "closure-more": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "closure-negation": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "closure-question": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "correction": {
+      "max_output_tokens": 56,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "correction-with-interest": {
+      "max_output_tokens": 56,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "creative": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "creative-request": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "creator": {
+      "max_output_tokens": 160,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "current-attention": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "decline-and-task": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "different-question": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "different-topic": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "direct-identity": {
+      "max_output_tokens": 112,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "distress": {
+      "max_output_tokens": 128,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "distress-with-interest": {
+      "max_output_tokens": 128,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "end-discussion-answered-history-empty": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "end-discussion-answered-history-owned": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "end-discussion-no-history-empty": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "end-discussion-no-history-owned": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "end-discussion-unanswered-history-empty": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "end-discussion-unanswered-history-owned": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "established-0": {
+      "max_output_tokens": 48,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "established-1": {
+      "max_output_tokens": 80,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "established-2": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "established-3": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "established-4": {
+      "max_output_tokens": 112,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "established-5": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "explicit-all": {
+      "max_output_tokens": 112,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "explicit-all-new": {
+      "max_output_tokens": 112,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "explicit-listen": {
+      "max_output_tokens": 128,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "explicit-mood": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "explicit-reason": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "explicit-self": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "explicit-technical-all": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "fresh-0": {
+      "max_output_tokens": 48,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "fresh-1": {
+      "max_output_tokens": 80,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "fresh-2": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "fresh-3": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "fresh-4": {
+      "max_output_tokens": 112,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "fresh-5": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "interests-absence": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "known-fatigue-causes": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "listen": {
+      "max_output_tokens": 128,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "listen-with-interest": {
+      "max_output_tokens": 128,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "low-mood-close": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "mixed-checkin-new": {
+      "max_output_tokens": 112,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "mixed-style-self-1": {
+      "max_output_tokens": 56,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "mixed-style-self-2": {
+      "max_output_tokens": 56,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "mixed-style-self-3": {
+      "max_output_tokens": 56,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "motivation-request": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "negative-affect": {
+      "max_output_tokens": 48,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "new-achievement": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "news-with-complete-task": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "news-with-current-correction": {
+      "max_output_tokens": 56,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "news-with-direct-question": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "news-with-unrecognized-clarification-command": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "no-question": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "no-questions": {
+      "max_output_tokens": 56,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "ordinary-fatigue-known": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "ordinary-project-news": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "owned-contribution": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "owned-stop": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "owned-topic": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "owned-topic-strained": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "precise-question": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "quoted-question": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "recognized-news-with-unrecognized-clarification-command": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "redirect": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "repair": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "resolution-answered-history-empty": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "resolution-answered-history-owned": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "resolution-no-history-empty": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "resolution-no-history-owned": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "resolution-unanswered-history-empty": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "resolution-unanswered-history-owned": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "rhetorical-form": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "safety": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "safety-care": {
+      "max_output_tokens": 128,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "safety-with-interest": {
+      "max_output_tokens": 128,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "sampled-stop-miss": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "stop": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "strained-0": {
+      "max_output_tokens": 48,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "strained-1": {
+      "max_output_tokens": 80,
+      "schema_version": 1,
+      "temperature": 0.0
+    },
+    "strained-2": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "strained-3": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "strained-4": {
+      "max_output_tokens": 112,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "strained-5": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "strained-close": {
+      "max_output_tokens": 96,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "technical": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "technical-fresh": {
+      "max_output_tokens": 384,
+      "schema_version": 1,
+      "temperature": 0.3
+    },
+    "unknown-relationship": {
+      "max_output_tokens": 48,
+      "schema_version": 1,
+      "temperature": 0.3
+    }
+  },
+  "policy_schema_version": 36,
+  "request_serialization": "json.dumps(asdict(request),ensure_ascii=False,sort_keys=True,default=str)",
+  "schema_version": 1,
+  "sha256": {
+    "achievement-corrected": "09144500a11636db421b9902d48f5aa7f503eb239b0b678086130c9bc5e70678",
+    "achievement-listen": "4ba3c3403d884dfb8eb23374294baeb503617570ed2d415163f8552abd499a2b",
+    "achievement-negative": "76ca502b412565238b3321e2ae3fc5380d5f5319926d0ae5b4846b17c6367779",
+    "achievement-tired": "84170686a7ba16774ae465825c29e4ae686873f5742491c3a3c01e1ad93d9762",
+    "activity-corrected": "f634b76f9bac6b4cffcd11671df919f1c0a58057a8591eb1dbc33d2281f408d3",
+    "activity-fresh": "3c253dcf021cfbe15d770ca5a4f7847552f6240c9a2eef3e6142c6b1d02495f2",
+    "activity-negative": "9a7e874b9a5c95d93afb002eefc0ef4d3ac978e1f775f57415a4a5267f4716d5",
+    "activity-open": "f671de8f424bfd1025bd79ebc6d97339a55837d57f0c1957ee739b0448fc762b",
+    "activity-strained": "d7d54d1a3751ba9a1fc0f0ef372c354cf6bf51c63bec7e1bbe313d3b013bcce3",
+    "answer-and-task": "912080f15cda1857b53b849925d1b998ffc7da7969450ae4eeab47e9eefe7c0c",
+    "care-with-complete-task": "a20860ef63ed72c7e04499ecfcc1ead4c4c89809b6815c712f7fa1706d9e0542",
+    "care-with-current-correction": "ab37356d114a2642d17826f5a8cfe75ecfb934faa2edc965ff63ae8d470022e2",
+    "care-with-direct-question": "6ead13eb192345108e18efffb633d610d2670696fffc45ed51ed69cca275c846",
+    "care-with-explicit-help": "0d261dc2c38fc8276946ef98f6a5dfb874295542416276de2b02cfcbb647d5d0",
+    "care-with-listen-request": "1eb6630ae8f0877a61ffacc5e97d529af15d74377c8f6c878ba3bb40a75ba8df",
+    "care-with-unrecognized-clarification-command": "6745cb2652a49e6d3797746570d78666c3a81eb4e64a03a5ae04cbea4187966e",
+    "casual-close": "9b735c8ce8fccf83978ffcfb6fd9c6e0067a0f8720560d113bdda11c54c51ed3",
+    "casual-multiple": "3d9fdf400ed13901dc5fe1134024f526557e3a345a77fe8192dec2d2de383ed8",
+    "closure-more": "0c6b59151a3daa7fdd2de2df17b0870046416dcf580a607e11dc375bcab6ac5b",
+    "closure-negation": "eea74189adf44fdbe2f7bdde376279712a786fa3b451b141921bff8c3373e2a9",
+    "closure-question": "ef7998f2bf0257e9e68b917da9235384def3c0f25199ca7da79f11f4de29be69",
+    "correction": "828b77941a844099e78246c4ca3cf1afb87b42d27708e782765ea3798908352d",
+    "correction-with-interest": "eaa033b866caf802ff58df5abfd1f203a41eec5117dccd7aa8bbe08ebc043ebd",
+    "creative": "0f6769cf1e44455f91984c60293f1f3ad79f51fc9b8a4dc3053f8ef3a11deb29",
+    "creative-request": "8d2cd0d63c25248b6563548bc13e1c1a3c31c054454c2e52ed35842cef1f8228",
+    "creator": "527b8a213bd45bd3cc1a70334a9f5efe6d10d4ce08d5d28c1d35eb34f7f7ca35",
+    "current-attention": "49c9d88090c6d290cf73b9d200a8376418c968d2f6cf04771d21ffdccb49887a",
+    "decline-and-task": "3977029114d104660c640fcf31b85d013068c02f6c2c81dcede5f1558fd6c250",
+    "different-question": "001508449710e0d82da235c67225f1d22f5ceed599331b9db203c2d17542acaf",
+    "different-topic": "1be54843419a7cca10681915622db9be461b95848604d61deeb82da0e389b49b",
+    "direct-identity": "10ff87c4b01e7b79e3c97253244f24d784d36ed4431e4a7ccb5e60ba48604d2f",
+    "distress": "04221d026f9aad59eed1adf7d4d4f73c04674bd321f091d6c5c178f132cb535c",
+    "distress-with-interest": "2708d48da9faadb20bef8e0c0999a80278c434af2c3978446ad3d3e813d6fa18",
+    "end-discussion-answered-history-empty": "d3bd8f0e8047c9fb96d1281bf4c78ecc4a487954d758fcca4fc0b26a336bb732",
+    "end-discussion-answered-history-owned": "36de2c330449bbea161a283d37cd8174f4a9282bb832657d527c5987293dd142",
+    "end-discussion-no-history-empty": "77b6cfdc3dd529fbf6519b4fdcb6ff3f41b3ee501dea89e598687939e7d2ce39",
+    "end-discussion-no-history-owned": "76c5ed3b6dede417d5699cb43f762eca467a3849730399cd3f585cc55848399b",
+    "end-discussion-unanswered-history-empty": "86998cd0c8b6a8b972acf757887dbe60f7138ad44b98bcbae32f60f2873a64a0",
+    "end-discussion-unanswered-history-owned": "a1c2f09c628e13d4e947c175ad87c0a10658d59b7abca8d6ac30716eaacefb08",
+    "established-0": "3f4993b09e439427e6e31630712b031fbba00b2bf40235f372c67d295317ab03",
+    "established-1": "876d09163937f4c9277d8989f341bb4bc2e63dff675b10dc13bb4d737b6bcb6f",
+    "established-2": "f931a246961e14523f47fa4f674213856c5fff4512951858cbeec5001ee12c24",
+    "established-3": "66ec40e585e88a6fcdbdf71179fdc87bda2ede442ac439c3a67db2fdc7955a41",
+    "established-4": "785c8e51c42714033b5bdcdeedc4dfb28f43ec9413b88037b41b7333b942542a",
+    "established-5": "d2ad378ba1328ffe6205f028c8ef8a2c1634b814807bc9c7c8a5ddb8c49efb4b",
+    "explicit-all": "cf594149df6444c0491e1c88367707f4d7c539f3e24ea9b5e0cab6c544afed59",
+    "explicit-all-new": "890dc1087391cc794cc7959e7874529f31afd2a34a3228ffb3b88d0d19d77ee1",
+    "explicit-listen": "51f463cd59984ff5447158d942436d2d3dc9c53e9b44486faae6b7d456ebab79",
+    "explicit-mood": "e3f8989ae5bf6ea52fa34c89910644ce280aa00788ccb2c658d183d453cfc451",
+    "explicit-reason": "e5aeb2fcb0879964d3688a7a7cd12f0f58ce1efb4176d9f795933682ef2974ca",
+    "explicit-self": "c919250c0643c67dcdbb106c2203fafc2101da77169430ecc294f084f1454ff0",
+    "explicit-technical-all": "fcb722ea815167c925d77ade2eabf50dfbccb96df0c132dbdeb5fe7bef11a59e",
+    "fresh-0": "7acbe888f7e2194b527c974a19078a49d591bf8f69bcbedc9e13a63cb0cb4537",
+    "fresh-1": "1c0e4fd4f3edf5a27f263bbf3e68a3546f328599485ee5290607262698c19059",
+    "fresh-2": "9f5e9feba096a13e00295e2262b3ab428bf1d2820015ed74a7532b4a9ec7dbfb",
+    "fresh-3": "cca4052aa59dc4b67c6b1ce5a08a4074d83133452c1698830a6ab5873833b123",
+    "fresh-4": "09afa3685f0eb4472aafd9433d066c2fef665872e3b85686528025be66708517",
+    "fresh-5": "ab27e62809a2f78c4addad418e87cfd4c47686b4157c33c0c392905e14321204",
+    "interests-absence": "f7f7d7081c76bcc81c0a5697e7523eee0eab09caadb3d5deed19e170454fabab",
+    "known-fatigue-causes": "8251ad1ac5f42a1259ec6e703417d4e794ccb893a2f71abbba9c2b21ac1da103",
+    "listen": "0c66f6d8abafb04a7b859a3f9f8486c2003471b83f9e284760143cd896bca29d",
+    "listen-with-interest": "30034ab3773b0945d74ec592bce081a8a3867bdebe8244b2da6caef29dd3d9ed",
+    "low-mood-close": "302af0202177f31b968d611ec60b8e1307f9ade68a64d60d0572ea724cb17443",
+    "mixed-checkin-new": "109aa6e593fdae3c4e36a83397b4c2bf60541eaacbc5500b0273e3d9a09a8282",
+    "mixed-style-self-1": "10c6ebf18e7d8c736577f4c65289d3a483fd16457a1f24c0d7ca863a30d759e5",
+    "mixed-style-self-2": "fef841d3751c76a41e78114a0445a656d5d4a512414fe0f12a720b6ee132bbf8",
+    "mixed-style-self-3": "dca186f54d5b26bf6c89032d04f497995753eaba0286e45e1df1c3c59bd789b3",
+    "motivation-request": "b121bc0641f4f304dc96f8d0f36591decfc642bcf4ba99a92524cf60c8b6abb2",
+    "negative-affect": "9ddfe2e18e33f0a526098670036a2dc26ab84f7610bdec55e8cb2287cce7a11c",
+    "new-achievement": "3d6eaebd301d562c24f8ad08f86a17a9613c8eaf67a938ec0f836efae69a3884",
+    "news-with-complete-task": "36ce03d3c27c50bfd047b15870fbd135dfe5a0b8aad30d725f6ac46d8ab9b1c0",
+    "news-with-current-correction": "d9251e39f06825fb837bc5a4bce6632c2bfc74e0ebec0170694e7ca840426af7",
+    "news-with-direct-question": "bb0b54f4579ba62419cac954f71f80c00e482a1ac748bfc133689a57b1d829b0",
+    "news-with-unrecognized-clarification-command": "2faf8628f5fae10308e618c134d3b088a08f9d91b588529afe5429156a702064",
+    "no-question": "b3c14bfab3e6dfcd6418bf2ddf853a77acdc392e19077d0d6bc6ec7898ad26bf",
+    "no-questions": "1354d36dd0a5df6479b229599a88a30572d9d66c4ef088f9b96d6fed3e11fe80",
+    "ordinary-fatigue-known": "6e62a5c81a6422d21bff3bde64022efa1aa9744a58690f1aeb69e29430e82183",
+    "ordinary-project-news": "c52121a2253c99056842adcd724664ede864799ba99583a1d23652bc4e6b3f61",
+    "owned-contribution": "4f7ebca2605b3991059f4794ae96eeb810fd9c9e5cfa27aca9aabf6bf5412ee3",
+    "owned-stop": "9fc6f528869160b88639fb26758168a4bdcd5cc308de1a3a579e7acc5f8d907b",
+    "owned-topic": "5f13a7b369e8eca0fce77079db0071e165b5c16665c26507f73c56fb83afe46b",
+    "owned-topic-strained": "5764c3049afd00aff6445dfe8c9d57a0deacbf3ab6774845bcbb3338a2a2ca5c",
+    "precise-question": "8b26996a3d9093f8e94807761a7ffd8a7d7e99df108117c9c0ede54227a1e2e9",
+    "quoted-question": "d2a73995f577544d6ad171a8fa4c15174245660c310035b216cee65af7e84c35",
+    "recognized-news-with-unrecognized-clarification-command": "0bb1697495993237844f4223bd34dfbbb72f1744aaad9a9b00c992631763e6e7",
+    "redirect": "3ea3bd92a18c20a61d15f4956a5e17859393c6b3bdf6808ed2e9db9dec190b71",
+    "repair": "c4b1161cd061dfc82cfed0abb9f8f84e14c4adcdc8553bf7c7faa878466b39d6",
+    "resolution-answered-history-empty": "6f328a53b2f9a0a4772caa56bcaee44fbe58224e704da69a514a8ec9335e6224",
+    "resolution-answered-history-owned": "041d0c91b62d886119006b05fad1885f6b6590d58b0a52ac65ce97d6b5a6126b",
+    "resolution-no-history-empty": "d680f96b98442660ed4bff138daf3055bc458a01cfcc5d6467e70b691ec603ac",
+    "resolution-no-history-owned": "74c324a509d683986d1e8bd74034cc88510c8cda61aa755872640b39391ce088",
+    "resolution-unanswered-history-empty": "ac3d0c8786699d80169a4faf47074563992b8d10ce0b6ef11a82c2033fad6b19",
+    "resolution-unanswered-history-owned": "78766b254e4ffe03fc952c4eb38ac264c255745ddf36946c0bf99686be6ffa40",
+    "rhetorical-form": "f5046fbe1b5042274a3dbdb08e4dc9d45abd6b8cdbc28e1f5c34cbbec4bb2f2d",
+    "safety": "82e1dbc8bd8a06809b57270ca0fe8a6efb08bd4cdaa28f70b54572b28537fc68",
+    "safety-care": "dddd6b09b764e12ef44f546c407ca2a8c34e0c9e89c0b047eb60b93bae0e653c",
+    "safety-with-interest": "73214cbac8494672a719983a8153cb1cf143b4b7a02d81fd8d2847e2642b9000",
+    "sampled-stop-miss": "e7e952e5df7a2ccd81eeb959451e9135b1a4088a29e906b1f8dc1fcf40dc1161",
+    "stop": "8428e812996c319da897921072af36325867408ea42051bc80654fc43efc0ac6",
+    "strained-0": "e5b41c4ab18bd1635c9166d49330cd203b00d7aa8a073770cf210c2632c4765a",
+    "strained-1": "5d27e5186478c0cf6b422a98e7fd2da92a32963bf2bd52db4f6780111cb4ac8a",
+    "strained-2": "e962e3d1c980c0456398b5fe0c840c641c430e24a0d52a5d9720e88d4690841a",
+    "strained-3": "9c89f18fca8aefc66ee14814f40a1ea79bd2a69c35283386ff5cc77683a9d5da",
+    "strained-4": "8bc2b1585aeb5bd6c828b938701f3c9185ff0fee742b68445e4b74767f4ce4eb",
+    "strained-5": "ee4128860bf77cbd47070540772826f642bb25b6c965ea827e22f25d2dfa4898",
+    "strained-close": "5fc88e0243aa07e125f8b083279245a5515f04388a34212fc425f166656991c1",
+    "technical": "a7c1380ab9b236f5868307ea7f21a979ca04890fc276b58e3803a0ef3dc5f36c",
+    "technical-fresh": "6c248f03ca99db5f68457d48ac83b62a30928cfcc641174f7283bcdf648b9663",
+    "unknown-relationship": "c723c2aaa8ce953043cd0bad037a2c98e03ad8448104d9c1cbf463ef8b8e2491"
+  }
+}

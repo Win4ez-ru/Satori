@@ -1,0 +1,262 @@
+{
+  "schema": "satori.schedule-import.interop-fixtures.v1",
+  "provenance": "Authored synthetic contract examples; not a user schedule or account acceptance.",
+  "fingerprint_algorithm": "sha256 UTF-8 of satori-shift-v1 LF UTC-start-seconds LF UTC-end-seconds LF NFC-title; no trailing LF; lowercase hex",
+  "accepted": [
+    {
+      "id": "moscow_day",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00+03:00",
+            "end": "2026-10-26T18:00:00+03:00"
+          }
+        ]
+      },
+      "expected_row_fingerprints": [
+        "a56d87d4ada4b1916801c710b0c0868ac7691b1393b9c0ae7c3a53c9224a210b"
+      ]
+    },
+    {
+      "id": "moscow_overnight",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T20:00:00+03:00",
+            "end": "2026-10-27T08:00:00+03:00"
+          }
+        ]
+      },
+      "expected_row_fingerprints": [
+        "919c4d687a1bcde444a192d8b13c388c2badbb1f3b68dd44710fe894dc6cbfcc"
+      ]
+    },
+    {
+      "id": "berlin_fold_explicit_offsets",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Berlin",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-25T02:30:00+02:00",
+            "end": "2026-10-25T02:30:00+01:00"
+          }
+        ]
+      },
+      "expected_row_fingerprints": [
+        "c769dfad0b78d74544cd6210e292ee79b2b34f9f14b615e09194d62a1d29511f"
+      ]
+    },
+    {
+      "id": "utc_zero_offset",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "UTC",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00Z",
+            "end": "2026-10-26T17:00:00Z"
+          }
+        ]
+      },
+      "expected_row_fingerprints": [
+        "725ef6f64fc11902423dd9911af53d320bb913114f807b0638b4c6ce5221fba9"
+      ]
+    },
+    {
+      "id": "nfc_title",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Смена ё",
+            "start": "2026-10-26T09:00:00+03:00",
+            "end": "2026-10-26T18:00:00+03:00"
+          }
+        ]
+      },
+      "expected_row_fingerprints": [
+        "b6efaa4d252ed52b2c38e86c44352d00c7bb3ac98b36b6f6d97d97992602bff6"
+      ]
+    }
+  ],
+  "rejected": [
+    {
+      "id": "schema_bool",
+      "plan": {
+        "schema_version": true,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00+03:00",
+            "end": "2026-10-26T18:00:00+03:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "unknown_target_field",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00+03:00",
+            "end": "2026-10-26T18:00:00+03:00"
+          }
+        ],
+        "calendar_id": "synthetic-device-local-calendar"
+      }
+    },
+    {
+      "id": "empty",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": []
+      }
+    },
+    {
+      "id": "duplicate",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00+03:00",
+            "end": "2026-10-26T18:00:00+03:00"
+          },
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00+03:00",
+            "end": "2026-10-26T18:00:00+03:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "unknown_zone",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Not/AZone",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00+03:00",
+            "end": "2026-10-26T18:00:00+03:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wrong_zone_offset",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00+02:00",
+            "end": "2026-10-26T18:00:00+02:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "missing_offset",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00",
+            "end": "2026-10-26T18:00:00+03:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "reverse_interval",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T18:00:00+03:00",
+            "end": "2026-10-26T09:00:00+03:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "overlong_shift",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00+03:00",
+            "end": "2026-10-28T09:00:00+03:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nonexistent_local_time",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Berlin",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-03-29T02:30:00+01:00",
+            "end": "2026-03-29T04:00:00+02:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "title_newline",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Смена\nтекст",
+            "start": "2026-10-26T09:00:00+03:00",
+            "end": "2026-10-26T18:00:00+03:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fractional_seconds",
+      "plan": {
+        "schema_version": 1,
+        "time_zone": "Europe/Moscow",
+        "shifts": [
+          {
+            "title": "Рабочая смена",
+            "start": "2026-10-26T09:00:00.500+03:00",
+            "end": "2026-10-26T18:00:00+03:00"
+          }
+        ]
+      }
+    }
+  ]
+}

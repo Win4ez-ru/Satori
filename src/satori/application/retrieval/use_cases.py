@@ -16,10 +16,17 @@ from satori.application.retrieval.contracts import (
 )
 from satori.application.retrieval.policy import RetrievalPolicy
 from satori.application.retrieval.ports import EpisodicMemoryIndexUnitOfWork
+from satori.application.source_policy.admission import prepare_source_input, require_source_inputs
+from satori.application.source_policy.dispatch import (
+    admit_provider_dispatch,
+    source_dispatch_admission,
+)
 from satori.core.clock import Clock
 from satori.core.embedding import EmbeddingRequest, EmbeddingResponse, EmbeddingSpace
 from satori.core.ports.providers import EmbeddingPort
 from satori.domain.memory import EpisodicMemory
+from satori.domain.memory_scope import MemoryScope
+from satori.domain.source_policy import PayloadRef, SourcePolicyError
 
 EMBEDDING_INPUT_SCHEMA_VERSION = 1
 RETRIEVED_MEMORY_CONTEXT_SCHEMA_VERSION = 1
@@ -61,20 +68,41 @@ class IndexEpisodicMemory:
 
     async def execute(self, memory: EpisodicMemory, *, trace_id: str) -> None:
         started = time.perf_counter()
-        response = await self.provider.embed(
-            EmbeddingRequest(
-                schema_version=EMBEDDING_INPUT_SCHEMA_VERSION,
-                trace_id=trace_id,
-                texts=(memory.summary,),
+        with self.unit_of_work_factory() as unit_of_work:
+            eligible = unit_of_work.memory_index.get_eligible(memory.memory_id)
+            input_id = None
+            if eligible is not None:
+                input_id = prepare_source_input(
+                    unit_of_work,
+                    payload_refs=(
+                        PayloadRef("episode", memory.memory_id, eligible[1].aggregate_version),
+                    ),
+                )
+        if eligible is None:
+            raise ValueError("memory_source_ineligible")
+        scope, canonical = eligible
+        with source_dispatch_admission(self.unit_of_work_factory, input_id):
+            admit_provider_dispatch()
+            response = await self.provider.embed(
+                EmbeddingRequest(
+                    schema_version=EMBEDDING_INPUT_SCHEMA_VERSION,
+                    trace_id=trace_id,
+                    texts=(canonical.summary,),
+                )
             )
-        )
         _validate_response(response, expected_space=self.provider.space, expected_count=1)
         with self.unit_of_work_factory() as unit_of_work:
+            require_source_inputs(unit_of_work, input_id)
+            if unit_of_work.memory_index.get_eligible(memory.memory_id) != eligible:
+                raise ValueError("memory_source_changed")
             unit_of_work.memory_index.upsert(
                 memory.memory_id,
                 response.space,
                 response.vectors[0],
+                scope=scope,
+                expected_version=canonical.aggregate_version,
                 indexed_at=self.clock.now(),
+                input_id=input_id,
             )
             unit_of_work.commit()
         self.logger.info(
@@ -98,36 +126,89 @@ class IndexAllEpisodicMemories:
     batch_size: int = 32
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("satori.retrieval"))
 
-    async def execute(self, *, trace_id: str, rebuild: bool = False) -> IndexingReport:
+    async def execute(
+        self,
+        *,
+        scope: MemoryScope,
+        trace_id: str,
+        rebuild: bool = False,
+        max_memories: int | None = None,
+        require_live: Callable[[], None] | None = None,
+    ) -> IndexingReport:
+        if not isinstance(scope, MemoryScope):
+            raise ValueError("memory_scope_required")
+        if max_memories is not None and (
+            type(max_memories) is not int
+            or not 1 <= max_memories <= 100
+            or type(self.batch_size) is not int
+            or not 1 <= self.batch_size <= 32
+        ):
+            raise ValueError("memory_index_limit_invalid")
+        if require_live is not None:
+            require_live()
         with self.unit_of_work_factory() as unit_of_work:
             memories = unit_of_work.memory_index.list_unindexed(
                 self.provider.space,
+                scope=scope,
                 rebuild=rebuild,
+                limit=max_memories + 1 if max_memories is not None else None,
             )
+        more_available = max_memories is not None and len(memories) > max_memories
+        if max_memories is not None:
+            memories = memories[:max_memories]
         indexed = 0
         failed = 0
         for offset in range(0, len(memories), self.batch_size):
             batch = memories[offset : offset + self.batch_size]
             try:
-                response = await self.provider.embed(
-                    EmbeddingRequest(
-                        schema_version=EMBEDDING_INPUT_SCHEMA_VERSION,
-                        trace_id=trace_id,
-                        texts=tuple(memory.summary for memory in batch),
+                if require_live is not None:
+                    require_live()
+                with self.unit_of_work_factory() as unit_of_work:
+                    for memory in batch:
+                        if unit_of_work.memory_index.get_eligible(memory.memory_id) != (
+                            scope,
+                            memory,
+                        ):
+                            raise ValueError("memory_source_changed")
+                    input_id = prepare_source_input(
+                        unit_of_work,
+                        payload_refs=tuple(
+                            PayloadRef("episode", memory.memory_id, memory.aggregate_version)
+                            for memory in batch
+                        ),
                     )
-                )
+                with source_dispatch_admission(self.unit_of_work_factory, input_id):
+                    admit_provider_dispatch()
+                    response = await self.provider.embed(
+                        EmbeddingRequest(
+                            schema_version=EMBEDDING_INPUT_SCHEMA_VERSION,
+                            trace_id=trace_id,
+                            texts=tuple(memory.summary for memory in batch),
+                        )
+                    )
                 _validate_response(
                     response,
                     expected_space=self.provider.space,
                     expected_count=len(batch),
                 )
+                if require_live is not None:
+                    require_live()
                 with self.unit_of_work_factory() as unit_of_work:
+                    require_source_inputs(unit_of_work, input_id)
                     for memory, vector in zip(batch, response.vectors, strict=True):
+                        if unit_of_work.memory_index.get_eligible(memory.memory_id) != (
+                            scope,
+                            memory,
+                        ):
+                            raise ValueError("memory_source_changed")
                         unit_of_work.memory_index.upsert(
                             memory.memory_id,
                             response.space,
                             vector,
+                            scope=scope,
+                            expected_version=memory.aggregate_version,
                             indexed_at=self.clock.now(),
+                            input_id=input_id,
                         )
                     unit_of_work.commit()
                 indexed += len(batch)
@@ -141,11 +222,18 @@ class IndexAllEpisodicMemories:
                         error_type=type(error).__name__,
                     ),
                 )
+                if require_live is not None:
+                    try:
+                        require_live()
+                    except Exception:
+                        more_available = more_available or offset + len(batch) < len(memories)
+                        break
         report = IndexingReport(
             considered=len(memories),
             indexed=indexed,
             failed=failed,
             space=self.provider.space,
+            more_available=more_available,
         )
         self.logger.info(
             "memory_index_completed",
@@ -177,6 +265,7 @@ class RetrieveEpisodicMemories:
             with self.unit_of_work_factory() as unit_of_work:
                 has_candidates = unit_of_work.memory_index.has_candidates(
                     self.provider.space,
+                    scope=query.scope,
                     cutoff=query.cutoff,
                     excluded_interaction_id=query.current_interaction_id,
                 )
@@ -205,19 +294,35 @@ class RetrieveEpisodicMemories:
                 return result
 
             embedding_started = self.monotonic()
-            response = await self.provider.embed(
-                EmbeddingRequest(
-                    schema_version=EMBEDDING_INPUT_SCHEMA_VERSION,
-                    trace_id=query.trace_id,
-                    texts=(query.text,),
+            with self.unit_of_work_factory() as unit_of_work:
+                if (
+                    getattr(unit_of_work, "source_admission", None) is not None
+                    and query.root_message_id is None
+                    and not query.operator_query
+                ):
+                    raise SourcePolicyError("source_root_required")
+                input_id = prepare_source_input(
+                    unit_of_work,
+                    root_message_ids=(query.root_message_id,)
+                    if query.root_message_id is not None
+                    else (),
                 )
-            )
+            with source_dispatch_admission(self.unit_of_work_factory, input_id):
+                admit_provider_dispatch()
+                response = await self.provider.embed(
+                    EmbeddingRequest(
+                        schema_version=EMBEDDING_INPUT_SCHEMA_VERSION,
+                        trace_id=query.trace_id,
+                        texts=(query.text,),
+                    )
+                )
             _validate_response(response, expected_space=self.provider.space, expected_count=1)
             embedding_ms = (self.monotonic() - embedding_started) * 1000
             candidate_started = self.monotonic()
             with self.unit_of_work_factory() as unit_of_work:
                 candidates = unit_of_work.memory_index.list_candidates(
                     response.space,
+                    scope=query.scope,
                     cutoff=query.cutoff,
                     excluded_interaction_id=query.current_interaction_id,
                 )
@@ -241,6 +346,10 @@ class RetrieveEpisodicMemories:
                 selected_summaries.add(normalized_summary)
             candidate_ms = precheck_ms + (self.monotonic() - candidate_started) * 1000
             if selected:
+                versions = {
+                    candidate.memory.memory_id: candidate.memory.aggregate_version
+                    for candidate in candidates
+                }
                 result = RetrievedMemoryContext(
                     schema_version=RETRIEVED_MEMORY_CONTEXT_SCHEMA_VERSION,
                     status=RetrievalStatus.RETRIEVED,
@@ -250,6 +359,10 @@ class RetrieveEpisodicMemories:
                     embedding_latency_ms=embedding_ms,
                     candidate_search_ranking_latency_ms=candidate_ms,
                     provider_metrics=response.metrics,
+                    source_payload_refs=tuple(
+                        PayloadRef("episode", memory.memory_id, versions[memory.memory_id])
+                        for memory in selected
+                    ),
                 )
             else:
                 result = RetrievedMemoryContext(

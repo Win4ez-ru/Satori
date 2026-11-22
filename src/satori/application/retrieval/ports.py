@@ -7,13 +7,19 @@ from satori.application.retrieval.contracts import IndexedMemoryCandidate
 from satori.application.unit_of_work import UnitOfWork
 from satori.core.embedding import EmbeddingSpace
 from satori.domain.memory import EpisodicMemory
+from satori.domain.memory_scope import MemoryScope
 
 
 class EpisodicMemoryIndexRepository(Protocol):
     """Read canonical episodes and own only their derived embedding rows."""
 
-    def list_unindexed(self, space: EmbeddingSpace, *, rebuild: bool) -> tuple[EpisodicMemory, ...]:
+    def list_unindexed(
+        self, space: EmbeddingSpace, *, scope: MemoryScope, rebuild: bool, limit: int | None = None
+    ) -> tuple[EpisodicMemory, ...]:
         """Return active episodes requiring an embedding in this exact space."""
+
+    def get_eligible(self, memory_id: str) -> tuple[MemoryScope, EpisodicMemory] | None:
+        """Resolve and reload one proven canonical source for internal indexing."""
 
     def upsert(
         self,
@@ -21,7 +27,10 @@ class EpisodicMemoryIndexRepository(Protocol):
         space: EmbeddingSpace,
         vector: tuple[float, ...],
         *,
+        scope: MemoryScope,
+        expected_version: int,
         indexed_at: datetime,
+        input_id: str | None = None,
     ) -> None:
         """Idempotently insert or replace one derived vector."""
 
@@ -29,6 +38,7 @@ class EpisodicMemoryIndexRepository(Protocol):
         self,
         space: EmbeddingSpace,
         *,
+        scope: MemoryScope,
         cutoff: datetime,
         excluded_interaction_id: str | None,
     ) -> bool:
@@ -38,6 +48,7 @@ class EpisodicMemoryIndexRepository(Protocol):
         self,
         space: EmbeddingSpace,
         *,
+        scope: MemoryScope,
         cutoff: datetime,
         excluded_interaction_id: str | None,
     ) -> tuple[IndexedMemoryCandidate, ...]:

@@ -31,6 +31,15 @@ class RelationshipSource:
 
 
 class RelationshipRepository(Protocol):
+    def withdraw_source_support(
+        self,
+        *,
+        excluded_message_ids: frozenset[str],
+        request_id: str,
+        policy_generation: int,
+        now: datetime,
+    ) -> None: ...
+
     def get_state(self, identity_id: str, counterparty_id: str) -> RelationshipState | None: ...
 
     def add_initial_state(self, state: RelationshipState) -> bool: ...
@@ -55,6 +64,7 @@ class RelationshipRepository(Protocol):
         after: RelationshipState,
         transition: RelationshipTransition | None,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool: ...
 
     def list_transitions(

@@ -1,9 +1,38 @@
 # Persistent state model and ownership
 
-Это target ownership model с конкретизированными persistent families Stage 0–13 и принятым
-Stage 14 mutation/checkpoint contract. Transient request projections currently reach context
-schema v15; Stage 14 implementation advances it to v16. Сущности более поздних stages не обещают
-соответствие «одна сущность — одна таблица».
+Foundations 14.4.2b.1 (ADR-0056): MemoryManager alone owns explicit episode ACTIVE↔ARCHIVED
+and monotonic aggregate versions. One memory UoW commits CAS, lifecycle decision and audit;
+archive preserves canonical roots, evidence and already formed domain state. New admission and
+retained semantic proof are distinct. No new Character state or duplicate self owner is added.
+See `memory-lifecycle.md` for replay, concurrency and recovery contracts.
+
+Foundations 14.4.2a (2026-10-03, ADR-0055): InteractionLog owns persisted session `scope_verified`;
+typed `MemoryScope` derives immutable identity/counterparty attribution from canonical roots.
+Episodes/semantic claims derive scope without a second writer or per-person self. Migration 0014
+rekeys only fully provable claims and preserves quarantined content/history. Global positions,
+inclinations, personality, affect and relationship owners retain their state/write paths.
+This adds no authenticated principal or grant. See `memory-scope.md` and `progress.md`.
+
+Selective conversation clarification (ADR-0048): existing V29 disclosure facet fields identify
+topics and their authoritative truth boundaries; they are not a mandatory checklist of casual
+subanswers. No persistent state, writer or DDL is added. Historical policies retain their meaning.
+
+V29 update (2026-09-13): persistent owners and DDL remain unchanged. The active candidate retains
+request context v16, manifest v17, agency v1 and delivery/presence v5/v3; see ADR-0047 and
+`performance/checkpoint-14.3-v29.md`. Historical entries below retain their dated scope.
+
+Это target ownership model с реализованными persistent families Stage 0–14. На HEAD аудита
+`0b32dca` request context schema — v16; fresh V28 manifest — v17, historical policies through
+V27 сохраняют manifest v16. V28 character/provider acceptance ещё не принят. Сущности более
+поздних stages не обещают соответствие «одна сущность — одна таблица».
+
+North Star planning note (2026-09-04, ADR-0046): existing owner contracts below are unchanged.
+Future normalized source/event records, technical permission grants, action execution lifecycle
+and device command state require their own stage-specific ownership/DDL decisions under
+`roadmap-north-star.md`. They are not implemented by this target matrix. Authenticated principal,
+counterparty, canonical Satori identity and data visibility must remain distinct; relationship
+trust never grants action authority. External events are not automatically eligible roots for
+any current learning owner.
 
 ## 1. Универсальные правила
 
@@ -67,6 +96,7 @@ Mutation speed classes:
 | `UnfinishedThread` | ThreadManager | Cognition, observer later | ThreadManager only | Explicit open/update/resolve; aging deterministic | Required |
 | `ReflectionRun/Source/Attempt/Proposal/Outcome` | ReflectionCoordinator (application lifecycle) | Target adapters, audit | Coordinator records reflection lifecycle only; target owners decide domain mutations | Versioned fixed source set/hash; V2 optional immutable affect attachment; deterministic trigger/cost and terminal outcomes; no direct domain write | Always |
 | `AuditEvent` | AuditRecorder | Diagnostics/export | Unit of work only from owner decision | Append-only in same transaction as change | Always |
+| `AuditMetadataBinding` | Existing audit-authoring owner | Retained-data inventory/coverage | Shared typed binding append inside the existing owner UoW | Prospective immutable exact owner/event/identity links; no backfill or new evidence | Bound audit retained unchanged |
 
 Manager names denote domain owners, not necessarily runtime classes. Related owners may live in one module, but their write contracts remain distinct. Entries in the Readers column mean immutable snapshots supplied by application orchestration; they do not permit direct repository access or reverse module imports.
 
@@ -315,6 +345,7 @@ accepted fast delta и затухает медленнее; mood→emotion feedb
 
 ```text
 current event + immutable self + selected memory + current materialized state
+(ADR-0064 opt-in: one verified previous exchange as interpretation context)
 → provider-neutral semantic appraisal proposal
 → EmotionManager provenance/confidence/modulation/caps/bounds
 → tentative transition + expression snapshot
@@ -568,6 +599,13 @@ history or numeric drift.
 
 ## 14. Recovery and portability
 
+14.4.1 (ADR-0053) adds pure consistent **stored** snapshot transport, not another state owner.
+Exact-schema SQLite archives preserve canonical rows, versions, references and audit verbatim.
+Restore validates in staging and creates only a new absent local DB; it does not initialize missing
+affect/relationship, materialize decay, replay learning, mutate personality or run pending work.
+Separate private recovery receipts are operational metadata, never self/relationship evidence.
+Visibility/erasure, encryption/access and schema migration remain subsequent gates; see `recovery.md`.
+
 Canonical records + append-only events + versions позволяют:
 
 - rebuild projections and derived indexes;
@@ -577,3 +615,133 @@ Canonical records + append-only events + versions позволяют:
 - migrate schema without silently re-seeding personality.
 
 Отсутствие audit/provenance для core mutation считается corruption и блокирует автоматическое принятие состояния до repair/migration policy.
+
+### Canonical source eligibility — ADR-0057 / migration 0016
+
+SourcePolicyManager owns an independent installation policy floor and its derived main-DB
+eligibility mirror/repair metadata. It owns no canonical message, knowledge, inclination,
+personality, affect or relationship aggregate. Existing owners record immutable actual-input
+dependency receipts and apply their own typed support withdrawal/retirement or disclosure hold.
+Those receipts are exposure provenance, not fresh evidence or private reasoning. Historical
+numeric state, caps and budgets remain. PositionManager retains inclination ownership and its
+permanent aggregate identity; there is no separate inclination/personality writer. See
+[ADR-0057](decisions/0057-canonical-source-exclusion-and-trusted-policy-floor.md) for source versus
+content dependencies, lineage-bound legacy UNKNOWN admission and independent recovery limits.
+
+The independent floor starts with policy_0001; ADR-0060 adds explicit reviewed policy_0002
+upgrade for erasure intents without changing source generation. Main source-policy rows are a derived
+mirror, immutable actual-input/payload dependencies, owner-withdrawal receipts and owner repair
+watermarks. They store IDs/proof status/generation, never prompts or reasoning. An owner watermark
+is separate from mirror freshness; pending repair rejects same-key mutations. Unknown pre-policy
+text cannot receive invented complete provenance. See [source policy](source-policy.md).
+
+### Read-only erasure planning — ADR-0059
+
+ErasureInventory/Route/Preview/CheckResult are transient immutable metadata, not persistent self
+or a second policy ledger. Inspection reads stored rows through a bounded port and routes future
+handling to existing owners. No current payload, audit, exclusion receipt, numeric trajectory or
+budget changes. Assessment/freshness and physical readiness are independent: execution is always
+blocked in this slice. A future terminal erasure intent must be floor-first under SourcePolicyManager
+before any content mutation; that intent/owner executor is not implemented here. See [erasure](erasure.md).
+
+### Durable erasure intent and owner preparation — ADR-0060 / main 0017
+
+14.4.2d adds immutable terminal intent metadata to the existing SourcePolicyManager floor and a
+separate monotonic erasure_revision. Main erasure_policy_bindings acknowledges the complete trusted
+head; erasure_preparations stores append-only metadata assessments of all 15 existing owners.
+Neither is a new self owner or content writer. The five source-owner repair watermarks retain
+their exclusion-only meaning and do not acknowledge an erasure intent.
+
+Preparation semantically binds owner contracts, schema and retention digest; timestamps are audit
+metadata. Identical semantic replay is a no-op; drift appends a new revision without rewriting the
+original intent/assessment. Main-head freshness, preparation freshness and physical readiness are
+independent. Ordinary protected runtime denies stale head acknowledgment until explicit resume;
+after acknowledgment, unrelated use can continue while physical readiness stays blocked.
+
+No body, vector, number, evidence, revision, cap or Character state is changed. A blocked preview
+is reviewed inventory, not approval of a future executable plan. Owner retained/erased body states,
+nullable/separate storage and historical metadata proof are prerequisites for owner body handling.
+See [erasure intent](erasure-intent.md); 2d has macOS engineering verification, and its controls
+always deny physical execution. The separately approved MemoryManager/RetrievalIndex operation
+is defined below under ADR-0061; other owners still require their own terminal representations.
+
+
+### Terminal episodic body state — ADR-0061 / main 0018
+
+Episode lifecycle ACTIVE/ARCHIVED remains separate from body availability AVAILABLE/ERASED.
+EpisodicMemoryRow.summary and MemoryEvidenceRow.quote are nullable only in terminal ERASED
+records with a body_action_id. IDs, FK attribution, lifecycle, aggregate version, confidence,
+importance and historical decisions remain unchanged. ErasedEpisodeHeader reports historical
+references; it is not a normal EpisodicMemory or exact quotation evidence. All selected vectors
+are removed, including incompatible/unused spaces. No new semantic/self evidence or cap refund
+follows from body handling.
+
+The independent floor adds immutable BodyErasureAction and monotonic body_revision. Main
+erasure_body_applications projects approved envelopes; erasure_body_bindings acknowledges
+verified materialization of the effective full head. Main and floor action proofs must match;
+extra terminal records and receipt-only completion deny. Separate body/terminal fingerprints
+bind full row sets, numerical skeletons and all index spaces. Numerical knowledge values owned
+by other subsystems remain sensitive content awaiting their own terminal representations.
+
+### Terminal Reflection proposal bodies — ADR-0068 / main 0021
+
+Reflection remains the single owner of proposal content. `ReflectionProposalRow.payload` is
+nullable only with terminal `body_state='erased'` and exact `body_action_id`; available proposals
+require an object payload and no action. Whole JSON candidate content is removed, including
+numeric candidate fields. Immutable logical payload version 1 remains reserved.
+
+`ReflectionProposalHeader` reports retained identity, run/ordinal/target/source references and
+creation time without fabricating a normal proposal. Complete proposal IDs preserve routing
+cardinality. The whole completed/exhausted parent run, sources, attempts and selected outcomes
+remain exact; SQL guards freeze their data and membership after the first erased child.
+Numerical learning, statuses, versions and spent budgets remain. No new outcome or rollback occurs.
+
+`ReflectionBodyAction` is the fourth closed action in the existing floor's mixed body stream,
+introduced explicitly through `policy_0006`. It binds exact preimage/terminal material and
+metadata-reference counts. The existing coordinator commits the floor first, calls the sole owner
+writer in one main transaction and proves actual NULL plus complete retained material before ACK.
+Source/intent freshness cannot substitute for this body proof. Available read, dispatch and final
+commit checks use the same version 1; historical terminal proof cannot authorize fresh learning.
+See [retained Reflection handling](erasure-reflection.md) and [source policy](source-policy.md).
+
+### Appraisal explanation pair — ADR-0070 / main 0022
+
+EmotionManager remains the sole affective transition owner. New transitions bind the exact
+prepared COMPLETE `source_input_id` and owned `audit_event_id` in the canonical reply transaction.
+Legacy NULL links remain UNKNOWN for destructive completeness. No generic content graph or
+numerical state owner is introduced.
+
+`explanation_state=erased` requires actual SQL NULL `reason_codes`, the exact main action FK and
+both direct links. Its paired `emotion.transition_applied` audit event loses only the
+`appraisal_reason_codes` key. Scores, deltas, snapshots, versions, source IDs, numerical influence
+and consumed budgets remain exact. The action binds direct material and an immutable complete
+input-closure digest.
+
+Contentful reads never synthesize an empty proposal. Numerical history is a separate immutable
+DTO; status and duplicate detection use headers. An unavailable explanation never hides a
+numerical transition or allows its reapplication. Existing affective witness hashes are unchanged.
+See [paired explanation handling](erasure-appraisal.md).
+
+### Identity-owned checkpoint reasons — ADR-0072 / main 0024
+
+Identity-owned approval/restore reason disposition is specified by
+[ADR-0072](decisions/0072-identity-scoped-checkpoint-reason-disposition.md) and main0024.
+The existing Personality owner sets exact reason bodies to SQL NULL with erased availability and
+an action FK, through a sixth closed variant in the same mixed head. Its scope is identity/lineage
+and exact record selectors, with no inferred USER root or intent. Metadata headers retain approval
+existence, latest budget anchor, checkpoints, numerical diffs/versions and audit/binding bytes.
+Future mutable Personality state is outside fixed terminal proof. Physical erasure remains separate.
+
+### Retained audit metadata — ADR-0071 / main 0023
+
+`audit_metadata_bindings` stores the supported contract/family, explicit identity, exact owner
+receipt FK, canonical event digest and optional explicitly supplied actual-input FK. It is a
+companion table: old `audit_events` rows/columns and Appraisal material hashes remain exact.
+One shared append path participates in the existing owner's transaction; no new state owner,
+source-policy graph, floor counter or erasure action is introduced.
+
+Certification revalidates closed raw shapes and exact owner/header/scope/cardinality proof.
+Missing legacy bindings, unsupported prose/codes and altered/ambiguous proof remain UNKNOWN.
+An absent input FK never proves complete causal ancestry. Metadata retention does not grant
+fresh learning. Appraisal content and terminal proof remain exclusively under ADR-0070.
+See [retained audit metadata](retained-audit-metadata.md).

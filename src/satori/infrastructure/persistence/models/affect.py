@@ -86,6 +86,16 @@ class AffectiveTransitionRow(Base):
             "appraisal_confidence >= 0.0 AND appraisal_confidence <= 1.0",
             name="appraisal_confidence_valid",
         ),
+        CheckConstraint(
+            "(explanation_state='available' AND reason_codes IS NOT NULL "
+            "AND json_type(reason_codes)='array' AND json_array_length(reason_codes) >= 1 "
+            "AND explanation_action_id IS NULL) OR "
+            "(explanation_state='erased' AND reason_codes IS NULL "
+            "AND explanation_action_id IS NOT NULL AND source_input_id IS NOT NULL "
+            "AND audit_event_id IS NOT NULL)",
+            name="explanation_consistent",
+        ),
+        UniqueConstraint("audit_event_id"),
     )
 
     transition_id: Mapped[str] = mapped_column(String(128), primary_key=True)
@@ -117,7 +127,7 @@ class AffectiveTransitionRow(Base):
     appraisal_confidence: Mapped[float] = mapped_column(Float, nullable=False)
     appraisal_payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     source_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-    reason_codes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    reason_codes: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     applied_delta: Mapped[dict[str, float]] = mapped_column(JSON, nullable=False)
     mood_delta: Mapped[dict[str, float]] = mapped_column(JSON, nullable=False)
     state_before: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
@@ -125,3 +135,15 @@ class AffectiveTransitionRow(Base):
     provider: Mapped[str] = mapped_column(String(128), nullable=False)
     model: Mapped[str] = mapped_column(String(256), nullable=False)
     appraisal_method: Mapped[str] = mapped_column(String(128), nullable=False)
+    explanation_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="available"
+    )
+    explanation_action_id: Mapped[str | None] = mapped_column(
+        String(128), ForeignKey("erasure_body_applications.action_id", ondelete="RESTRICT")
+    )
+    source_input_id: Mapped[str | None] = mapped_column(
+        String(128), ForeignKey("source_inputs.input_id", ondelete="RESTRICT")
+    )
+    audit_event_id: Mapped[str | None] = mapped_column(
+        String(128), ForeignKey("audit_events.event_id", ondelete="RESTRICT")
+    )

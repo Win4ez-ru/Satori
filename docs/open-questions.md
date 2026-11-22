@@ -161,6 +161,22 @@ supersedes ADR-0018 for provider disclosure selection while preserving its state
 
 ## Decide before the named Stage
 
+North Star planning gates added 2026-09-04 (ADR-0046); none authorizes implementation:
+
+| Question | Decision gate | Required evidence |
+|---|---|---|
+| Complete-state export/import, encryption/key custody, erase vs provenance retention, secure artifacts | 14.4 | Crash/tamper/restore/erasure drills; no credentials in exports; threat review |
+| Subject/visibility scope for early memory and unattributed legacy records | 14.4 | Cross-counterparty negative context tests and no silent attribution/backfill |
+| External source kinds, event time/revisions, consent and downstream eligibility | 17.1 | Synthetic hostile, duplicate, reordered and retracted events; per-owner ADR |
+| Entity linking and current vs historical precedence across all memory/model layers | 17.2 | Ambiguous people, conflicting clocks/sources, stale semantic vs fresh world tests |
+| Authenticated principal, scoped grants, risk policy and secret vault adapter | 17.3 | Deny/read/write/revoke/expiry/account/device matrix; relationship-independent permissions |
+| Unknown external outcome, confirmation binding and safe retry/reconciliation | 17.4 | Every execution crash point; no blind retries on irreversible operations |
+| Real connector/API/OS support and access scope | Each 17.5/17.6 adapter, 23–26 | Verify current official API constraints before selecting technology; no speculative platform access |
+| Canonical writer and offline device command conflicts | 25.1 | Restart/reconnect/split-brain/revoke simulations and real-device recovery |
+
+Earlier entries below keep historical context; the more specific new pre-integration deadlines
+apply to future scheduling. Stage 16 emotional concepts remains an optional evidence-gated branch.
+
 Stage 11 belief/opinion identity, merge and contradiction semantics are resolved by
 [ADR-0024](decisions/0024-evidence-linked-satori-positions.md): exact normalized identity,
 canonical material evidence, explicit versioned revision/challenge/competition and no semantic
@@ -195,6 +211,8 @@ until real A/B and cost/privacy evidence exists.
 
 | Question | Decision gate | Evaluation/input required |
 |---|---:|---|
+| Eligibility of ordinary initiative versus explicit recap/identity requests | Before accepting Checkpoint 14.3 initiative frequency | V31 live telemetry applies the hint to two such selected `owned_response` cases; preserve explicit obligations and add these controls to any versioned selector calibration. See V31 evidence. |
+| Explicit stop wording with an available canonical interest | Before Checkpoint 14.3 character acceptance | V30/V31 both miss “Не продолжай тему. На этом всё.” in the new preservation corpus; a versioned selector correction needs negation/question controls and frozen historical behavior. See V31 evidence. |
 | Creator attribution/role schema, provenance and correction semantics | Stage 9 or later dedicated ADR | Distinguish activation origin, developer attribution and user claim; correction, conflict, privacy and export fixtures |
 | Intent representation: open tags vs registry/taxonomy | 10 | Pipeline implementation experience and observability needs |
 | Autobiographical significance policy | 15 | Narrative quality vs over-retention evaluation |

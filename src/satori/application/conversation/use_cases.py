@@ -5,15 +5,27 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
+from satori.application.affect.dialogue_context import project_previous_exchange
 from satori.application.affect.use_cases import (
     FinalizeAffectiveInteraction,
     PrepareAffectiveContext,
 )
 from satori.application.cognition.contracts import (
+    CognitionArtifactStatus,
     CognitionDialogueSignals,
     CognitionPipelineTrace,
 )
 from satori.application.cognition.use_cases import SafeCognitionPipeline
+from satori.application.conversation.character_agency import (
+    CharacterAgencyDecision,
+    CharacterAgencyKernel,
+)
+from satori.application.conversation.character_dialogue_cue import (
+    project_prior_conversational_cue,
+)
+from satori.application.conversation.character_evidence import (
+    analyze_character_request_evidence,
+)
 from satori.application.conversation.coherence import (
     DialogueCoherenceContext,
     analyze_dialogue_coherence,
@@ -22,22 +34,62 @@ from satori.application.conversation.coherence import (
     requests_extended_session_context,
 )
 from satori.application.conversation.context import (
-    CONVERSATION_INCLUDED_SECTIONS,
     CharacterContextComposer,
     ConversationRequestBuilder,
+    plan_conversational_disclosure,
 )
 from satori.application.conversation.contracts import (
+    CONVERSATION_INCLUDED_SECTIONS,
     ConversationContextManifest,
     SatoriReply,
     TalkInput,
     TurnPhaseTimings,
 )
+from satori.application.conversation.current_position import (
+    CurrentPositionReason,
+    CurrentPositionStatus,
+    PrepareCurrentPosition,
+    PreparedCurrentPosition,
+    attach_current_position,
+)
+from satori.application.conversation.dialogue_relation import (
+    PreparedPriorDialogueRelation,
+    PreparePriorDialogueRelation,
+)
+from satori.application.conversation.dialogue_relation_contracts import (
+    PriorDialogueRelationReason,
+    PriorDialogueRelationStatus,
+)
+from satori.application.conversation.disclosure_contracts import (
+    is_satori_self_disclosure_plan,
+)
 from satori.application.conversation.errors import (
     AffectiveFinalizeConflict,
+    ContextBudgetExceeded,
     ConversationInputError,
 )
 from satori.application.conversation.grounding import ResponseGroundingGate
 from satori.application.conversation.history import GetRecentConversation, InteractionLog
+from satori.application.conversation.peer_delivery import (
+    PEER_DELIVERY_MARKER,
+    PEER_DELIVERY_MARKER_V30,
+    PEER_DELIVERY_MARKER_V31,
+    PEER_DELIVERY_MARKER_V32,
+    PEER_DELIVERY_MARKER_V33,
+    PEER_DELIVERY_MARKER_V34,
+    PEER_DELIVERY_MARKER_V35,
+    PEER_DELIVERY_MARKER_V36,
+    PEER_DELIVERY_MARKER_V37,
+)
+from satori.application.conversation.repair_intake import repair_interpretation_is_eligible
+from satori.application.conversation.repair_interpretation import PrepareRepairInterpretation
+from satori.application.conversation.repair_interpretation_contracts import (
+    PreparedRepairInterpretation,
+    RepairInterpretationReason,
+    RepairInterpretationStatus,
+    RepairInterpretationTrace,
+    repair_interpretation_matches_context,
+)
 from satori.application.conversation.response_validation import (
     ResponseRegenerationReason,
     response_regeneration_reason,
@@ -49,10 +101,16 @@ from satori.application.relationship.use_cases import GetRelationshipForSession
 from satori.application.retrieval.contracts import RetrievalQuery, RetrievalStatus
 from satori.application.retrieval.use_cases import RetrieveEpisodicMemories
 from satori.application.semantic.use_cases import RetrieveSemanticClaims
+from satori.application.source_policy.dispatch import (
+    admit_provider_dispatch,
+    source_dispatch_admission,
+)
 from satori.core.conversation import (
+    ConversationGenerationParameters,
     ConversationMessage,
     ConversationMessageRole,
     ConversationProviderError,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     ConversationProviderResponse,
     ConversationUsage,
@@ -64,15 +122,38 @@ from satori.core.provider_metrics import ProviderExecutionMetrics
 from satori.domain.affect import AffectiveStateConflict
 from satori.domain.conversation_history import (
     ConversationInteraction,
+    InteractionFailureMetadata,
     InteractionProviderMetadata,
     InteractionStatus,
 )
 from satori.domain.errors import NotActivated
+from satori.domain.memory_scope import MemoryScope
+from satori.domain.source_policy import PayloadRef, SourcePolicyError
 
 ConversationProvider = ConversationGenerationPort[
     ConversationProviderRequest,
     ConversationProviderResponse,
 ]
+
+_FINAL_CHARACTER_REALIZATION_MARKERS = (
+    PEER_DELIVERY_MARKER_V31,
+    PEER_DELIVERY_MARKER_V32,
+    PEER_DELIVERY_MARKER_V33,
+    PEER_DELIVERY_MARKER_V34,
+    PEER_DELIVERY_MARKER_V35,
+    PEER_DELIVERY_MARKER_V36,
+    PEER_DELIVERY_MARKER_V37,
+    PEER_DELIVERY_MARKER_V30,
+    PEER_DELIVERY_MARKER,
+    "Trusted current-turn agency Сатори",
+    "Trusted current-turn presence Сатори / operational move v2",
+    "Trusted current-turn presence Сатори",
+    "Единая request-local режиссура реплики Сатори",
+    "Финальный компактный речевой контракт Сатори для этой реплики",
+    "Финальный response-act контракт Сатори для этой реплики",
+    "Единая финальная request-local реализация характера Сатори",
+    "Финальная реализация характера Сатори для этой реплики",
+)
 
 
 def _log_fields(**fields: object) -> dict[str, object]:
@@ -101,6 +182,11 @@ class TalkToSatori:
     get_current_models: GetCurrentModels | None = None
     get_positions: GetSatoriPositions | None = None
     cognition_pipeline: SafeCognitionPipeline | None = None
+    character_agency_kernel: CharacterAgencyKernel | None = None
+    appraisal_previous_exchange_enabled: bool = False
+    prepare_current_position: PrepareCurrentPosition | None = None
+    prepare_prior_dialogue_relation: PreparePriorDialogueRelation | None = None
+    prepare_repair_interpretation: PrepareRepairInterpretation | None = None
     monotonic: Callable[[], float] = time.perf_counter
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("satori.conversation"))
 
@@ -139,6 +225,9 @@ class TalkToSatori:
             command,
             identity_id=snapshot.identity.identity_id,
         )
+        memory_scope = MemoryScope(
+            snapshot.identity.identity_id, self.interaction_log.default_counterparty_id
+        )
         intake_ms = (self.monotonic() - turn_started) * 1000
 
         if interaction.status is InteractionStatus.COMPLETED:
@@ -170,33 +259,62 @@ class TalkToSatori:
         )
         recent_context = (
             recent_reader.execute(
+                scope=memory_scope,
                 session_id=interaction.session_id,
                 excluded_interaction_id=interaction.interaction_id,
             )
             if recent_reader is not None and command.session_id is not None
             else None
         )
-        dialogue_context = analyze_dialogue_coherence(command.user_text, recent_context)
+        dialogue_context = analyze_dialogue_coherence(
+            command.user_text,
+            recent_context,
+            policy_schema_version=self.request_builder.policy.schema_version,
+        )
+        character_evidence = analyze_character_request_evidence(
+            command.user_text,
+            recent_context,
+            policy_schema_version=self.request_builder.policy.schema_version,
+        )
+        disclosure_plan = (
+            plan_conversational_disclosure(
+                command.user_text,
+                dialogue_context,
+                policy_schema_version=self.request_builder.policy.schema_version,
+            )
+            if self.request_builder.policy.schema_version >= 25
+            else None
+        )
+        cognition_dialogue_signals = CognitionDialogueSignals(
+            repeated_turn=dialogue_context.current_user_message_repeated,
+            correction_active=any(
+                (
+                    dialogue_context.current_no_routine_questions_correction,
+                    dialogue_context.current_informal_correction,
+                    dialogue_context.current_repetition_feedback,
+                    dialogue_context.current_relevance_feedback,
+                    dialogue_context.current_frustration_feedback,
+                    dialogue_context.current_contradiction_feedback,
+                )
+            ),
+            no_routine_questions=(dialogue_context.active_no_routine_questions_correction),
+            current_activity=dialogue_context.current_activity_mention,
+            explicit_listen_request=character_evidence.explicit_listen_request,
+            high_distress=character_evidence.high_distress,
+            harmful_overextension=character_evidence.harmful_overextension,
+            explicit_motivation_request=(character_evidence.explicit_motivation_request),
+            explicit_task_abandonment=(character_evidence.explicit_task_abandonment),
+            explicit_repair_offer=character_evidence.explicit_repair_offer,
+            self_disclosure_request=(
+                disclosure_plan is not None and is_satori_self_disclosure_plan(disclosure_plan)
+            ),
+        )
         cognition_intake = (
             self.cognition_pipeline.prepare_intake(
                 user_text=command.user_text,
                 user_message_id=interaction.user_message.message_id,
                 interaction_id=interaction.interaction_id,
-                dialogue=CognitionDialogueSignals(
-                    repeated_turn=dialogue_context.current_user_message_repeated,
-                    correction_active=any(
-                        (
-                            dialogue_context.current_no_routine_questions_correction,
-                            dialogue_context.current_informal_correction,
-                            dialogue_context.current_repetition_feedback,
-                            dialogue_context.current_relevance_feedback,
-                            dialogue_context.current_frustration_feedback,
-                            dialogue_context.current_contradiction_feedback,
-                        )
-                    ),
-                    no_routine_questions=(dialogue_context.active_no_routine_questions_correction),
-                    current_activity=dialogue_context.current_activity_mention,
-                ),
+                dialogue=cognition_dialogue_signals,
             )
             if self.cognition_pipeline is not None
             else None
@@ -232,15 +350,29 @@ class TalkToSatori:
             if self.get_positions is not None
             else None
         )
-        inclination_context = (
-            self.get_positions.project_inclination_context(
-                identity_id=snapshot.identity.identity_id,
-                user_text=command.user_text,
-                as_of=interaction.started_at,
-            )
-            if self.get_positions is not None
-            else None
-        )
+        inclination_context = None
+        if self.get_positions is not None:
+            if self.request_builder.policy.schema_version >= 28:
+                include_owned_topic = bool(
+                    self.character_agency_kernel is not None
+                    and self.character_agency_kernel.allows_owned_topic_projection(
+                        evidence=character_evidence,
+                        dialogue=dialogue_context,
+                        relationship=relationship_context,
+                    )
+                )
+                inclination_context = self.get_positions.project_inclination_context(
+                    identity_id=snapshot.identity.identity_id,
+                    user_text=command.user_text,
+                    as_of=interaction.started_at,
+                    include_owned_topic=include_owned_topic,
+                )
+            else:
+                inclination_context = self.get_positions.project_inclination_context(
+                    identity_id=snapshot.identity.identity_id,
+                    user_text=command.user_text,
+                    as_of=interaction.started_at,
+                )
 
         memory_context = None
         if self.retrieve_memories is not None and (
@@ -248,10 +380,12 @@ class TalkToSatori:
         ):
             memory_context = await self.retrieve_memories.execute(
                 RetrievalQuery(
+                    scope=memory_scope,
                     text=command.user_text,
                     trace_id=command.trace_id,
                     cutoff=interaction.started_at,
                     current_interaction_id=interaction.interaction_id,
+                    root_message_id=interaction.user_message.message_id,
                 )
             )
         semantic_context = None
@@ -261,19 +395,435 @@ class TalkToSatori:
             and memory_context.status is not RetrievalStatus.UNAVAILABLE
             and (cognition_intake is None or cognition_intake.retrieval_plan.include_semantic)
         ):
-            candidate_semantic_context = self.retrieve_semantic.execute(memory_context.memory_ids)
+            candidate_semantic_context = self.retrieve_semantic.execute(
+                memory_context.memory_ids, scope=memory_scope
+            )
             if candidate_semantic_context.claims:
                 semantic_context = candidate_semantic_context
         prepared_affect = None
         if self.prepare_affect is not None:
-            prepared_affect = await self.prepare_affect.execute(
-                snapshot,
-                interaction,
-                user_text=command.user_text,
-                trace_id=command.trace_id,
-                memory_context=memory_context,
-                semantic_context=semantic_context,
+            previous_exchange = None
+            if self.appraisal_previous_exchange_enabled:
+                try:
+                    prior = (
+                        self.interaction_log.get(recent_context.turns[-1].interaction_id)
+                        if recent_context is not None and recent_context.turns
+                        else None
+                    )
+                    previous_exchange = project_previous_exchange(
+                        recent_context,
+                        current_interaction=interaction,
+                        previous_interaction=prior,
+                        current_session=self.interaction_log.get_session(interaction.session_id),
+                        previous_session=(
+                            self.interaction_log.get_session(prior.session_id)
+                            if prior is not None
+                            else None
+                        ),
+                    )
+                except SourcePolicyError as error:
+                    self._mark_failed(interaction.interaction_id, error)
+                    raise
+                self.logger.info(
+                    "emotion_appraisal_previous_exchange_projected",
+                    extra=_log_fields(
+                        interaction_id=interaction.interaction_id,
+                        context_available=previous_exchange is not None,
+                    ),
+                )
+            if previous_exchange is None:
+                prepared_affect = await self.prepare_affect.execute(
+                    snapshot,
+                    interaction,
+                    user_text=command.user_text,
+                    trace_id=command.trace_id,
+                    memory_context=memory_context,
+                    semantic_context=semantic_context,
+                )
+            else:
+                try:
+                    prepared_affect = await self.prepare_affect.execute(
+                        snapshot,
+                        interaction,
+                        user_text=command.user_text,
+                        trace_id=command.trace_id,
+                        memory_context=memory_context,
+                        semantic_context=semantic_context,
+                        previous_exchange=previous_exchange,
+                    )
+                except SourcePolicyError as error:
+                    self._mark_failed(interaction.interaction_id, error)
+                    raise
+        context_started = self.monotonic()
+        context = self.context_composer.compose(
+            snapshot,
+            retrieval_available=(
+                memory_context is not None
+                and memory_context.status is not RetrievalStatus.UNAVAILABLE
+            ),
+            semantic_retrieval_available=semantic_context is not None,
+            emotional_state_available=prepared_affect is not None,
+            relationship_state_available=relationship_context is not None,
+            recent_conversation_available=recent_context is not None,
+            user_model_available=(
+                model_context is not None and model_context.status == "available"
+            ),
+        )
+
+        def prepare_actual_inputs() -> str | None:
+            input_roots = tuple(
+                dict.fromkeys(
+                    (
+                        interaction.user_message.message_id,
+                        *(recent_context.user_evidence_ids if recent_context is not None else ()),
+                        *(
+                            prepared_affect.actual_input_root_message_ids
+                            if prepared_affect is not None
+                            else ()
+                        ),
+                    )
+                )
             )
+            input_refs = tuple(
+                dict.fromkeys(
+                    (
+                        *(
+                            (
+                                PayloadRef("assistant_reply", turn.interaction_id)
+                                for turn in recent_context.turns
+                            )
+                            if recent_context is not None
+                            else ()
+                        ),
+                        *(memory_context.source_payload_refs if memory_context is not None else ()),
+                        *(
+                            prepared_affect.actual_input_payload_refs
+                            if prepared_affect is not None
+                            else ()
+                        ),
+                        *(
+                            semantic_context.source_payload_refs
+                            if semantic_context is not None
+                            else ()
+                        ),
+                        *(model_context.source_payload_refs if model_context is not None else ()),
+                        *(
+                            position_context.source_payload_refs
+                            if position_context is not None
+                            else ()
+                        ),
+                        *(
+                            inclination_context.source_payload_refs
+                            if inclination_context is not None
+                            else ()
+                        ),
+                    )
+                )
+            )
+            return self.interaction_log.prepare_inputs(
+                root_message_ids=input_roots, payload_refs=input_refs
+            )
+
+        source_inputs_prepared = False
+        source_input_id: str | None = None
+        prior_dialogue_relation: PreparedPriorDialogueRelation | None = None
+        repair_interpretation: PreparedRepairInterpretation | None = None
+        repair_interpretation_trace: RepairInterpretationTrace | None = None
+        if self.prepare_repair_interpretation is not None:
+            if (
+                self.request_builder.policy.schema_version != 35
+                or self.prepare_current_position is not None
+                or self.prepare_prior_dialogue_relation is not None
+                or self.request_builder.prior_dialogue_relation_enabled
+                or self.appraisal_previous_exchange_enabled
+                or cognition_intake is None
+                or self.cognition_pipeline is None
+            ):
+                repair_error = ValueError("repair interpretation requires isolated V35 cognition")
+                self._mark_failed(interaction.interaction_id, repair_error)
+                raise repair_error
+            baseline_repair_offer = character_evidence.explicit_repair_offer
+            try:
+                # Bind every already-read source, including uncited recent and owner inputs.
+                source_input_id = prepare_actual_inputs()
+                source_inputs_prepared = True
+                repair_interpretation = PreparedRepairInterpretation(
+                    status=RepairInterpretationStatus.SKIPPED,
+                    reason=RepairInterpretationReason.NOT_ELIGIBLE,
+                )
+                if repair_interpretation_is_eligible(
+                    cognition_intake, character_evidence, dialogue_context
+                ):
+                    latest = self.interaction_log.get_latest_completed_header(
+                        scope=memory_scope,
+                        session_id=interaction.session_id,
+                        excluded_interaction_id=interaction.interaction_id,
+                    )
+                    prior_turn = (
+                        recent_context.turns[-1]
+                        if recent_context is not None and recent_context.turns
+                        else None
+                    )
+                    exact_slot = (latest is None and prior_turn is None) or (
+                        latest is not None
+                        and prior_turn is not None
+                        and not latest.has_terminal_body
+                        and latest.interaction_id == prior_turn.interaction_id
+                        and latest.user_message.message_id == prior_turn.user_message_id
+                        and latest.assistant_message is not None
+                        and latest.assistant_message.message_id == prior_turn.assistant_message_id
+                    )
+                    if exact_slot:
+                        with source_dispatch_admission(
+                            self.interaction_log.unit_of_work_factory, source_input_id
+                        ):
+                            repair_interpretation = (
+                                await self.prepare_repair_interpretation.execute(
+                                    prior_turn=prior_turn,
+                                    current_user_message_id=interaction.user_message.message_id,
+                                    current_user_text=command.user_text,
+                                    interlocutor_name=context.self_model.name,
+                                    parameters=ConversationGenerationParameters(
+                                        schema_version=1,
+                                        temperature=self.request_builder.temperature,
+                                        max_output_tokens=self.request_builder.max_output_tokens,
+                                    ),
+                                    trace_id=command.trace_id,
+                                    max_context_chars=self.request_builder.max_context_chars,
+                                )
+                            )
+                        self.interaction_log.require_inputs(source_input_id)
+                        interpretation = repair_interpretation.interpretation
+                        if interpretation is not None and not repair_interpretation_matches_context(
+                            interpretation,
+                            recent_context=recent_context,
+                            current_user_message_id=interaction.user_message.message_id,
+                            current_user_text=command.user_text,
+                        ):
+                            raise ValueError(
+                                "repair interpretation does not match canonical inputs"
+                            )
+                        effective_repair = repair_interpretation.repair_offer_override
+                        if effective_repair is not None:
+                            effective_dialogue = replace(
+                                cognition_dialogue_signals, explicit_repair_offer=effective_repair
+                            )
+                            effective_intake = self.cognition_pipeline.prepare_intake(
+                                user_text=command.user_text,
+                                user_message_id=interaction.user_message.message_id,
+                                interaction_id=interaction.interaction_id,
+                                dialogue=effective_dialogue,
+                            )
+                            if effective_intake.retrieval_plan != cognition_intake.retrieval_plan:
+                                raise ValueError(
+                                    "repair interpretation cannot change retrieval scope"
+                                )
+                            character_evidence = replace(
+                                character_evidence, explicit_repair_offer=effective_repair
+                            )
+                            cognition_intake = effective_intake
+                    else:
+                        repair_interpretation = PreparedRepairInterpretation(
+                            status=RepairInterpretationStatus.SKIPPED,
+                            reason=RepairInterpretationReason.PRIOR_UNAVAILABLE,
+                        )
+                repair_interpretation_trace = RepairInterpretationTrace(
+                    status=repair_interpretation.status,
+                    reason=repair_interpretation.reason,
+                    kind=repair_interpretation.classification_kind,
+                    uncertainty=repair_interpretation.uncertainty,
+                    baseline_repair_offer=baseline_repair_offer,
+                    effective_repair_offer=character_evidence.explicit_repair_offer,
+                    speech_act=repair_interpretation.speech_act,
+                    frame=repair_interpretation.frame,
+                    addressee=repair_interpretation.addressee,
+                    basis=repair_interpretation.basis,
+                )
+                self.logger.info(
+                    "repair_interpretation_prepared",
+                    extra=_log_fields(
+                        operation="repair_interpretation",
+                        interaction_id=interaction.interaction_id,
+                        status=repair_interpretation.status.value,
+                        reason=repair_interpretation.reason.value,
+                        kind=(
+                            repair_interpretation.classification_kind.value
+                            if repair_interpretation.classification_kind is not None
+                            else None
+                        ),
+                        baseline_repair_offer=baseline_repair_offer,
+                        effective_repair_offer=character_evidence.explicit_repair_offer,
+                        latency_ms=round(repair_interpretation.latency_ms, 3),
+                        provider=repair_interpretation.provider,
+                        model=repair_interpretation.model,
+                        input_tokens=(
+                            repair_interpretation.usage.input_tokens
+                            if repair_interpretation.usage is not None
+                            else None
+                        ),
+                        output_tokens=(
+                            repair_interpretation.usage.output_tokens
+                            if repair_interpretation.usage is not None
+                            else None
+                        ),
+                    ),
+                )
+            except Exception as error:
+                self._mark_failed(interaction.interaction_id, error)
+                raise
+        character_agency: CharacterAgencyDecision | None = None
+        if self.request_builder.policy.schema_version >= 28:
+            if (
+                self.character_agency_kernel is None
+                or cognition_intake is None
+                or disclosure_plan is None
+            ):
+                agency_error = ValueError(
+                    "behavior policy v28 requires character agency and cognition intake"
+                )
+                self._mark_failed(interaction.interaction_id, agency_error)
+                raise agency_error
+            try:
+                character_agency = self.character_agency_kernel.select(
+                    context=context,
+                    intake=cognition_intake,
+                    evidence=character_evidence,
+                    dialogue=dialogue_context,
+                    disclosure_plan=disclosure_plan,
+                    emotional_context=(
+                        prepared_affect.expression if prepared_affect is not None else None
+                    ),
+                    relationship_context=relationship_context,
+                    position_context=position_context,
+                    inclination_context=inclination_context,
+                    prior_conversational_cue=(
+                        project_prior_conversational_cue(recent_context)
+                        if self.request_builder.policy.schema_version == 36
+                        else None
+                    ),
+                )
+            except Exception as error:
+                self._mark_failed(interaction.interaction_id, error)
+                raise
+        baseline_character_agency = character_agency
+        if self.prepare_prior_dialogue_relation is not None:
+            if (
+                self.request_builder.policy.schema_version != 35
+                or self.prepare_current_position is not None
+                or self.appraisal_previous_exchange_enabled
+                or not self.request_builder.prior_dialogue_relation_enabled
+            ):
+                relation_error = ValueError("prior dialogue relation requires isolated V35")
+                self._mark_failed(interaction.interaction_id, relation_error)
+                raise relation_error
+            try:
+                source_input_id = prepare_actual_inputs()
+                source_inputs_prepared = True
+                eligible = (
+                    character_agency is not None
+                    and character_agency.status.value == "applied"
+                    and character_agency.drive.value == "none"
+                    and character_agency.act.value == "respond"
+                    and character_agency.subject.value == "current_exchange"
+                    and character_agency.initiative.value == "none"
+                    and character_agency.lead.value == "fused"
+                    and cognition_intake is not None
+                    and not cognition_intake.perception.signals
+                    and not dialogue_context.current_user_message_repeated
+                    and not dialogue_context.current_repetition_feedback
+                    and not dialogue_context.current_frustration_feedback
+                )
+                if eligible and recent_context is not None and recent_context.turns:
+                    prior_turn = recent_context.turns[-1]
+                    latest = self.interaction_log.get_latest_completed_header(
+                        scope=memory_scope,
+                        session_id=interaction.session_id,
+                        excluded_interaction_id=interaction.interaction_id,
+                    )
+                    # A filtered recent projection must not substitute an older eligible
+                    # question for the actual preceding, now unavailable slot.
+                    exact_slot = (
+                        latest is not None
+                        and not latest.has_terminal_body
+                        and latest.interaction_id == prior_turn.interaction_id
+                        and latest.user_message.message_id == prior_turn.user_message_id
+                        and latest.assistant_message is not None
+                        and latest.assistant_message.message_id == prior_turn.assistant_message_id
+                    )
+                    if exact_slot:
+                        with source_dispatch_admission(
+                            self.interaction_log.unit_of_work_factory, source_input_id
+                        ):
+                            prior_dialogue_relation = (
+                                await self.prepare_prior_dialogue_relation.execute(
+                                    prior_turn=prior_turn,
+                                    current_user_message_id=interaction.user_message.message_id,
+                                    current_user_text=command.user_text,
+                                    context=context,
+                                    emotional_context=(
+                                        prepared_affect.expression
+                                        if prepared_affect is not None
+                                        else None
+                                    ),
+                                    relationship_context=relationship_context,
+                                    parameters=ConversationGenerationParameters(
+                                        schema_version=1,
+                                        temperature=self.request_builder.temperature,
+                                        max_output_tokens=self.request_builder.max_output_tokens,
+                                    ),
+                                    trace_id=command.trace_id,
+                                    max_context_chars=self.request_builder.max_context_chars,
+                                )
+                            )
+                        self.interaction_log.require_inputs(source_input_id)
+                        assert self.character_agency_kernel is not None
+                        assert cognition_intake is not None
+                        assert disclosure_plan is not None
+                        character_agency = self.character_agency_kernel.select(
+                            context=context,
+                            intake=cognition_intake,
+                            evidence=character_evidence,
+                            dialogue=dialogue_context,
+                            disclosure_plan=disclosure_plan,
+                            emotional_context=(
+                                prepared_affect.expression if prepared_affect is not None else None
+                            ),
+                            relationship_context=relationship_context,
+                            position_context=position_context,
+                            inclination_context=inclination_context,
+                            prior_dialogue_relation=prior_dialogue_relation.relation,
+                        )
+                if prior_dialogue_relation is not None:
+                    self.logger.info(
+                        "prior_dialogue_relation_prepared",
+                        extra=_log_fields(
+                            operation="prior_dialogue_relation",
+                            interaction_id=interaction.interaction_id,
+                            status=prior_dialogue_relation.status.value,
+                            reason=prior_dialogue_relation.reason.value,
+                            latency_ms=round(prior_dialogue_relation.latency_ms, 3),
+                            provider=prior_dialogue_relation.provider,
+                            model=prior_dialogue_relation.model,
+                            input_tokens=(
+                                prior_dialogue_relation.usage.input_tokens
+                                if prior_dialogue_relation.usage is not None
+                                else None
+                            ),
+                            output_tokens=(
+                                prior_dialogue_relation.usage.output_tokens
+                                if prior_dialogue_relation.usage is not None
+                                else None
+                            ),
+                        ),
+                    )
+            except Exception as error:
+                self._mark_failed(interaction.interaction_id, error)
+                raise
+        context_projection_ms = (
+            (self.monotonic() - context_started) * 1000
+            - (prior_dialogue_relation.latency_ms if prior_dialogue_relation is not None else 0.0)
+            - (repair_interpretation.latency_ms if repair_interpretation is not None else 0.0)
+        )
         cognition_trace = (
             self.cognition_pipeline.complete(
                 cognition_intake,
@@ -304,23 +854,23 @@ class TalkToSatori:
             if self.cognition_pipeline is not None and cognition_intake is not None
             else None
         )
-        context_started = self.monotonic()
-        context = self.context_composer.compose(
-            snapshot,
-            retrieval_available=(
-                memory_context is not None
-                and memory_context.status is not RetrievalStatus.UNAVAILABLE
-            ),
-            semantic_retrieval_available=semantic_context is not None,
-            emotional_state_available=prepared_affect is not None,
-            relationship_state_available=relationship_context is not None,
-            recent_conversation_available=recent_context is not None,
-            user_model_available=(
-                model_context is not None and model_context.status == "available"
-            ),
-        )
-        try:
-            provider_request, manifest = self.request_builder.build(
+        if (
+            self.request_builder.policy.schema_version >= 28
+            and cognition_trace is not None
+            and cognition_trace.status is CognitionArtifactStatus.FALLBACK
+        ):
+            assert self.character_agency_kernel is not None
+            assert cognition_intake is not None
+            character_agency = self.character_agency_kernel.conservative_fallback(
+                context=context,
+                intake=cognition_intake,
+                decision_schema_version=(
+                    2 if self.request_builder.policy.schema_version >= 36 else 1
+                ),
+            )
+
+        def build_request() -> tuple[ConversationProviderRequest, ConversationContextManifest]:
+            return self.request_builder.build(
                 context,
                 user_text=command.user_text,
                 trace_id=command.trace_id,
@@ -336,17 +886,81 @@ class TalkToSatori:
                 recent_context=recent_context,
                 dialogue_context=dialogue_context,
                 cognition_trace=cognition_trace,
+                character_evidence=character_evidence,
+                character_agency=character_agency,
+                current_user_message_id=interaction.user_message.message_id,
             )
+
+        request_build_started = self.monotonic()
+        try:
+            try:
+                provider_request, manifest = build_request()
+            except ContextBudgetExceeded:
+                if character_agency is None or character_agency.prior_dialogue_relation is None:
+                    raise
+                # The optional datum and its realization permission have an independent
+                # attachment cost. A known overflow restores the frozen preview; no I/O repeats.
+                character_agency = baseline_character_agency
+                assert prior_dialogue_relation is not None
+                prior_dialogue_relation = replace(
+                    prior_dialogue_relation,
+                    status=PriorDialogueRelationStatus.SKIPPED,
+                    reason=PriorDialogueRelationReason.CONTEXT_BUDGET,
+                    relation=None,
+                    classification_kind=None,
+                    uncertainty=None,
+                )
+                provider_request, manifest = build_request()
+            if self.prepare_prior_dialogue_relation is not None:
+                selected_relation = (
+                    character_agency.prior_dialogue_relation
+                    if character_agency is not None
+                    else None
+                )
+                classification_unused = (
+                    prior_dialogue_relation is not None
+                    and prior_dialogue_relation.relation is not None
+                    and prior_dialogue_relation.relation.kind.value == "shift_from_prior_move"
+                    and selected_relation is None
+                )
+                manifest = replace(
+                    manifest,
+                    prior_dialogue_relation_status=(
+                        prior_dialogue_relation.status.value
+                        if prior_dialogue_relation is not None and not classification_unused
+                        else "skipped"
+                    ),
+                    prior_dialogue_relation_reason=(
+                        prior_dialogue_relation.reason.value
+                        if prior_dialogue_relation is not None and not classification_unused
+                        else "not_eligible"
+                    ),
+                    prior_dialogue_relation_kind=(
+                        prior_dialogue_relation.classification_kind.value
+                        if prior_dialogue_relation is not None
+                        and prior_dialogue_relation.classification_kind is not None
+                        and not classification_unused
+                        else None
+                    ),
+                    prior_dialogue_relation_uncertainty=(
+                        prior_dialogue_relation.uncertainty.value
+                        if prior_dialogue_relation is not None
+                        and prior_dialogue_relation.uncertainty is not None
+                        and not classification_unused
+                        else None
+                    ),
+                )
         except Exception as error:
             self._mark_failed(interaction.interaction_id, error)
             raise
-        context_ms = (self.monotonic() - context_started) * 1000
+        context_ms = context_projection_ms + (self.monotonic() - request_build_started) * 1000
         self.logger.debug(
             "conversation_facets_selected",
             extra=_log_fields(
                 operation="conversation",
                 primary_mode=manifest.disclosure_primary_mode,
                 facets=list(manifest.disclosure_facets),
+                request_kind=manifest.disclosure_request_kind,
                 interaction_id=interaction.interaction_id,
             ),
         )
@@ -369,9 +983,127 @@ class TalkToSatori:
                 ),
             )
 
+        if not source_inputs_prepared:
+            source_input_id = prepare_actual_inputs()
+        current_position: PreparedCurrentPosition | None = None
+        if self.prepare_current_position is not None:
+            if self.request_builder.policy.schema_version != 35:
+                policy_error = ValueError(
+                    "current position candidate requires the isolated V35 control"
+                )
+                self._mark_failed(interaction.interaction_id, policy_error)
+                raise policy_error
+            eligible = (
+                manifest.character_agency_status == "applied"
+                and manifest.character_delivery_goal == "owned_response"
+                and manifest.character_agency_act == "respond"
+                and manifest.character_agency_subject == "current_exchange"
+                and not manifest.cognition_perception_signals
+                and not dialogue_context.current_user_message_repeated
+                and not dialogue_context.current_repetition_feedback
+                and not dialogue_context.current_frustration_feedback
+            )
+            if eligible:
+                allowed_refs = tuple(
+                    dict.fromkeys(
+                        (
+                            interaction.user_message.message_id,
+                            *manifest.available_past_evidence_ids,
+                            *manifest.recent_conversation_user_message_ids,
+                            *manifest.position_context_ids,
+                            *manifest.inclination_context_ids,
+                            "canonical_self",
+                        )
+                    )
+                )
+                try:
+                    with source_dispatch_admission(
+                        self.interaction_log.unit_of_work_factory, source_input_id
+                    ):
+                        admit_provider_dispatch()
+                        current_position = await self.prepare_current_position.execute(
+                            provider_request,
+                            allowed_refs=allowed_refs,
+                            max_context_chars=self.request_builder.max_context_chars,
+                        )
+                    if current_position.proposal is not None:
+                        try:
+                            provider_request = attach_current_position(
+                                provider_request,
+                                current_position.proposal,
+                                peer_marker=PEER_DELIVERY_MARKER_V35,
+                                max_context_chars=self.request_builder.max_context_chars,
+                            )
+                        except ContextBudgetExceeded:
+                            current_position = replace(
+                                current_position,
+                                status=CurrentPositionStatus.SKIPPED,
+                                reason=CurrentPositionReason.CONTEXT_BUDGET,
+                                proposal=None,
+                            )
+                except Exception as error:
+                    self._mark_failed(interaction.interaction_id, error)
+                    raise
+                self.logger.info(
+                    "current_position_prepared",
+                    extra=_log_fields(
+                        operation="current_position",
+                        schema_version=1,
+                        status=current_position.status.value,
+                        reason=current_position.reason.value,
+                        provider=current_position.provider,
+                        model=current_position.model,
+                        latency_ms=round(current_position.latency_ms, 3),
+                        input_tokens=(
+                            current_position.usage.input_tokens
+                            if current_position.usage is not None
+                            else None
+                        ),
+                        output_tokens=(
+                            current_position.usage.output_tokens
+                            if current_position.usage is not None
+                            else None
+                        ),
+                        cached_input_tokens=(
+                            current_position.usage.cached_input_tokens
+                            if current_position.usage is not None
+                            else None
+                        ),
+                        cache_write_input_tokens=(
+                            current_position.usage.cache_write_input_tokens
+                            if current_position.usage is not None
+                            else None
+                        ),
+                        interaction_id=interaction.interaction_id,
+                    ),
+                )
+            proposal = current_position.proposal if current_position is not None else None
+            manifest = replace(
+                manifest,
+                schema_version=19,
+                included_sections=(*manifest.included_sections, "current_position_data")
+                if proposal is not None
+                else manifest.included_sections,
+                current_position_schema_version=1,
+                current_position_status=current_position.status.value
+                if current_position is not None
+                else "skipped",
+                current_position_reason=current_position.reason.value
+                if current_position is not None
+                else "not_eligible",
+                current_position_ground_refs=proposal.groundsrefs if proposal is not None else (),
+                current_position_uncertainty=proposal.uncertainty if proposal is not None else None,
+            )
         started = self.monotonic()
         try:
-            provider_response = await self.provider.generate(provider_request)
+            with source_dispatch_admission(
+                self.interaction_log.unit_of_work_factory, source_input_id
+            ):
+                admit_provider_dispatch()
+                provider_response = await self.provider.generate(provider_request)
+        except SourcePolicyError as error:
+            self._mark_failed(interaction.interaction_id, error)
+            raise
         except ConversationProviderError as error:
             latency_ms = (self.monotonic() - started) * 1000
             self.logger.warning(
@@ -381,6 +1113,7 @@ class TalkToSatori:
                     provider=error.provider,
                     model=error.model,
                     error_type=type(error).__name__,
+                    failure_reason=error.reason.value,
                     latency_ms=round(latency_ms, 3),
                     context_schema_version=context.schema_version,
                     interaction_id=interaction.interaction_id,
@@ -394,6 +1127,7 @@ class TalkToSatori:
                 "unknown",
                 "unknown",
                 "conversation provider violated its typed failure contract",
+                reason=ConversationProviderFailureReason.ADAPTER_CONTRACT_VIOLATION,
             )
             self.logger.error(
                 "conversation_failed",
@@ -402,6 +1136,9 @@ class TalkToSatori:
                     provider="unknown",
                     model="unknown",
                     error_type=type(error).__name__,
+                    failure_reason=(
+                        ConversationProviderFailureReason.ADAPTER_CONTRACT_VIOLATION.value
+                    ),
                     latency_ms=round(latency_ms, 3),
                     context_schema_version=context.schema_version,
                     interaction_id=interaction.interaction_id,
@@ -417,6 +1154,7 @@ class TalkToSatori:
                 provider_response.provider,
                 provider_response.model,
                 "provider returned an empty conversational response",
+                reason=ConversationProviderFailureReason.MISSING_ASSISTANT_TEXT,
             )
             self._log_invalid_response(
                 invalid_response_error,
@@ -430,6 +1168,7 @@ class TalkToSatori:
                 provider_response.provider,
                 provider_response.model,
                 "provider response exceeds configured character limit",
+                reason=(ConversationProviderFailureReason.RESPONSE_CHARACTER_LIMIT_EXCEEDED),
             )
             self._log_invalid_response(
                 invalid_response_error,
@@ -490,14 +1229,21 @@ class TalkToSatori:
                 )
             retry_started = self.monotonic()
             try:
-                retry_response = await self.provider.generate(
-                    self._response_regeneration_request(
-                        provider_request,
-                        regeneration_reason,
-                        dialogue_context,
-                        manifest.disclosure_facets,
+                with source_dispatch_admission(
+                    self.interaction_log.unit_of_work_factory, source_input_id
+                ):
+                    admit_provider_dispatch()
+                    retry_response = await self.provider.generate(
+                        self._response_regeneration_request(
+                            provider_request,
+                            regeneration_reason,
+                            dialogue_context,
+                            manifest.disclosure_facets,
+                        )
                     )
-                )
+            except SourcePolicyError as error:
+                self._mark_failed(interaction.interaction_id, error)
+                raise
             except Exception as error:
                 regeneration_ms = (self.monotonic() - retry_started) * 1000
                 self.logger.warning(
@@ -607,13 +1353,18 @@ class TalkToSatori:
                     assistant_text=text,
                     provider_metadata=provider_metadata,
                     prepared=prepared_affect,
+                    **({"source_input_id": source_input_id} if source_input_id is not None else {}),
                 )
             else:
                 completed = self.interaction_log.complete(
                     interaction,
                     assistant_text=text,
                     provider_metadata=provider_metadata,
+                    **({"source_input_id": source_input_id} if source_input_id is not None else {}),
                 )
+        except SourcePolicyError as error:
+            self._mark_failed(interaction.interaction_id, error)
+            raise
         except AffectiveStateConflict as error:
             self._mark_failed(interaction.interaction_id, error)
             raise AffectiveFinalizeConflict(
@@ -666,6 +1417,15 @@ class TalkToSatori:
                 cognition_trace.timings.total_ms if cognition_trace is not None else 0.0
             ),
             context_assembly_ms=context_ms,
+            current_position_ms=current_position.latency_ms
+            if current_position is not None
+            else 0.0,
+            prior_dialogue_relation_ms=(
+                prior_dialogue_relation.latency_ms if prior_dialogue_relation is not None else 0.0
+            ),
+            repair_interpretation_ms=(
+                repair_interpretation.latency_ms if repair_interpretation is not None else 0.0
+            ),
             conversation_generation_ms=latency_ms,
             response_regeneration_ms=regeneration_ms,
             grounding_validation_ms=grounding_ms,
@@ -684,6 +1444,23 @@ class TalkToSatori:
                 memory_context.provider_metrics if memory_context is not None else None
             ),
             cognition_trace=cognition_trace,
+            repair_interpretation_trace=repair_interpretation_trace,
+            repair_interpretation_usage=(
+                repair_interpretation.usage if repair_interpretation is not None else None
+            ),
+            repair_interpretation_provider_metrics=(
+                repair_interpretation.metrics if repair_interpretation is not None else None
+            ),
+            prior_dialogue_relation_usage=(
+                prior_dialogue_relation.usage if prior_dialogue_relation is not None else None
+            ),
+            prior_dialogue_relation_provider_metrics=(
+                prior_dialogue_relation.metrics if prior_dialogue_relation is not None else None
+            ),
+            current_position_usage=current_position.usage if current_position is not None else None,
+            current_position_provider_metrics=(
+                current_position.metrics if current_position is not None else None
+            ),
         )
         log_values: dict[str, object] = {
             "operation": "conversation",
@@ -725,11 +1502,46 @@ class TalkToSatori:
             ),
             "cognition_need_dimensions": list(reply.context_manifest.cognition_need_dimensions),
             "cognition_position_stance": reply.context_manifest.cognition_position_stance,
+            "cognition_preserve_uncertainty": (
+                reply.context_manifest.cognition_preserve_uncertainty
+            ),
+            "cognition_intent_registry_version": (
+                reply.context_manifest.cognition_intent_registry_version
+            ),
+            "cognition_primary_intent": reply.context_manifest.cognition_primary_intent,
             "cognition_intent_tags": list(reply.context_manifest.cognition_intent_tags),
+            "cognition_required_point_codes": list(
+                reply.context_manifest.cognition_required_point_codes
+            ),
+            "cognition_forbidden_claim_codes": list(
+                reply.context_manifest.cognition_forbidden_claim_codes
+            ),
             "cognition_strategy_tone": reply.context_manifest.cognition_strategy_tone,
+            "cognition_response_verbosity": (reply.context_manifest.cognition_response_verbosity),
+            "cognition_template_registry_version": (
+                reply.context_manifest.cognition_template_registry_version
+            ),
             "cognition_template_id": reply.context_manifest.cognition_template_id,
             "cognition_template_schema_version": (
                 reply.context_manifest.cognition_template_schema_version
+            ),
+            "character_agency_decision_schema_version": (
+                reply.context_manifest.character_agency_decision_schema_version
+            ),
+            "character_agency_status": reply.context_manifest.character_agency_status,
+            "character_agency_drive": reply.context_manifest.character_agency_drive,
+            "character_agency_act": reply.context_manifest.character_agency_act,
+            "character_agency_subject": reply.context_manifest.character_agency_subject,
+            "character_agency_initiative": (reply.context_manifest.character_agency_initiative),
+            "character_agency_lead": reply.context_manifest.character_agency_lead,
+            "character_agency_source_personality_codes": list(
+                reply.context_manifest.character_agency_source_personality_codes
+            ),
+            "character_agency_source_value_key": (
+                reply.context_manifest.character_agency_source_value_key
+            ),
+            "character_agency_reason_codes": list(
+                reply.context_manifest.character_agency_reason_codes
             ),
             "character_expression_plan_schema_version": (
                 reply.context_manifest.character_expression_plan_schema_version
@@ -737,7 +1549,36 @@ class TalkToSatori:
             "character_expression_register": (reply.context_manifest.character_expression_register),
             "character_owned_reaction": reply.context_manifest.character_owned_reaction,
             "character_semantic_move": reply.context_manifest.character_semantic_move,
+            "character_wit": reply.context_manifest.character_wit,
+            "character_care": reply.context_manifest.character_care,
+            "character_openness": reply.context_manifest.character_openness,
+            "character_initiative": reply.context_manifest.character_initiative,
             "character_relational_ease": reply.context_manifest.character_relational_ease,
+            "character_contribution_mode": (reply.context_manifest.character_contribution_mode),
+            "character_motivational_posture": (
+                reply.context_manifest.character_motivational_posture
+            ),
+            "character_pressure_level": reply.context_manifest.character_pressure_level,
+            "character_acknowledgement_mode": (
+                reply.context_manifest.character_acknowledgement_mode
+            ),
+            "character_continuation_mode": reply.context_manifest.character_continuation_mode,
+            "character_delivery_decision_schema_version": (
+                reply.context_manifest.character_delivery_decision_schema_version
+            ),
+            "character_delivery_goal": reply.context_manifest.character_delivery_goal,
+            "character_delivery_voice": reply.context_manifest.character_delivery_voice,
+            "character_delivery_grounding": (reply.context_manifest.character_delivery_grounding),
+            "character_delivery_continuation": (
+                reply.context_manifest.character_delivery_continuation
+            ),
+            "character_delivery_pressure": (reply.context_manifest.character_delivery_pressure),
+            "character_delivery_position_stance": (
+                reply.context_manifest.character_delivery_position_stance
+            ),
+            "character_delivery_preserve_uncertainty": (
+                reply.context_manifest.character_delivery_preserve_uncertainty
+            ),
             "cognition_fallback_reasons": list(reply.context_manifest.cognition_fallback_reasons),
             "emotion_state_version": reply.context_manifest.emotion_state_version,
             "mood_state_version": reply.context_manifest.mood_state_version,
@@ -747,6 +1588,7 @@ class TalkToSatori:
             "recent_conversation_chars": reply.context_manifest.recent_conversation_chars,
             "disclosure_primary_mode": reply.context_manifest.disclosure_primary_mode,
             "disclosure_facets": list(reply.context_manifest.disclosure_facets),
+            "disclosure_request_kind": reply.context_manifest.disclosure_request_kind,
             "consecutive_same_user_message_count": (
                 reply.context_manifest.consecutive_same_user_message_count
             ),
@@ -799,6 +1641,13 @@ class TalkToSatori:
     ) -> ConversationProviderRequest:
         if request.messages[-1].role is not ConversationMessageRole.USER:
             raise ValueError("conversation request must end with the current user message")
+        if (
+            len(request.messages) < 2
+            or request.messages[-2].role is not ConversationMessageRole.DEVELOPER
+        ):
+            raise ValueError(
+                "conversation request must keep its final trusted guidance before the user"
+            )
         activity_retry_question_guidance = (
             "Because a session correction against routine reciprocal questions is active, use "
             "statements only and do not ask a question in this retry."
@@ -962,22 +1811,57 @@ class TalkToSatori:
             content=(
                 "Bounded response-contract retry. "
                 f"{reason_guidance} Preserve the same user request, trusted facts, current affect, "
-                "relationship bounds and evidence. Do not mention validation or the discarded "
-                f"draft.{active_correction_guidance}{activity_correction_guidance}"
+                "relationship bounds and evidence. Preserve the already selected final character "
+                "realization. Preserve any supplied direct-delivery goal, voice, grounding, "
+                "continuation, pressure ceiling, cognition stance and uncertainty. Preserve a "
+                "legacy response act and expression axes only when they were supplied. Do not "
+                "collapse into generic "
+                "service language. Do not "
+                "mention validation or the discarded draft."
+                f"{active_correction_guidance}"
+                f"{activity_correction_guidance}"
                 f"{prompt_correction_guidance}{concise_relevance_guidance}{facet_guidance} This is "
                 "the only retry."
             ),
         )
-        return replace(
-            request,
-            messages=(*request.messages[:-1], retry_instruction, request.messages[-1]),
+        final_guidance = request.messages[-2]
+        realization_marker = next(
+            (
+                marker
+                for marker in _FINAL_CHARACTER_REALIZATION_MARKERS
+                if marker in final_guidance.content
+            ),
+            None,
         )
+        if realization_marker is not None:
+            invariant_content, marker, realization_content = final_guidance.content.partition(
+                realization_marker
+            )
+            final_guidance = replace(
+                final_guidance,
+                content=(
+                    f"{invariant_content.rstrip()}\n{retry_instruction.content}\n"
+                    f"{marker}{realization_content}"
+                ),
+            )
+            messages = (*request.messages[:-2], final_guidance, request.messages[-1])
+        else:
+            messages = (*request.messages[:-1], retry_instruction, request.messages[-1])
+        return replace(request, messages=messages)
 
     def _mark_failed(self, interaction_id: str, error: Exception) -> None:
+        failure = InteractionFailureMetadata(kind=type(error).__name__)
+        if isinstance(error, ConversationProviderError):
+            failure = InteractionFailureMetadata(
+                kind=type(error).__name__,
+                reason=error.reason,
+                provider=error.provider,
+                model=error.model,
+            )
         try:
             self.interaction_log.mark_failed(
                 interaction_id,
-                failure_kind=type(error).__name__,
+                failure=failure,
             )
         except Exception as persistence_error:
             self.logger.error(
@@ -1001,6 +1885,13 @@ class TalkToSatori:
         appraisal_provider_metrics: ProviderExecutionMetrics | None = None,
         retrieval_provider_metrics: ProviderExecutionMetrics | None = None,
         cognition_trace: CognitionPipelineTrace | None = None,
+        repair_interpretation_trace: RepairInterpretationTrace | None = None,
+        repair_interpretation_usage: ConversationUsage | None = None,
+        repair_interpretation_provider_metrics: ProviderExecutionMetrics | None = None,
+        prior_dialogue_relation_usage: ConversationUsage | None = None,
+        prior_dialogue_relation_provider_metrics: ProviderExecutionMetrics | None = None,
+        current_position_usage: ConversationUsage | None = None,
+        current_position_provider_metrics: ProviderExecutionMetrics | None = None,
     ) -> SatoriReply:
         if interaction.assistant_message is None or interaction.provider_metadata is None:
             raise RuntimeError("completed interaction is missing its reply")
@@ -1020,6 +1911,7 @@ class TalkToSatori:
             context_manifest=context_manifest
             or ConversationContextManifest(
                 schema_version=metadata.context_manifest_schema_version,
+                prior_dialogue_relation_enabled=metadata.context_manifest_schema_version == 20,
                 policy_id=metadata.policy_id,
                 policy_schema_version=metadata.policy_schema_version,
                 character_context_schema_version=metadata.context_schema_version,
@@ -1061,6 +1953,11 @@ class TalkToSatori:
                             "dialogue_coherence",
                             "self_consistency_facets",
                             "cognition_response_strategy",
+                            "character_agency_decision",
+                            "character_delivery_decision",
+                            "character_presence_projection",
+                            "current_position_data",
+                            "prior_dialogue_relation_data",
                         }
                     )
                 ),
@@ -1111,6 +2008,13 @@ class TalkToSatori:
             appraisal_provider_metrics=appraisal_provider_metrics,
             retrieval_provider_metrics=retrieval_provider_metrics,
             cognition_trace=cognition_trace,
+            repair_interpretation_trace=repair_interpretation_trace,
+            repair_interpretation_usage=repair_interpretation_usage,
+            repair_interpretation_provider_metrics=repair_interpretation_provider_metrics,
+            prior_dialogue_relation_usage=prior_dialogue_relation_usage,
+            prior_dialogue_relation_provider_metrics=prior_dialogue_relation_provider_metrics,
+            current_position_usage=current_position_usage,
+            current_position_provider_metrics=current_position_provider_metrics,
         )
 
     def _log_invalid_response(
@@ -1126,6 +2030,7 @@ class TalkToSatori:
                 provider=error.provider,
                 model=error.model,
                 error_type=type(error).__name__,
+                failure_reason=error.reason.value,
                 latency_ms=round(latency_ms, 3),
                 context_schema_version=context_schema_version,
             ),

@@ -1,0 +1,32 @@
+"""Explicit independent policy migrations using an already admitted connection."""
+
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+from sqlalchemy.engine import Connection
+
+POLICY_SCHEMA_REVISION = "policy_0002"
+BODY_POLICY_SCHEMA_REVISION = "policy_0003"
+DIALOGUE_POLICY_SCHEMA_REVISION = "policy_0004"
+KNOWLEDGE_POLICY_SCHEMA_REVISION = "policy_0005"
+REFLECTION_POLICY_SCHEMA_REVISION = "policy_0006"
+APPRAISAL_POLICY_SCHEMA_REVISION = "policy_0007"
+CHECKPOINT_REASON_POLICY_SCHEMA_REVISION = "policy_0008"
+CHECKPOINT_REASON_POLICY_REVISIONS = (CHECKPOINT_REASON_POLICY_SCHEMA_REVISION,)
+APPRAISAL_POLICY_REVISIONS = (APPRAISAL_POLICY_SCHEMA_REVISION, *CHECKPOINT_REASON_POLICY_REVISIONS)
+REFLECTION_POLICY_REVISIONS = (REFLECTION_POLICY_SCHEMA_REVISION, *APPRAISAL_POLICY_REVISIONS)
+KNOWLEDGE_POLICY_REVISIONS = (KNOWLEDGE_POLICY_SCHEMA_REVISION, *REFLECTION_POLICY_REVISIONS)
+DIALOGUE_POLICY_REVISIONS = (DIALOGUE_POLICY_SCHEMA_REVISION, *KNOWLEDGE_POLICY_REVISIONS)
+BODY_POLICY_REVISIONS = (BODY_POLICY_SCHEMA_REVISION, *DIALOGUE_POLICY_REVISIONS)
+ERASURE_POLICY_REVISIONS = (POLICY_SCHEMA_REVISION, *BODY_POLICY_REVISIONS)
+SUPPORTED_POLICY_REVISIONS = ("policy_0001", *ERASURE_POLICY_REVISIONS)
+
+
+def upgrade_policy(connection: Connection, *, revision: str = POLICY_SCHEMA_REVISION) -> None:
+    if revision not in SUPPORTED_POLICY_REVISIONS:
+        raise ValueError("unsupported_policy_revision")
+    configuration = Config()
+    configuration.set_main_option("script_location", str(Path(__file__).with_suffix("")))
+    configuration.attributes["connection"] = connection
+    command.upgrade(configuration, revision)

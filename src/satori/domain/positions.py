@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
@@ -22,9 +22,12 @@ from satori.core.positions import (
     PositionStance,
 )
 from satori.domain.inclinations import (
+    InclinationDecisionKind,
     InclinationEvaluation,
     SatoriInclination,
     evaluate_inclination,
+    inclination_key,
+    normalize_inclination_label,
 )
 from satori.domain.validation import aware_utc, non_blank, positive_version, unit_interval
 
@@ -299,6 +302,37 @@ def _confidence(kind: PositionKind, roots: int, provider_confidence: float) -> f
 class PositionManager:
     """The sole deterministic writer for identity-global Satori positions."""
 
+    def withdraw_support(
+        self,
+        positions: Sequence[SatoriPosition],
+        *,
+        affected_position_ids: frozenset[str],
+        now: datetime,
+    ) -> PositionFormationPlan:
+        """Retire unsafe text while preserving accepted evidence and historical confidence."""
+
+        now = aware_utc(now, "source withdrawal time")
+        changed: list[SatoriPosition] = []
+        for position in positions:
+            if position.position_id not in affected_position_ids or position.status not in {
+                PositionStatus.ACTIVE,
+                PositionStatus.COMPETING,
+            }:
+                continue
+            if now < position.updated_at:
+                raise ValueError("source_withdrawal_time_invalid")
+            changed.append(
+                replace(
+                    position,
+                    aggregate_version=position.aggregate_version + 1,
+                    status=PositionStatus.RETRACTED,
+                    competing_with_position_id=None,
+                    superseded_by_position_id=None,
+                    updated_at=now,
+                )
+            )
+        return PositionFormationPlan(positions=tuple(changed), revisions=())
+
     def evaluate_inclination(
         self,
         proposal: InclinationProposal,
@@ -309,9 +343,23 @@ class PositionManager:
         reflection_outcome_id: str,
         now: datetime,
         new_id: Callable[[], str],
+        held_keys: frozenset[str] = frozenset(),
     ) -> InclinationEvaluation:
         """Evaluate one Stage 13 candidate through the shared positions owner boundary."""
 
+        topic = normalize_inclination_label(proposal.topic)
+        alternative = (
+            normalize_inclination_label(proposal.alternative_topic)
+            if proposal.alternative_topic
+            else None
+        )
+        if alternative is not None and alternative < topic:
+            topic, alternative = alternative, topic
+        key = inclination_key(proposal.kind, topic, alternative)
+        if key in held_keys:
+            return InclinationEvaluation(
+                InclinationDecisionKind.REJECTED, "inclination_disclosure_held"
+            )
         return evaluate_inclination(
             proposal,
             identity_id=identity_id,

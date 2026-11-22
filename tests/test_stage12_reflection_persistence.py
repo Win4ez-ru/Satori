@@ -194,6 +194,7 @@ def test_personality_source_limit_does_not_let_consumed_roots_shadow_new_evidenc
                 session_id=session_id,
                 identity_id=identity_id,
                 counterparty_id="alice",
+                scope_verified=True,
                 schema_version=1,
                 kind="implicit",
                 status="closed",

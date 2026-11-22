@@ -25,6 +25,14 @@ class SemanticClaimRow(Base):
 
     __tablename__ = "semantic_claims"
     __table_args__ = (
+        CheckConstraint(
+            (
+                "(body_state = 'available' AND value IS NOT NULL AND normalized_value IS NOT"
+                " NULL AND body_action_id IS NULL) OR (body_state = 'erased' AND value IS NU"
+                "LL AND normalized_value IS NULL AND body_action_id IS NOT NULL)"
+            ),
+            name="body_consistent",
+        ),
         CheckConstraint("schema_version >= 1", name="schema_version_positive"),
         CheckConstraint("aggregate_version >= 1", name="aggregate_version_positive"),
         CheckConstraint("subject = 'user'", name="subject_valid"),
@@ -42,7 +50,10 @@ class SemanticClaimRow(Base):
         CheckConstraint("formation_version >= 1", name="formation_version_positive"),
         CheckConstraint("normalization_version >= 1", name="normalization_version_positive"),
         CheckConstraint("length(predicate) > 0", name="predicate_not_blank"),
-        CheckConstraint("length(normalized_value) > 0", name="normalized_value_not_blank"),
+        CheckConstraint(
+            "body_state = 'erased' OR length(normalized_value) > 0",
+            name="normalized_value_not_blank",
+        ),
         CheckConstraint(
             "(status = 'superseded' AND superseded_by_claim_id IS NOT NULL) OR "
             "(status != 'superseded' AND superseded_by_claim_id IS NULL)",
@@ -64,8 +75,8 @@ class SemanticClaimRow(Base):
     subject: Mapped[str] = mapped_column(String(64), nullable=False)
     predicate: Mapped[str] = mapped_column(String(64), nullable=False)
     value_kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    value: Mapped[object] = mapped_column(JSON, nullable=False)
-    normalized_value: Mapped[str] = mapped_column(String(500), nullable=False)
+    value: Mapped[object | None] = mapped_column(JSON, nullable=True)
+    normalized_value: Mapped[str | None] = mapped_column(String(500), nullable=True)
     polarity: Mapped[bool] = mapped_column(Boolean, nullable=False)
     claim_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
@@ -82,6 +93,15 @@ class SemanticClaimRow(Base):
     formation_method: Mapped[str] = mapped_column(String(128), nullable=False)
     formation_version: Mapped[int] = mapped_column(Integer, nullable=False)
     normalization_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    body_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="available", server_default="available"
+    )
+    body_action_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("erasure_body_applications.action_id", ondelete="RESTRICT"),
+        nullable=True,
+    )
 
 
 class SemanticClaimEvidenceRow(Base):

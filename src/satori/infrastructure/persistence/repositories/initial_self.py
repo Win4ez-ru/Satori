@@ -5,6 +5,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from satori.domain.audit import ActivationAuditEvent
+from satori.domain.audit_metadata import AuditMetadataFamily
 from satori.domain.errors import CorruptSatoriState
 from satori.domain.identity import Identity, SeedProvenance
 from satori.domain.initial_self import InitialSelfSnapshot
@@ -15,6 +16,7 @@ from satori.domain.personality_evolution import (
     checkpoint_hash,
 )
 from satori.domain.values import CoreValue, ValueOrigin, Values
+from satori.infrastructure.persistence.audit_metadata_writer import bind_metadata
 from satori.infrastructure.persistence.models.initial_self import (
     AuditEventRow,
     PersonalityStateRow,
@@ -244,19 +246,25 @@ class SQLAlchemyInitialSelfRepository:
             for value in snapshot.values.items
         )
         self._session.add(
-            AuditEventRow(
-                event_id=event.event_id,
-                schema_version=event.schema_version,
-                event_type="satori.activation",
-                aggregate_type="identity",
-                aggregate_id=event.identity_id,
-                occurred_at=event.occurred_at,
-                trace_id=event.trace_id,
-                details={
-                    "seed_id": event.seed_provenance.seed_id,
-                    "seed_schema_version": event.seed_provenance.seed_schema_version,
-                    "seed_content_hash": event.seed_provenance.seed_content_hash,
-                },
+            bind_metadata(
+                self._session,
+                AuditEventRow(
+                    event_id=event.event_id,
+                    schema_version=event.schema_version,
+                    event_type="satori.activation",
+                    aggregate_type="identity",
+                    aggregate_id=event.identity_id,
+                    occurred_at=event.occurred_at,
+                    trace_id=event.trace_id,
+                    details={
+                        "seed_id": event.seed_provenance.seed_id,
+                        "seed_schema_version": event.seed_provenance.seed_schema_version,
+                        "seed_content_hash": event.seed_provenance.seed_content_hash,
+                    },
+                ),
+                family=AuditMetadataFamily.ACTIVATION,
+                identity_id=event.identity_id,
+                owner_record_id=event.identity_id,
             )
         )
         return True

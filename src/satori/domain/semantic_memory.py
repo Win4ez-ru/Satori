@@ -18,6 +18,7 @@ from satori.core.semantic import (
     SemanticSourceMemory,
     SemanticValueKind,
 )
+from satori.domain.memory_scope import MemoryScope, scope_semantic_key
 
 SEMANTIC_MEMORY_SCHEMA_VERSION = 1
 SEMANTIC_FORMATION_VERSION = 1
@@ -118,7 +119,7 @@ def normalize_semantic_value(kind: SemanticValueKind, value: SemanticScalar) -> 
     return "true" if value else "false"
 
 
-def semantic_claim_key(proposal: SemanticClaimProposal) -> str:
+def semantic_claim_key(proposal: SemanticClaimProposal, *, scope: MemoryScope | None = None) -> str:
     """Stable structured identity; display wording never participates."""
 
     material = {
@@ -131,7 +132,8 @@ def semantic_claim_key(proposal: SemanticClaimProposal) -> str:
         "value_kind": proposal.value_kind.value,
     }
     encoded = json.dumps(material, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(encoded.encode()).hexdigest()
+    base_key = hashlib.sha256(encoded.encode()).hexdigest()
+    return scope_semantic_key(base_key, scope) if scope is not None else base_key
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,6 +176,37 @@ class SemanticClaim:
     formation_version: int
     normalization_version: int
     evidence: tuple[SemanticEvidence, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SemanticSupportWithdrawal:
+    """Owner retirement caused by source eligibility, never a claim of fact correction.
+
+    Historical wording, evidence, and confidence are retained for audit. Ordinary
+    disclosure is governed separately by the source policy dependency closure.
+    """
+
+    prior_claim: SemanticClaim
+    current_claim: SemanticClaim
+    request_id: str
+    policy_generation: int
+    reason_code: str = "source_support_withdrawn"
+
+
+def semantic_record_key(claim: SemanticClaim, *, scope: MemoryScope) -> str:
+    """Recompute the supported scoped identity before an aggregate is admitted."""
+
+    material = {
+        "claim_kind": claim.claim_kind.value,
+        "normalization_version": claim.normalization_version,
+        "polarity": claim.polarity,
+        "predicate": claim.predicate,
+        "subject": claim.subject,
+        "value": normalize_semantic_value(claim.value_kind, claim.value),
+        "value_kind": claim.value_kind.value,
+    }
+    encoded = json.dumps(material, sort_keys=True, separators=(",", ":"))
+    return scope_semantic_key(hashlib.sha256(encoded.encode()).hexdigest(), scope)
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,6 +288,40 @@ def _is_inference_like(kind: SemanticClaimKind) -> bool:
 class SemanticMemoryManager:
     """Sole v1 owner of semantic formation, merge, confidence, and conflict policy."""
 
+    def withdraw_support(
+        self,
+        claim: SemanticClaim,
+        *,
+        request_id: str,
+        policy_generation: int,
+        now: datetime,
+    ) -> SemanticSupportWithdrawal | None:
+        """Release a current semantic key without relabeling historical certainty.
+
+        SourcePolicyManager decides eligibility; this owner alone changes claim
+        lifecycle. A later independently grounded fact must create a new claim,
+        rather than inherit this claim's wording, confidence, or evidence.
+        """
+
+        if not request_id.strip() or policy_generation < 1:
+            raise ValueError("semantic_withdrawal_request_invalid")
+        if claim.status not in {SemanticClaimStatus.ACTIVE, SemanticClaimStatus.DISPUTED}:
+            return None
+        current = replace(
+            claim,
+            aggregate_version=claim.aggregate_version + 1,
+            status=SemanticClaimStatus.RETRACTED,
+            valid_until=now,
+            superseded_by_claim_id=None,
+            updated_at=now,
+        )
+        return SemanticSupportWithdrawal(
+            prior_claim=claim,
+            current_claim=current,
+            request_id=request_id,
+            policy_generation=policy_generation,
+        )
+
     def evaluate(
         self,
         proposal: SemanticFormationProposal,
@@ -267,8 +334,9 @@ class SemanticMemoryManager:
         decision_id: str,
         formation_method: str,
         new_id: Callable[[], str],
+        scope: MemoryScope | None = None,
     ) -> SemanticFormationPlan:
-        """Validate untrusted proposals and return one deterministic atomic plan."""
+        """Validate proposals; runtime supplies scope, None is legacy pure-policy only."""
 
         if len(proposal.claims) > max_claims:
             return self._empty(SemanticDecisionKind.REJECTED, "proposal_limit_exceeded", 1)
@@ -276,7 +344,11 @@ class SemanticMemoryManager:
         if source_memory_id not in by_memory:
             return self._empty(SemanticDecisionKind.REJECTED, "source_memory_missing", 1)
 
-        working = {claim.claim_id: claim for claim in existing_claims}
+        working = {
+            claim.claim_id: claim
+            for claim in existing_claims
+            if scope is None or claim.claim_key == semantic_record_key(claim, scope=scope)
+        }
         changed: dict[str, SemanticClaim] = {}
         revisions: list[SemanticClaimRevision] = []
         created = merged = superseded = disputed = rejected = 0
@@ -291,6 +363,7 @@ class SemanticMemoryManager:
                 decision_id=decision_id,
                 formation_method=formation_method,
                 new_id=new_id,
+                scope=scope,
             )
             if result is None:
                 rejected += 1
@@ -345,6 +418,7 @@ class SemanticMemoryManager:
         decision_id: str,
         formation_method: str,
         new_id: Callable[[], str],
+        scope: MemoryScope | None,
     ) -> tuple[tuple[SemanticClaim, ...], tuple[SemanticClaimRevision, ...], str] | None:
         definition = SEMANTIC_PREDICATES_V1.get(proposal.predicate)
         if (
@@ -370,7 +444,7 @@ class SemanticMemoryManager:
         ):
             return None
 
-        key = semantic_claim_key(proposal)
+        key = semantic_claim_key(proposal, scope=scope)
         active = tuple(
             claim
             for claim in working.values()
@@ -378,6 +452,16 @@ class SemanticMemoryManager:
             and claim.subject == proposal.subject
             and claim.predicate == proposal.predicate
         )
+        correction_target = None
+        if proposal.corrects_claim_id is not None:
+            correction_target = next(
+                (claim for claim in active if claim.claim_id == proposal.corrects_claim_id), None
+            )
+            if (
+                correction_target is None
+                or proposal.claim_kind is not SemanticClaimKind.EXPLICIT_FACT
+            ):
+                return None
         exact = next((claim for claim in active if claim.claim_key == key), None)
         if exact is not None:
             return self._merge(
@@ -409,17 +493,6 @@ class SemanticMemoryManager:
             for claim in active
         ):
             return None
-
-        correction_target = None
-        if proposal.corrects_claim_id is not None:
-            correction_target = next(
-                (claim for claim in active if claim.claim_id == proposal.corrects_claim_id), None
-            )
-            if (
-                correction_target is None
-                or proposal.claim_kind is not SemanticClaimKind.EXPLICIT_FACT
-            ):
-                return None
 
         weaker_same_value = tuple(
             claim
@@ -463,6 +536,7 @@ class SemanticMemoryManager:
                 decision_id=decision_id,
                 formation_method=formation_method,
                 new_id=new_id,
+                scope=scope,
             )
         return self._create(
             proposal,
@@ -472,6 +546,7 @@ class SemanticMemoryManager:
             decision_id=decision_id,
             formation_method=formation_method,
             new_id=new_id,
+            scope=scope,
         )
 
     @staticmethod
@@ -526,6 +601,7 @@ class SemanticMemoryManager:
         decision_id: str,
         formation_method: str,
         new_id: Callable[[], str],
+        scope: MemoryScope | None,
     ) -> tuple[tuple[SemanticClaim, ...], tuple[SemanticClaimRevision, ...], str]:
         claim_id = new_id()
         evidence = tuple(replace(item, claim_id=claim_id) for item in provisional_evidence)
@@ -533,7 +609,7 @@ class SemanticMemoryManager:
         confidence = min(proposal.confidence, _confidence_cap(proposal.claim_kind, len(evidence)))
         claim = SemanticClaim(
             claim_id=claim_id,
-            claim_key=semantic_claim_key(proposal),
+            claim_key=semantic_claim_key(proposal, scope=scope),
             schema_version=SEMANTIC_MEMORY_SCHEMA_VERSION,
             aggregate_version=1,
             subject=proposal.subject,
@@ -642,6 +718,7 @@ class SemanticMemoryManager:
         decision_id: str,
         formation_method: str,
         new_id: Callable[[], str],
+        scope: MemoryScope | None,
     ) -> tuple[tuple[SemanticClaim, ...], tuple[SemanticClaimRevision, ...], str]:
         created, revisions, _ = self._create(
             proposal,
@@ -651,6 +728,7 @@ class SemanticMemoryManager:
             decision_id=decision_id,
             formation_method=formation_method,
             new_id=new_id,
+            scope=scope,
         )
         incoming = replace(created[0], status=SemanticClaimStatus.DISPUTED)
         claims: list[SemanticClaim] = [incoming]

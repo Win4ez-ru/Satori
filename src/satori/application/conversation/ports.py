@@ -7,10 +7,13 @@ from satori.application.unit_of_work import UnitOfWork
 from satori.domain.conversation_history import (
     ConversationHistorySnapshot,
     ConversationInteraction,
+    ConversationInteractionHeader,
     ConversationSession,
     HistoricalMessage,
+    InteractionFailureMetadata,
     InteractionProviderMetadata,
 )
+from satori.domain.memory_scope import MemoryScope
 
 
 class ConversationHistoryRepository(Protocol):
@@ -31,10 +34,22 @@ class ConversationHistoryRepository(Protocol):
     def get_interaction(self, interaction_id: str) -> ConversationInteraction | None:
         """Load one interaction by stable ID."""
 
+    def get_interaction_header(self, interaction_id: str) -> ConversationInteractionHeader | None:
+        """Read attribution/processing metadata, without granting access to any body."""
+
+    def get_latest_completed_header(
+        self,
+        *,
+        scope: MemoryScope,
+        session_id: str,
+        excluded_interaction_id: str,
+    ) -> ConversationInteractionHeader | None:
+        """Read the newest scoped completed slot, including unavailable bodies."""
+
     def add_interaction(self, interaction: ConversationInteraction) -> bool:
         """Stage a pending interaction and exact user message atomically."""
 
-    def mark_failed(self, interaction_id: str, *, failure_kind: str) -> None:
+    def mark_failed(self, interaction_id: str, *, failure: InteractionFailureMetadata) -> None:
         """Mark an incomplete interaction as retryable failed."""
 
     def complete_interaction(
@@ -45,15 +60,19 @@ class ConversationHistoryRepository(Protocol):
         completed_at: datetime,
         provider_metadata: InteractionProviderMetadata,
         close_session: bool,
+        source_input_id: str | None = None,
     ) -> ConversationInteraction:
         """Atomically add the reply and complete the canonical interaction."""
 
-    def get_history(self, *, session_id: str | None = None) -> ConversationHistorySnapshot:
+    def get_history(
+        self, *, scope: MemoryScope, session_id: str | None = None
+    ) -> ConversationHistorySnapshot:
         """Return immutable history without ORM objects or hidden prompt content."""
 
     def list_recent_completed(
         self,
         *,
+        scope: MemoryScope,
         session_id: str,
         excluded_interaction_id: str,
         limit: int,

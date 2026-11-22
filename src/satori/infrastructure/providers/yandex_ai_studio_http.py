@@ -7,6 +7,8 @@ from collections.abc import Mapping
 from typing import Any
 from urllib.parse import urlsplit
 
+from satori.application.source_policy.dispatch import admit_provider_dispatch
+
 YANDEX_AI_STUDIO_HOST = "ai.api.cloud.yandex.net"
 YANDEX_AI_STUDIO_BASE_PATH = "/v1"
 
@@ -70,6 +72,7 @@ class YandexAIStudioHttpClient:
         try:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             connection.timeout = timeout_seconds
+            admit_provider_dispatch()
             connection.request(
                 "POST",
                 f"{YANDEX_AI_STUDIO_BASE_PATH}{path}",

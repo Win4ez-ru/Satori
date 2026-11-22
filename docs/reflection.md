@@ -1,5 +1,13 @@
 # Reflection
 
+The explicitly continued [14.4.2h](erasure-reflection.md) adds terminal retained proposal payloads
+under [ADR-0068](decisions/0068-terminal-reflection-payloads-and-retained-continuity.md).
+Available proposals retain their typed content contract. After reviewed SQL NULL, inspection
+returns a separate content-free header while run/source/attempt/outcome metadata and spent caps
+remain exact. Terminal apply replay reads no payload or live source quote; erased version 1
+cannot be admitted at dispatch or commit. This changes no trigger, target-owner numerical policy
+or Character behavior. Historical terminal attribution never grants fresh learning authority.
+
 Stage 12 implements rare evidence-bounded synthesis under
 [ADR-0025](decisions/0025-bounded-reflection-runs-and-owner-routing.md). Stage 13 extends its fixed
 source record and target wire under

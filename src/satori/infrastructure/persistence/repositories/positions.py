@@ -1,6 +1,8 @@
 """SQLAlchemy adapter for identity-global Stage 11 Satori positions."""
 
-from sqlalchemy import exists, select, update
+from datetime import datetime
+
+from sqlalchemy import exists, literal, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
@@ -11,6 +13,12 @@ from satori.core.positions import (
     PositionSourceMessage,
     PositionStance,
     PositionValueReference,
+)
+from satori.domain.audit_metadata import AuditMetadataFamily
+from satori.domain.erasure_knowledge import (
+    ErasedKnowledgeHeader,
+    KnowledgeBodyKind,
+    KnowledgeBodyTarget,
 )
 from satori.domain.inclinations import (
     INCLINATION_POLICY_VERSION,
@@ -28,12 +36,16 @@ from satori.domain.positions import (
     PositionEvidence,
     PositionFormationDecision,
     PositionFormationPlan,
+    PositionManager,
     PositionRevision,
     PositionRevisionKind,
     PositionStatus,
     SatoriPosition,
 )
 from satori.domain.reflection import ReflectionOutcome, ReflectionOutcomeDecision
+from satori.domain.source_policy import SourcePolicyError
+from satori.infrastructure.persistence.audit_metadata_writer import bind_metadata
+from satori.infrastructure.persistence.memory_scope import require_live_message_content
 from satori.infrastructure.persistence.models.conversation import (
     ConversationInteractionRow,
     ConversationMessageRow,
@@ -50,11 +62,146 @@ from satori.infrastructure.persistence.models.positions import (
     SatoriPositionRow,
 )
 from satori.infrastructure.persistence.models.reflection import ReflectionOutcomeRow
+from satori.infrastructure.persistence.repositories.knowledge_bodies import (
+    available_owner_predicate,
+    current_owner_row,
+    erase_owned_knowledge_bodies,
+    erased_knowledge_header,
+    repair_owner_rows,
+    require_available_knowledge_target,
+)
+from satori.infrastructure.persistence.source_policy import (
+    eligible_payload,
+    payload_admission_predicate,
+    policy_snapshot,
+    record_owner_withdrawal,
+    record_payload,
+    require_evidence_roots,
+    require_owner_reconciled,
+    require_source_inputs,
+    root_admission_predicate,
+)
 
 
 class SQLAlchemyPositionsRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def erase_knowledge_bodies(
+        self, targets: tuple[KnowledgeBodyTarget, ...], *, action_id: str
+    ) -> None:
+        erase_owned_knowledge_bodies(
+            self._session,
+            targets,
+            action_id=action_id,
+            allowed_kinds=frozenset(
+                (
+                    KnowledgeBodyKind.POSITION,
+                    KnowledgeBodyKind.INCLINATION,
+                )
+            ),
+        )
+
+    def get_erased_knowledge_header(
+        self, kind: KnowledgeBodyKind, aggregate_id: str
+    ) -> ErasedKnowledgeHeader | None:
+        return erased_knowledge_header(
+            self._session,
+            kind,
+            aggregate_id,
+            allowed_kinds=frozenset(
+                (
+                    KnowledgeBodyKind.POSITION,
+                    KnowledgeBodyKind.INCLINATION,
+                )
+            ),
+        )
+
+    def withdraw_source_support(
+        self,
+        *,
+        excluded_message_ids: frozenset[str],
+        request_id: str,
+        policy_generation: int,
+        now: datetime,
+    ) -> None:
+        """Retire position text; record inclination holds without changing its trajectory."""
+
+        snapshot = policy_snapshot(self._session)
+        if snapshot is None:
+            return
+        identity_id = snapshot.identity_id
+        positions = tuple(
+            self._map_position(row)
+            for row in repair_owner_rows(
+                self._session,
+                SatoriPositionRow,
+                SatoriPositionRow.identity_id == identity_id,
+                SatoriPositionRow.status.in_(("active", "competing")),
+            )
+        )
+        plan = PositionManager().withdraw_support(
+            positions,
+            affected_position_ids=frozenset(
+                position.position_id
+                for position in positions
+                if not eligible_payload(
+                    self._session, "position", position.position_id, position.aggregate_version
+                )
+            ),
+            now=now,
+        )
+        before_positions = {position.position_id: position for position in positions}
+        self._apply_plan(plan)
+        for position in plan.positions:
+            before = before_positions[position.position_id]
+            record_owner_withdrawal(
+                self._session,
+                owner="position",
+                aggregate_id=position.position_id,
+                request_id=request_id,
+                policy_generation=policy_generation,
+                before_status=before.status.value,
+                after_status=position.status.value,
+                before_version=before.aggregate_version,
+                after_version=position.aggregate_version,
+                root_message_ids=tuple(
+                    sorted(
+                        edge.source_message_id
+                        for edge in position.evidence
+                        if edge.source_message_id in excluded_message_ids
+                    )
+                ),
+                now=now,
+            )
+        for row in repair_owner_rows(
+            self._session, SatoriInclinationRow, SatoriInclinationRow.identity_id == identity_id
+        ):
+            if eligible_payload(
+                self._session, "inclination", row.inclination_id, row.aggregate_version
+            ):
+                continue
+            roots = tuple(
+                self._session.scalars(
+                    select(InclinationEvidenceRow.source_message_id).where(
+                        InclinationEvidenceRow.inclination_id == row.inclination_id,
+                        InclinationEvidenceRow.source_message_id.in_(excluded_message_ids),
+                    )
+                )
+            )
+            record_owner_withdrawal(
+                self._session,
+                owner="inclination",
+                aggregate_id=row.inclination_id,
+                request_id=request_id,
+                policy_generation=policy_generation,
+                before_status="retained",
+                after_status="disclosure_held",
+                before_version=row.aggregate_version,
+                after_version=row.aggregate_version,
+                root_message_ids=roots,
+                now=now,
+            )
 
     def get_decision(self, idempotency_key: str) -> PositionFormationDecision | None:
         row = self._session.execute(
@@ -67,6 +214,7 @@ class SQLAlchemyPositionsRepository:
     def get_source_messages(
         self, source_interaction_id: str, *, limit: int
     ) -> tuple[PositionSourceMessage, ...]:
+        require_owner_reconciled(self._session, "positions")
         if limit < 1:
             raise ValueError("position source-message limit must be positive")
         interaction = self._session.get(ConversationInteractionRow, source_interaction_id)
@@ -93,10 +241,15 @@ class SQLAlchemyPositionsRepository:
                 )
                 .where(
                     ConversationMessageRow.role == "user",
+                    ConversationMessageRow.session_id == ConversationInteractionRow.session_id,
+                    ConversationSessionRow.scope_verified.is_(True)
+                    if policy_snapshot(self._session) is not None
+                    else literal(True),
                     ConversationInteractionRow.status == "completed",
                     ConversationInteractionRow.position_processing_required.is_(True),
                     ConversationInteractionRow.started_at <= interaction.started_at,
                     ConversationSessionRow.identity_id == source_session.identity_id,
+                    root_admission_predicate(self._session, ConversationMessageRow.message_id),
                 )
                 .order_by(
                     ConversationInteractionRow.started_at.desc(),
@@ -112,7 +265,7 @@ class SQLAlchemyPositionsRepository:
                 identity_id=session.identity_id,
                 counterparty_id=session.counterparty_id,
                 observed_at=message.created_at,
-                content=message.content,
+                content=require_live_message_content(message),
             )
             for message, row_interaction, session in rows
         )
@@ -141,7 +294,17 @@ class SQLAlchemyPositionsRepository:
     def list_positions(
         self, *, identity_id: str, current_only: bool = False
     ) -> tuple[SatoriPosition, ...]:
-        query = select(SatoriPositionRow).where(SatoriPositionRow.identity_id == identity_id)
+        query = select(SatoriPositionRow).where(
+            SatoriPositionRow.body_state == "available",
+            SatoriPositionRow.body_action_id.is_(None),
+            SatoriPositionRow.identity_id == identity_id,
+            payload_admission_predicate(
+                self._session,
+                "position",
+                SatoriPositionRow.position_id,
+                SatoriPositionRow.aggregate_version,
+            ),
+        )
         if current_only:
             query = query.where(
                 SatoriPositionRow.status.in_(
@@ -162,7 +325,33 @@ class SQLAlchemyPositionsRepository:
 
     def get_position(self, position_id: str) -> SatoriPosition | None:
         row = self._session.get(SatoriPositionRow, position_id)
-        return self._map_position(row) if row is not None else None
+        return (
+            self._map_position(row)
+            if row is not None
+            and row.body_state == "available"
+            and row.body_action_id is None
+            and eligible_payload(self._session, "position", row.position_id, row.aggregate_version)
+            else None
+        )
+
+    def list_held_inclination_keys(self, *, identity_id: str) -> frozenset[str]:
+        """Return only opaque reserved identities, never withheld labels or evidence."""
+        return frozenset(
+            self._session.scalars(
+                select(SatoriInclinationRow.inclination_key).where(
+                    SatoriInclinationRow.identity_id == identity_id,
+                    or_(
+                        SatoriInclinationRow.body_state == "erased",
+                        ~payload_admission_predicate(
+                            self._session,
+                            "inclination",
+                            SatoriInclinationRow.inclination_id,
+                            SatoriInclinationRow.aggregate_version,
+                        ),
+                    ),
+                )
+            )
+        )
 
     def list_inclination_references(
         self, *, identity_id: str
@@ -171,7 +360,17 @@ class SQLAlchemyPositionsRepository:
 
         rows = self._session.execute(
             select(SatoriInclinationRow)
-            .where(SatoriInclinationRow.identity_id == identity_id)
+            .where(
+                SatoriInclinationRow.body_state == "available",
+                SatoriInclinationRow.body_action_id.is_(None),
+                SatoriInclinationRow.identity_id == identity_id,
+                payload_admission_predicate(
+                    self._session,
+                    "inclination",
+                    SatoriInclinationRow.inclination_id,
+                    SatoriInclinationRow.aggregate_version,
+                ),
+            )
             .order_by(
                 SatoriInclinationRow.kind,
                 SatoriInclinationRow.updated_at.desc(),
@@ -183,7 +382,17 @@ class SQLAlchemyPositionsRepository:
     def list_inclinations(self, *, identity_id: str) -> tuple[SatoriInclination, ...]:
         rows = self._session.execute(
             select(SatoriInclinationRow)
-            .where(SatoriInclinationRow.identity_id == identity_id)
+            .where(
+                SatoriInclinationRow.body_state == "available",
+                SatoriInclinationRow.body_action_id.is_(None),
+                SatoriInclinationRow.identity_id == identity_id,
+                payload_admission_predicate(
+                    self._session,
+                    "inclination",
+                    SatoriInclinationRow.inclination_id,
+                    SatoriInclinationRow.aggregate_version,
+                ),
+            )
             .order_by(
                 SatoriInclinationRow.kind,
                 SatoriInclinationRow.updated_at.desc(),
@@ -194,7 +403,16 @@ class SQLAlchemyPositionsRepository:
 
     def get_inclination(self, inclination_id: str) -> SatoriInclination | None:
         row = self._session.get(SatoriInclinationRow, inclination_id)
-        return self._map_inclination(row) if row is not None else None
+        return (
+            self._map_inclination(row)
+            if row is not None
+            and row.body_state == "available"
+            and row.body_action_id is None
+            and eligible_payload(
+                self._session, "inclination", row.inclination_id, row.aggregate_version
+            )
+            else None
+        )
 
     def list_revisions(self, position_id: str) -> tuple[PositionRevision, ...]:
         rows = tuple(
@@ -221,6 +439,27 @@ class SQLAlchemyPositionsRepository:
                     ConversationInteractionRow.status == "completed",
                     ConversationInteractionRow.position_processing_required.is_(True),
                     ~processed,
+                    exists(
+                        select(ConversationMessageRow.message_id).where(
+                            ConversationMessageRow.interaction_id
+                            == ConversationInteractionRow.interaction_id,
+                            ConversationMessageRow.role == "user",
+                            ConversationMessageRow.session_id
+                            == ConversationInteractionRow.session_id,
+                            exists(
+                                select(ConversationSessionRow.session_id).where(
+                                    ConversationSessionRow.session_id
+                                    == ConversationInteractionRow.session_id,
+                                    ConversationSessionRow.scope_verified.is_(True)
+                                    if policy_snapshot(self._session) is not None
+                                    else literal(True),
+                                )
+                            ),
+                            root_admission_predicate(
+                                self._session, ConversationMessageRow.message_id
+                            ),
+                        )
+                    ),
                 )
                 .order_by(
                     ConversationInteractionRow.started_at,
@@ -236,7 +475,15 @@ class SQLAlchemyPositionsRepository:
         plan: PositionFormationPlan,
         *,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool:
+        require_owner_reconciled(self._session, "positions")
+        require_source_inputs(self._session, source_input_id)
+        for position in plan.positions:
+            require_available_knowledge_target(
+                self._session, KnowledgeBodyKind.POSITION, position.position_id
+            )
+        self._validate_plan_sources(plan, source_input_id)
         statement = (
             sqlite_insert(PositionFormationDecisionRow)
             .values(
@@ -268,28 +515,43 @@ class SQLAlchemyPositionsRepository:
             return False
 
         self._apply_plan(plan)
+        for position in plan.positions:
+            record_payload(
+                self._session,
+                "position",
+                position.position_id,
+                position.aggregate_version,
+                source_input_id,
+            )
         self._session.add(
-            AuditEventRow(
-                event_id=audit_event_id,
-                schema_version=1,
-                event_type=f"positions.{decision.kind.value}",
-                aggregate_type="satori_positions",
-                aggregate_id=decision.identity_id,
-                occurred_at=decision.decided_at,
-                trace_id=decision.trace_id,
-                details={
-                    "decision_id": decision.decision_id,
-                    "source_interaction_id": decision.source_interaction_id,
-                    "formation_version": decision.formation_version,
-                    "policy_version": decision.policy_version,
-                    "reason_code": decision.reason_code,
-                    "position_ids": list(decision.position_ids),
-                    "created_count": decision.created_count,
-                    "merged_count": decision.merged_count,
-                    "superseded_count": decision.superseded_count,
-                    "competing_count": decision.competing_count,
-                    "rejected_count": decision.rejected_count,
-                },
+            bind_metadata(
+                self._session,
+                AuditEventRow(
+                    event_id=audit_event_id,
+                    schema_version=1,
+                    event_type=f"positions.{decision.kind.value}",
+                    aggregate_type="satori_positions",
+                    aggregate_id=decision.identity_id,
+                    occurred_at=decision.decided_at,
+                    trace_id=decision.trace_id,
+                    details={
+                        "decision_id": decision.decision_id,
+                        "source_interaction_id": decision.source_interaction_id,
+                        "formation_version": decision.formation_version,
+                        "policy_version": decision.policy_version,
+                        "reason_code": decision.reason_code,
+                        "position_ids": list(decision.position_ids),
+                        "created_count": decision.created_count,
+                        "merged_count": decision.merged_count,
+                        "superseded_count": decision.superseded_count,
+                        "competing_count": decision.competing_count,
+                        "rejected_count": decision.rejected_count,
+                    },
+                ),
+                family=AuditMetadataFamily.POSITION_FORMATION,
+                identity_id=decision.identity_id,
+                owner_record_id=decision.decision_id,
+                source_input_id=source_input_id,
             )
         )
         return True
@@ -302,7 +564,15 @@ class SQLAlchemyPositionsRepository:
         identity_id: str,
         trace_id: str,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool:
+        require_owner_reconciled(self._session, "positions")
+        require_source_inputs(self._session, source_input_id)
+        for position in plan.positions:
+            require_available_knowledge_target(
+                self._session, KnowledgeBodyKind.POSITION, position.position_id
+            )
+        self._validate_plan_sources(plan, source_input_id)
         statement = (
             sqlite_insert(ReflectionOutcomeRow)
             .values(
@@ -321,22 +591,37 @@ class SQLAlchemyPositionsRepository:
         if self._session.execute(statement).scalar_one_or_none() is None:
             return False
         self._apply_plan(plan)
+        for position in plan.positions:
+            record_payload(
+                self._session,
+                "position",
+                position.position_id,
+                position.aggregate_version,
+                source_input_id,
+            )
         self._session.add(
-            AuditEventRow(
-                event_id=audit_event_id,
-                schema_version=1,
-                event_type=f"reflection.position_{outcome.decision.value}",
-                aggregate_type="satori_positions",
-                aggregate_id=identity_id,
-                occurred_at=outcome.decided_at,
-                trace_id=trace_id,
-                details={
-                    "outcome_id": outcome.outcome_id,
-                    "proposal_id": outcome.proposal_id,
-                    "target_policy_version": outcome.target_policy_version,
-                    "reason_code": outcome.reason_code,
-                    "position_ids": [item.position_id for item in plan.positions],
-                },
+            bind_metadata(
+                self._session,
+                AuditEventRow(
+                    event_id=audit_event_id,
+                    schema_version=1,
+                    event_type=f"reflection.position_{outcome.decision.value}",
+                    aggregate_type="satori_positions",
+                    aggregate_id=identity_id,
+                    occurred_at=outcome.decided_at,
+                    trace_id=trace_id,
+                    details={
+                        "outcome_id": outcome.outcome_id,
+                        "proposal_id": outcome.proposal_id,
+                        "target_policy_version": outcome.target_policy_version,
+                        "reason_code": outcome.reason_code,
+                        "position_ids": [item.position_id for item in plan.positions],
+                    },
+                ),
+                family=AuditMetadataFamily.REFLECTION_POSITION,
+                identity_id=identity_id,
+                owner_record_id=outcome.outcome_id,
+                source_input_id=source_input_id,
             )
         )
         return True
@@ -349,9 +634,12 @@ class SQLAlchemyPositionsRepository:
         identity_id: str,
         trace_id: str,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool:
         """Atomically persist one terminal outcome and its owner-authorized mutation."""
 
+        require_owner_reconciled(self._session, "positions")
+        require_source_inputs(self._session, source_input_id)
         applied = evaluation.kind is InclinationDecisionKind.APPLIED
         if applied != (outcome.decision is ReflectionOutcomeDecision.ACCEPTED):
             raise ValueError("inclination evaluation and reflection outcome disagree")
@@ -364,6 +652,20 @@ class SQLAlchemyPositionsRepository:
         if applied:
             if inclination is None or revision is None:
                 raise ValueError("applied inclination evaluation is incomplete")
+            retained = self._session.execute(
+                select(SatoriInclinationRow).where(
+                    SatoriInclinationRow.identity_id == identity_id,
+                    SatoriInclinationRow.inclination_key == inclination.inclination_key,
+                )
+            ).scalar_one_or_none()
+            if retained is not None and (
+                retained.body_state != "available" or retained.body_action_id is not None
+            ):
+                raise SourcePolicyError("knowledge_body_unavailable")
+            if retained is not None and not eligible_payload(
+                self._session, "inclination", retained.inclination_id, retained.aggregate_version
+            ):
+                raise ValueError("owner_reconciliation_required")
             if outcome.target_aggregate_type != "satori_inclinations":
                 raise ValueError("accepted reflection outcome targets a different owner")
             if inclination.identity_id != identity_id:
@@ -394,6 +696,23 @@ class SQLAlchemyPositionsRepository:
         elif outcome.target_aggregate_type is not None or outcome.target_aggregate_id is not None:
             raise ValueError("rejected inclination outcome cannot target aggregate state")
 
+        if inclination is not None:
+            require_available_knowledge_target(
+                self._session, KnowledgeBodyKind.INCLINATION, inclination.inclination_id
+            )
+        if inclination is not None and policy_snapshot(self._session) is not None:
+            current = current_owner_row(
+                self._session, SatoriInclinationRow, inclination.inclination_id
+            )
+            if current is not None and not eligible_payload(
+                self._session, "inclination", current.inclination_id, current.aggregate_version
+            ):
+                raise SourcePolicyError("source_payload_unavailable")
+            require_evidence_roots(
+                self._session,
+                source_input_id,
+                tuple(edge.source_message_id for edge in evaluation.new_evidence),
+            )
         statement = (
             sqlite_insert(ReflectionOutcomeRow)
             .values(
@@ -414,55 +733,76 @@ class SQLAlchemyPositionsRepository:
 
         if inclination is not None and revision is not None:
             self._apply_inclination(inclination)
+            record_payload(
+                self._session,
+                "inclination",
+                inclination.inclination_id,
+                inclination.aggregate_version,
+                source_input_id,
+            )
             self._session.add_all(
                 self._inclination_evidence_row(item) for item in evaluation.new_evidence
             )
             self._session.add(self._inclination_revision_row(revision))
 
         self._session.add(
-            AuditEventRow(
-                event_id=audit_event_id,
-                schema_version=1,
-                event_type=f"reflection.inclination_{outcome.decision.value}",
-                aggregate_type="satori_inclinations",
-                aggregate_id=(
-                    inclination.inclination_id if inclination is not None else identity_id
+            bind_metadata(
+                self._session,
+                AuditEventRow(
+                    event_id=audit_event_id,
+                    schema_version=1,
+                    event_type=f"reflection.inclination_{outcome.decision.value}",
+                    aggregate_type="satori_inclinations",
+                    aggregate_id=(
+                        inclination.inclination_id if inclination is not None else identity_id
+                    ),
+                    occurred_at=outcome.decided_at,
+                    trace_id=trace_id,
+                    details={
+                        "outcome_id": outcome.outcome_id,
+                        "proposal_id": outcome.proposal_id,
+                        "target_policy_version": outcome.target_policy_version,
+                        "reason_code": outcome.reason_code,
+                        "inclination_id": (
+                            inclination.inclination_id if inclination is not None else None
+                        ),
+                        "inclination_kind": (
+                            inclination.kind.value if inclination is not None else None
+                        ),
+                        "aggregate_version": (
+                            inclination.aggregate_version if inclination is not None else None
+                        ),
+                        "revision_id": revision.revision_id if revision is not None else None,
+                        "evidence_ids": [item.evidence_id for item in evaluation.new_evidence],
+                        "new_evidence_count": len(evaluation.new_evidence),
+                        "prior_score": revision.prior_score if revision is not None else None,
+                        "new_score": revision.new_score if revision is not None else None,
+                        "applied_delta": (revision.applied_delta if revision is not None else None),
+                        "prior_confidence": (
+                            revision.prior_confidence if revision is not None else None
+                        ),
+                        "new_confidence": (
+                            revision.new_confidence if revision is not None else None
+                        ),
+                        "prior_stability": (
+                            revision.prior_stability if revision is not None else None
+                        ),
+                        "new_stability": (revision.new_stability if revision is not None else None),
+                    },
                 ),
-                occurred_at=outcome.decided_at,
-                trace_id=trace_id,
-                details={
-                    "outcome_id": outcome.outcome_id,
-                    "proposal_id": outcome.proposal_id,
-                    "target_policy_version": outcome.target_policy_version,
-                    "reason_code": outcome.reason_code,
-                    "inclination_id": (
-                        inclination.inclination_id if inclination is not None else None
-                    ),
-                    "inclination_kind": (
-                        inclination.kind.value if inclination is not None else None
-                    ),
-                    "aggregate_version": (
-                        inclination.aggregate_version if inclination is not None else None
-                    ),
-                    "revision_id": revision.revision_id if revision is not None else None,
-                    "evidence_ids": [item.evidence_id for item in evaluation.new_evidence],
-                    "new_evidence_count": len(evaluation.new_evidence),
-                    "prior_score": revision.prior_score if revision is not None else None,
-                    "new_score": revision.new_score if revision is not None else None,
-                    "applied_delta": (revision.applied_delta if revision is not None else None),
-                    "prior_confidence": (
-                        revision.prior_confidence if revision is not None else None
-                    ),
-                    "new_confidence": (revision.new_confidence if revision is not None else None),
-                    "prior_stability": (revision.prior_stability if revision is not None else None),
-                    "new_stability": (revision.new_stability if revision is not None else None),
-                },
+                family=AuditMetadataFamily.REFLECTION_INCLINATION,
+                identity_id=identity_id,
+                owner_record_id=outcome.outcome_id,
+                source_input_id=source_input_id,
             )
         )
         return True
 
     def _apply_inclination(self, inclination: SatoriInclination) -> None:
-        current = self._session.get(SatoriInclinationRow, inclination.inclination_id)
+        require_available_knowledge_target(
+            self._session, KnowledgeBodyKind.INCLINATION, inclination.inclination_id
+        )
+        current = current_owner_row(self._session, SatoriInclinationRow, inclination.inclination_id)
         if current is None:
             if inclination.aggregate_version != 1:
                 raise RuntimeError("new inclination must start at aggregate version one")
@@ -485,6 +825,7 @@ class SQLAlchemyPositionsRepository:
             .where(
                 SatoriInclinationRow.inclination_id == inclination.inclination_id,
                 SatoriInclinationRow.aggregate_version == expected_version,
+                available_owner_predicate(self._session, SatoriInclinationRow),
             )
             .values(
                 schema_version=inclination.schema_version,
@@ -505,11 +846,40 @@ class SQLAlchemyPositionsRepository:
             raise RuntimeError("inclination aggregate was concurrently modified")
         self._session.flush()
 
+    def _validate_plan_sources(self, plan: PositionFormationPlan, input_id: str | None) -> None:
+        if policy_snapshot(self._session) is None:
+            return
+        for position in plan.positions:
+            row = self._session.get(SatoriPositionRow, position.position_id)
+            existing: tuple[PositionEvidence, ...] = ()
+            if row is not None:
+                if not eligible_payload(
+                    self._session, "position", row.position_id, row.aggregate_version
+                ):
+                    raise SourcePolicyError("source_payload_unavailable")
+                if (
+                    row.identity_id != position.identity_id
+                    or row.position_key != position.position_key
+                    or position.aggregate_version != row.aggregate_version + 1
+                ):
+                    raise ValueError("position_aggregate_target_invalid")
+                existing = self._map_position(row).evidence
+            elif position.aggregate_version != 1:
+                raise ValueError("position_aggregate_target_invalid")
+            require_evidence_roots(
+                self._session,
+                input_id,
+                tuple(edge.source_message_id for edge in position.evidence if edge not in existing),
+            )
+
     def _apply_plan(self, plan: PositionFormationPlan) -> None:
         new_positions: list[SatoriPosition] = []
         changed_positions: list[tuple[SatoriPosition, int]] = []
         for position in plan.positions:
-            current = self._session.get(SatoriPositionRow, position.position_id)
+            require_available_knowledge_target(
+                self._session, KnowledgeBodyKind.POSITION, position.position_id
+            )
+            current = current_owner_row(self._session, SatoriPositionRow, position.position_id)
             if current is None:
                 new_positions.append(position)
             else:
@@ -524,6 +894,7 @@ class SQLAlchemyPositionsRepository:
                 .where(
                     SatoriPositionRow.position_id == position.position_id,
                     SatoriPositionRow.aggregate_version == expected_version,
+                    available_owner_predicate(self._session, SatoriPositionRow),
                 )
                 .values(
                     aggregate_version=position.aggregate_version,
@@ -683,6 +1054,8 @@ class SQLAlchemyPositionsRepository:
 
     @staticmethod
     def _map_inclination_reference(row: SatoriInclinationRow) -> InclinationStateReference:
+        if row.body_state != "available" or row.body_action_id is not None or row.topic is None:
+            raise SourcePolicyError("knowledge_body_unavailable")
         return InclinationStateReference(
             inclination_id=row.inclination_id,
             aggregate_version=row.aggregate_version,
@@ -696,6 +1069,13 @@ class SQLAlchemyPositionsRepository:
         )
 
     def _map_inclination(self, row: SatoriInclinationRow) -> SatoriInclination:
+        if (
+            row.body_state != "available"
+            or row.body_action_id is not None
+            or row.topic is None
+            or row.normalized_topic is None
+        ):
+            raise SourcePolicyError("knowledge_body_unavailable")
         evidence_rows = self._session.execute(
             select(InclinationEvidenceRow)
             .where(InclinationEvidenceRow.inclination_id == row.inclination_id)
@@ -772,6 +1152,13 @@ class SQLAlchemyPositionsRepository:
         )
 
     def _map_position(self, row: SatoriPositionRow) -> SatoriPosition:
+        if (
+            row.body_state != "available"
+            or row.body_action_id is not None
+            or row.proposition is None
+            or row.normalized_proposition is None
+        ):
+            raise SourcePolicyError("knowledge_body_unavailable")
         evidence_rows = tuple(
             self._session.execute(
                 select(PositionEvidenceRow)
@@ -779,6 +1166,8 @@ class SQLAlchemyPositionsRepository:
                 .order_by(PositionEvidenceRow.observed_at, PositionEvidenceRow.evidence_id)
             ).scalars()
         )
+        if any(item.quote is None or item.normalized_signature is None for item in evidence_rows):
+            raise SourcePolicyError("knowledge_body_unavailable")
         return SatoriPosition(
             position_id=row.position_id,
             position_key=row.position_key,
@@ -806,14 +1195,20 @@ class SQLAlchemyPositionsRepository:
                     source_message_id=item.source_message_id,
                     source_interaction_id=item.source_interaction_id,
                     source_counterparty_id=item.source_counterparty_id,
-                    quote=item.quote,
-                    normalized_signature=item.normalized_signature,
+                    quote=self._live_position_body(item.quote),
+                    normalized_signature=self._live_position_body(item.normalized_signature),
                     role=PositionEvidenceRole(item.role),
                     observed_at=item.observed_at,
                 )
                 for item in evidence_rows
             ),
         )
+
+    @staticmethod
+    def _live_position_body(value: str | None) -> str:
+        if value is None or not value.strip():
+            raise SourcePolicyError("knowledge_body_unavailable")
+        return value
 
     @staticmethod
     def _map_revision(row: PositionRevisionRow) -> PositionRevision:

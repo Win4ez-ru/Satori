@@ -10,8 +10,13 @@ permissions:
 
 jobs:
   quality:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      QT_QPA_PLATFORM: offscreen
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      SATORI_ENVIRONMENT: test
 
     steps:
       - name: Check out repository
@@ -26,7 +31,12 @@ jobs:
         run: python -m pip install uv
 
       - name: Install locked dependencies
-        run: uv sync --frozen --all-groups --no-editable
+        run: uv sync --frozen --all-groups --no-editable --reinstall-package satori-core
+
+      - name: Set isolated runtime paths
+        run: |
+          echo "SATORI_DATABASE_URL=sqlite+pysqlite:///${RUNNER_TEMP}/satori-ci.db" >> "$GITHUB_ENV"
+          echo "SATORI_SOURCE_POLICY_DIRECTORY=${RUNNER_TEMP}/satori-source-policy" >> "$GITHUB_ENV"
 
       - name: Check formatting
         run: uv run --no-sync ruff format --check .
@@ -39,3 +49,8 @@ jobs:
 
       - name: Test
         run: uv run --no-sync pytest
+
+      - name: Migrate and bootstrap an isolated database
+        run: |
+          uv run --no-sync alembic upgrade head
+          uv run --no-sync satori bootstrap

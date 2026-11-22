@@ -1,9 +1,15 @@
 """Application-owned persistence ports for Stage 9 models."""
 
+from datetime import datetime
 from typing import Protocol
 
 from satori.application.unit_of_work import UnitOfWork
 from satori.core.models import ModelSourceMessage
+from satori.domain.erasure_knowledge import (
+    ErasedKnowledgeHeader,
+    KnowledgeBodyKind,
+    KnowledgeBodyTarget,
+)
 from satori.domain.models import (
     ModelClaimRevision,
     ModelFormationDecision,
@@ -14,6 +20,25 @@ from satori.domain.models import (
 
 
 class CurrentModelsRepository(Protocol):
+    def erase_knowledge_bodies(
+        self, targets: tuple[KnowledgeBodyTarget, ...], *, action_id: str
+    ) -> None:
+        """Apply an exact approved owner body transition in the current transaction."""
+
+    def get_erased_knowledge_header(
+        self, kind: KnowledgeBodyKind, aggregate_id: str
+    ) -> ErasedKnowledgeHeader | None:
+        """Read retained terminal metadata; this grants no live-content eligibility."""
+
+    def withdraw_source_support(
+        self,
+        *,
+        excluded_message_ids: frozenset[str],
+        request_id: str,
+        policy_generation: int,
+        now: datetime,
+    ) -> None: ...
+
     def get_decision(self, idempotency_key: str) -> ModelFormationDecision | None: ...
 
     def get_source_messages(
@@ -54,6 +79,7 @@ class CurrentModelsRepository(Protocol):
         *,
         user_audit_event_id: str,
         world_audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool: ...
 
 

@@ -1,6 +1,47 @@
 # Failure modes and threat model
 
+14.4.2b.1 mitigation (ADR-0056): explicit proven scoped archive/reactivate, monotonic episode
+version and atomic decision/audit. Conditional index/semantic writes reject late results including
+archive→reactivate ABA; expected archived replay skips derived work. Existing semantic support is
+retained only through exact owned canonical edges. Wrong scope/stale digest/payload reject without
+mutation. Raw history and already formed state remain retained; archive is not source exclusion,
+erasure or authenticated access. An older backup restores earlier reversible archival state;
+source exclusion now requires the implemented independent trusted installation floor; erasure
+remains separate.
+
+14.4.2a mitigation (ADR-0055): deterministic verified scope at session/replay/history and
+episode/index/semantic source/recall boundaries; full-lineage proof, separate semantic namespaces,
+pre-provider and pre-commit rejection, preserved legacy quarantine across restart/restore.
+Counterparty configuration remains trusted local attribution, not an authenticated principal.
+Global own propositions may contain sensitive derived wording; source admission now withholds unsafe global wording through complete actual-input dependencies.
+Physical erasure and encryption/access remain subsequent 14.4 gates.
+
+14.4.1 mitigation candidate (ADR-0053): consistent SQLite backup, private atomic artifacts,
+strict bounded archive admission, trusted-schema fingerprint/integrity/FK/initial-shape checks and
+digest-bound absent-target offline restore. Checksums are not signatures; archive trust and
+plaintext confidentiality remain limitations. Recovery receipts never become self evidence.
+Post-publication filesystem/receipt failure can leave a target present and must be reported as
+incomplete. Cross-counterparty memory visibility/erasure and encryption/principal enforcement
+remain 14.4.2/14.4.3 gates; this slice does not make external ingestion or production data safe.
+
 Scope: risks to continuity, truthfulness, autonomy, privacy and recoverability. `Stage` is the latest point by which mitigation must be operational, not permission to ignore the risk earlier.
+
+Audit 2026-09-04 / ADR-0046: historical stage references below retain their original context.
+The new future dependency gates in `roadmap-north-star.md` advance privacy/recovery to 14.4,
+external-source isolation to 17.1, technical grants to 17.3 and action recovery to 17.4, before
+real external reads (17.5) or writes (17.6). These mitigations are planned, not implemented.
+
+| Newly explicit risk | Required gate and verification |
+|---|---|
+| Cross-counterparty recall through early global episodic/semantic namespace | 14.4.2a: verified full-lineage visibility, scoped keys, legacy quarantine and negative full-context tests; lifecycle/access remain later gates |
+| Aggregate export follows symlink or inherits permissive umask | 14.4: shared private atomic artifact writer, explicit overwrite policy, mode/symlink/race tests |
+| External content laundered into canonical user evidence | 17.1: source-kind/subject/scope/correlation contracts and per-owner eligibility; no fake chat messages |
+| Relationship trust grants technical privilege | 17.3: grant owner independent of affect/relationship; invariant permission matrix, revoke/expiry tests |
+| Private read mistaken for low-risk harmless action | 17.3/17.5: read consent, resource/account scope, disclosure minimization, hostile content/eXfiltration tests |
+| Write executed remotely but local timeout invites duplicate retry | 17.4: durable intent and unknown-outcome state, receipt reconciliation, idempotency/timeout/fault tests |
+| Confirmation re-used for changed recipient/payload or revoked access | 17.4: payload/version binding and grant recheck immediately before execution/retry |
+| Action receipt becomes independent self/relationship evidence | 17.1/17.4: causal-root dedup and owner source allowlist; generated intent/result cannot reinforce itself |
+| Offline device replays stale writes or forks canonical self | 25.1: one authoritative writer, authenticated commands, version/conflict/revocation reconciliation |
 
 | Risk | Impact | Mitigation | Detection | Stage |
 |---|---|---|---|---:|
@@ -40,8 +81,11 @@ Scope: risks to continuity, truthfulness, autonomy, privacy and recoverability. 
 | Cognition pseudo-precision | Heuristic needs/position look like hidden truth or durable belief | Qualitative closed schemas, bounded weights, explicit uncertainty/fallback, transient artifacts only | Mixed-need, ambiguity and fallback fixtures; trace audit | 10 |
 | Position/expression reversal | Friendly wording silently changes disagreement, uncertainty or evidence boundary | Strategy carries position stance/uncertainty invariant; deterministic pre-generation validation; grounding unchanged | Position-vs-expression fixtures and debug trace comparison | 10 |
 | Cost growth / privacy leakage | Unexpected spend or over-sharing to cloud | Local-first, operation-scoped context, usage budgets/telemetry | Provider usage/context manifest review | 3 onward |
+| Post-response failure evidence loss/leak | Billed usage becomes unknowable or rejected provider content enters artifacts | Typed errors retain only numeric usage and closed observed/completed/tier facts; exact integer ledger pricing; no text/body/prompt/reasoning content | Oversize/incomplete/malformed adapter fixtures, ledger privacy and exact-cost tests | 14.2 |
+| One-shot evaluation replay or orphaned grant | Stale authority spends again, or a consumed grant has no diagnostic artifact | Distinct ID/digest/paths per attempt; retired digest rejected before I/O; safe targets preflighted; claim precedes immediate durable report; external review digest anchor | Preflight/lifecycle/source/Settings/path collision and immutable-archive tests | 14.2 |
 | Cloud API-key exfiltration | Secret is sent to a compatible but attacker-controlled endpoint or appears in diagnostics | Yandex credential target pinned to canonical HTTPS `/v1`; `SecretStr`; transport-local auth header; no body/key logging or export | Config/transport target tests, repr/log secret scan | 14.1 |
 | Hidden provider double spend | Automatic retry/fallback spends twice and changes semantics invisibly | No automatic Yandex retry, hedging or fallback in first increment; operator switch is explicit | Exact provider-call count and usage metadata in A/B gate | 14.1 |
+| Friendly failure text masks an operator fault or becomes canonical | Characterful UI copy hides credentials/quota/storage action or contaminates history/state | Exact closed recovery allowlist; exhaustive enum partition; bracketed noncanonical label; actionable/refusal/unknown/persistence bypass; no `SatoriReply` construction | TTY/non-TTY cleanup, failed-history/no-affect/grounding, actionable and enum-exhaustion tests | 14.2 |
 | Cloud scope creep | Memory owners/background proposals or broader local state are routed remotely without review | Yandex accepted only for foreground conversation; all structured/background settings reject it | Config/composition matrix and remote-request inspection | 14.1 |
 | Raw plaintext retention | Local DB compromise exposes exact dialogue/evidence | Local-only scope, no prompt duplication/log content, explicit development retention policy; encryption/erasure gate before production | DB/table inspection, log leak tests, production-readiness review | 4; harden pre-production |
 | Loss of provenance | Unexplainable facts/mutations | Source refs required at schema/policy boundary; no orphan commit | Referential checks and provenance-coverage gate | 4/6 |
@@ -338,3 +382,179 @@ not complete entailment or paraphrase detection. Qualitative expression cues can
 overexpressed by a small language model. These risks require the paired alignment corpus,
 longitudinal human review and before/after/restore real-model anchors; they do not justify larger
 deltas, affect/relationship shortcuts, output rewriting or value mutation.
+
+## Implemented logical exclusion — 14.4.2b.2 / ADR-0057
+
+| Leak path | Enforcement | Residual limit |
+|---|---|---|
+| Uncited derivative, paired assistant, summary or formed knowledge | Immutable actual-input DAG; SQL eligibility before limits; owner retirement/hold | Retained bytes need physical erasure |
+| Queued/retried transport or late owner commit | Immediate dispatch and final current top-level version proof under fresh lease; archive ABA rejects | Already admitted/in-flight external payload cannot be recalled |
+| Restart or older main backup | Independent floor/binding; mismatch/lag denies until explicit reconciliation | Whole-installation rollback needs trusted freshness anchor |
+| Legacy scope/provenance gaps | All accepted canonical edges independently proved; UNKNOWN stays unknown; first lineage exclusion holds all descendants | Continuity can degrade conservatively |
+| Hidden ACTIVE key merges | Per-owner repair watermark; typed withdrawal releases knowledge keys, preserves inclination identity | No automatic clean rewriting/re-admission of old wording |
+| Misuse of artifacts to replace policy | Reserved floor/binding/lock/sidecar targets; private fixed-inode files | Hostile same-UID writers and direct offline DB access remain outside this gate |
+
+No authenticated local principal, provider grant, at-rest encryption or cross-machine policy/key
+recovery is claimed. Historical numeric personality/affect/relationship effects remain, without
+new excluded evidence or disclosure of tainted text. Actual Linux process-lock validation remains
+unverified on this macOS host. Operator/runtime details: [source policy](source-policy.md).
+
+## Read-only erasure assessment — 14.4.2c / ADR-0059
+
+Preview/check must not perform deletion, enroll or repair policy, run provider work, materialize
+decay or write audit. Exact canonical scope/exclusion/repair/schema proofs precede inventory
+disclosure. Known source dependencies and the separate retained-history/FK/text inventory are
+both assessed; missing provenance and opaque audit/reason text stay uncertain. Combined logical
+store fingerprint binds non-versioned fields and conservatively invalidates unrelated writes.
+Matching a digest is not authentication, a reservation or deletion permission. WAL/free pages,
+archives, caches and already disclosed external copies are explicitly unassessed. Future erasure
+requires owner retention policies and an independent floor-first intent, not a generic cascade.
+See [erasure](erasure.md); no physical readiness or whole-installation rollback guarantee follows.
+
+## Durable erasure request — 14.4.2d / ADR-0060
+
+The authorized implementation adds a terminal metadata-only request to the independent trusted
+floor before any future destructive content mutation. A separate erasure revision and derived
+whole-head main acknowledgment prevent an old main backup from silently forgetting that request.
+Ordinary protected operations deny stale acknowledgment; explicit resume privately reconciles all
+floor intents and reports only the selected proved root. Source-owner watermarks do not certify
+intent acknowledgment or physical preparation.
+
+Owner assessments cover all 15 current owners, remain metadata-only and preserve opaque/UNKNOWN
+blockers. A reviewed blocked inventory does not approve a destructive plan, substitute text or
+collateral removal of another counterparty's audit content. Append-only semantic preparation
+revisions and exact request/digest binding expose drift; no output contains private selectors,
+descendant IDs or source-derived bodies. Physical execution stays denied.
+
+The 2d controls have macOS engineering verification and preserve content, vectors, numerical
+histories and evidence/FKs. The separately approved bounded body operation is ADR-0061 below;
+intent controls grant no permission to run it. Existing local-operator
+approval is not authentication; full-floor rollback, malicious same-user writes, Linux process
+verification, access/encryption/key recovery, WAL/free pages/backups and external copies remain
+open. See [erasure intent](erasure-intent.md).
+
+
+## Terminal owner bodies — 14.4.2e / ADR-0061
+
+| Threat | Enforcement | Remaining limit |
+|---|---|---|
+| Backup after intent but before deletion reintroduces usable bodies | Independent body revision/head; current source/intent ACK cannot satisfy body admission | Offline archives still contain original bytes |
+| Receipt without actual deletion, changed numerical/header/evidence set, extra terminal rows | Exact trusted action-head and terminal fingerprints; bounded metadata-only census | Malicious same-user/floor rollback remains outside this trust model |
+| Stale plan deletes changed or broader bodies | Fresh full-store approval plus exact owner preimages; explicit immutable new action for supersession | UNKNOWN ancestry blocks readiness; no guessed collateral removal |
+| Crash between index and quote deletion | Floor-first action and one main owner transaction; exact resumable replay | Later growth/corruption can leave a truthful pending action |
+| Reactivation, reindex or legacy proof revives NULL bodies | Separate availability checks, strict normal domain DTOs and one-way production SQL guards | Other owner bodies need later representations; canonical handling is ADR-0063 below |
+| SQL NULL removal misrepresented as total physical erasure | Fixed partial owner/residual output and physical_erasure=false | Free pages, journals, archives, caches, prior disclosure and external copies unassessed |
+
+Per-body hashes and IDs retained privately for approval/replay can remain sensitive. Local
+operator labels are not authentication; 14.4.3 access/encryption and Linux process verification
+remain open. No Character expression rule or relationship trust can authorize these operations.
+
+## Terminal dialogue and historical proof — 14.4.2f / ADR-0063
+
+The [ADR-0063](decisions/0063-terminal-dialogue-bodies-and-historical-provenance.md) implementation
+and macOS engineering gate are complete (4207 passed / 5 skipped); see [progress.md](progress.md).
+Main `0019_dialogue_bodies` has 59 tables, 13 triggers and exact schema digest
+`69c87475bb8ec301ed0d723aa0902f359c14f6d0def5b1c13c340a659f2c3611`.
+Explicit `policy_0004` extends the existing single mixed body head while preserving exact old
+episode JSON, approval hashes and episode-only head digests. Ordinary reads do not upgrade policy.
+
+| Threat | Implemented boundary | Remaining limit |
+|---|---|---|
+| Canonical text or an uncited assistant derivative survives an approved plan | Actual NULL for selected USER, paired and COMPLETE-dependent assistant bodies; independent USER retained | UNKNOWN ancestry and affected cross-counterparty replies block a fresh plan |
+| NULL source is treated as proof of a retained quote or fresh evidence | Exact pre-erasure whole-row witnesses from five closed evidence tables; separate historical attribution and live availability | Retained quotes/knowledge may remain sensitive; no new literal proof after NULL |
+| Changed/new evidence inherits an old historical witness | Exact retained-row fingerprint and trusted full mixed-head binding; changed or missing rows deny admission | Future owner body representations remain separate contracts |
+| Wrong ACK, forged receipt or old backup reopens erased dialogue | Independent floor-first action plus actual terminal/witness proof and explicit all-head resume | Full-installation/floor rollback still requires a trusted freshness anchor |
+| Crash or old-client replay recreates terminal text | One main owner transaction, resumable exact preimages, immutable terminal guards and content-unavailable replay | Changed/expanded restored representations need fresh approval |
+| Header or witness leaks into cognition | Metadata-only historical interface; provider/learning reads require admitted available bodies | Already disclosed external inputs cannot be recalled |
+
+Pre-commit transaction failure rolls back main changes atomically. An uncertain commit outcome
+or later verification failure reports pending without certifying that the original bodies remain
+available; fresh status/resume proves actual completion. Resume handles the current effective
+approved whole head, including later actions or supersession, and never expands beyond it.
+
+The control path invokes zero providers and does not change Character prompts, models or state
+owners. Character consumes the existing abstract available-history contract. Partial logical
+removal always reports `physical_erasure=false`; other knowledge/appraisal/reflection/audit
+bodies, numerical effects/identifiers, free pages/WAL/sidecars, archives and external copies remain
+retained or unresolved. No generic cascade, numerical rollback, cap refund or forensic certificate
+is claimed. Authenticated access, encryption/key recovery, Linux process verification and whole
+14.4 acceptance remain open. See [terminal dialogue bodies](erasure-dialogue.md) and
+[recovery](recovery.md).
+
+## Terminal knowledge and witness continuity — 14.4.2g / ADR-0066
+
+The opened knowledge operation addresses retained semantic/current-model/position/inclination
+content after source exclusion, including normalized copies and position evidence quotes. Existing
+owners enforce a one-way transition and freeze retained headers/history/evidence membership.
+Current-input checks reject terminal bodies at the same aggregate version; merge, decay and
+reactivation cannot recreate their content. All owner writes share one transaction after a durable
+floor action, with complete mixed-head proof before runtime admission.
+
+Exact witness transitions prevent old canonical Dialogue proofs from becoming invalid after an
+approved quote removal, while denying altered/new evidence and predecessor rewinds. Independent
+same-scope USER bodies survive; affected foreign or uncertain support blocks selection. Normal
+proof readers check terminal predicates before materializing selected NULL rows. Damaged schema,
+forged ACK, partial content resurrection and old archives remain fail-closed cases.
+
+This is logical owner removal with `physical_erasure=false`. Opaque reflection/appraisal/audit
+content, numerical influence, hashes, forensic pages/sidecars, provider caches, backups and external
+copies remain explicit residuals. Authentication/encryption and Linux gates remain open.
+
+## Terminal Reflection and retained continuity — 14.4.2h / ADR-0068
+
+| Threat | Implemented boundary | Remaining limit |
+|---|---|---|
+| Proposal retains an excluded fact despite citing other roots | Whole payload selection through all fixed sources and COMPLETE actual-input dependencies; strict versioned source proof | UNKNOWN, malformed or affected foreign ancestry blocks approval |
+| NULL is mapped to an empty candidate or reduces routing cardinality | Separate terminal header and complete metadata-only proposal IDs; normal mapping requires an available body | Numerical effects and consumed budgets remain exact |
+| An already prepared proposal commits after body removal at the same version | Dispatch and final owner commit availability checks; logical payload version 1 remains reserved | No numerical unlearning is claimed |
+| Completed replay reloads erased content or live source quotations | Terminal run fast return before body/quote access; exhausted run stays non-routable | Other contentful owner inspection has its own contract |
+| Direct replacement or membership change invalidates historical proof | Exact schema pin and parent/header guards, including cross-parent conflicting INSERT OR REPLACE | Offline same-user tampering is detected by admission, not prevented by authentication |
+| Partial write, copied ACK or restored archive reopens payloads | Floor-first action, atomic all-head transaction, exact original/terminal proof and fresh-process resume | Full floor/install rollback needs an independent freshness anchor |
+
+Only selected logical proposal payloads are removed. Exact run/source/attempt/outcome metadata,
+IDs/digests, numeric learning, opaque appraisal/audit and free-form checkpoint reasons remain.
+SQLite free pages/WAL/sidecars, archives, provider/OS/external copies, authentication/encryption,
+Linux and full 14.4 acceptance remain separate. Controls invoke zero providers. A synthetic
+foreground check is not a Character behavioral verdict. See
+[retained Reflection handling](erasure-reflection.md) and [ADR-0068](decisions/0068-terminal-reflection-payloads-and-retained-continuity.md).
+
+## Paired appraisal explanations — 14.4.2h / ADR-0070
+
+A reason copied from an uncited retrieved/prior input can survive inside both an affective
+transition and its owned audit event. Selection uses COMPLETE actual inputs, not provider
+citations. Exact direct links and strict closed raw shapes distinguish these two owned copies
+from arbitrary audit JSON. Unlinked legacy rows and uncertain/cross-counterparty ancestry block
+destructive completeness.
+
+The action binds three-row original/terminal material and immutable whole-input ancestry.
+Pending resume cannot accept changed upstream metadata just because it remains canonical.
+SQL guards prevent paired resurrection, deletion, header substitution and conflicting REPLACE
+through transition, interaction or unique audit-event identity with recursive triggers disabled.
+A fresh actual NULL/key-absence census precedes protected reads; copied ACK and old-main restore
+cannot satisfy it. Numerical/header interfaces keep status/replay intact without manufacturing
+empty explanations.
+
+Numbers and historical numerical influence, unrelated freeform audit/decision text, hashes,
+WAL/free pages, archives and exported/provider/OS copies remain. Whole-floor rollback and
+access/encryption/key management are later work. See [paired handling](erasure-appraisal.md)
+and [ADR-0070](decisions/0070-appraisal-explanation-bodies-and-exact-input-provenance.md).
+
+## Retained audit metadata — 14.4.2h / ADR-0071
+
+A familiar event name, ID-shaped field, present hash or currently deterministic writer cannot
+certify arbitrary historical audit JSON. The prospective binding is authored in the existing
+owner transaction and revalidated against closed shape/version/code bounds, exact owner receipt,
+scope, headers and cardinality. Duplicate keys/events, extra prose, forged scope and unsupported
+legacy records remain UNKNOWN. No retrospective sealing or guessed backfill is permitted.
+
+Immutable SQL guards cover bindings and bound non-Appraisal audit rows, including conflicting
+REPLACE with recursive triggers disabled. Appraisal retains its exclusive paired-body authority;
+available content is never metadata, and terminal metadata needs complete approved-head/material
+and immutable input-closure proof. Coverage reads are bounded, read-only, provider-free and expose
+only safe counts/reasons after canonical root/counterparty proof. Schema/store/routing freshness
+invalidates stale review; old archives cannot bypass pending body fencing.
+
+Certification grants retention only. Numerical influence, IDs/hashes, freeform checkpoint reasons,
+unsupported scalar codes, raw archives, WAL/free pages, provider/OS copies, whole-floor rollback
+and authenticated access/encryption/key recovery remain open. Physical erasure and execution
+authorization remain false. See [retained audit metadata](retained-audit-metadata.md).

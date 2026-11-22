@@ -1,0 +1,42 @@
+{
+  "account_acceptance": "NOT_RUN",
+  "automatic_retries": false,
+  "canonical_or_model_dispatch_by_worker": false,
+  "capability": "foreground_source_question_v1",
+  "commands": {
+    "task_cancel": [
+      "request",
+      "plan"
+    ],
+    "task_search": [
+      "request",
+      "plan"
+    ]
+  },
+  "native_message_rows_max_total": 20,
+  "native_read_functions": [
+    "searchMessages",
+    "searchChatsOnServer",
+    "getChat",
+    "getUser",
+    "getChatHistory"
+  ],
+  "native_schema_commit": "bc9c263e2bfee06aaab41e82db51a103376030bc",
+  "peer_candidates_max": 8,
+  "peer_history_max_rows": 12,
+  "peer_history_incoming_only": true,
+  "peer_history_requires_older_row_for_complete_window": true,
+  "related_max_anchors": 3,
+  "related_max_messages_per_anchor": 5,
+  "request_max_seconds": 30,
+  "search_max_results": 20,
+  "search_results_requested": 5,
+  "secret_protected_forwarded_ttl": "omitted",
+  "sources": [
+    "ordinary_private_text",
+    "ordinary_private_incoming_by_peer"
+  ],
+  "text_max_bytes": 32768,
+  "window_max_days": 30,
+  "wire_version": 3
+}

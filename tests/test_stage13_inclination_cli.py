@@ -12,6 +12,7 @@ from satori.domain.inclinations import INCLINATION_POLICY_VERSION, SatoriInclina
 from satori.domain.reflection import ReflectionOutcome, ReflectionOutcomeDecision
 from satori.infrastructure.persistence.database import Database
 from satori.infrastructure.persistence.positions_uow import SQLAlchemyPositionsUnitOfWork
+from tests.source_policy_support import enroll_for_cli
 from tests.test_stage4_conversation_memory import activate
 from tests.test_stage13_inclinations_persistence import (
     _applied_inclination,
@@ -27,6 +28,7 @@ def _settings(database: Database) -> Settings:
     return Settings(
         environment=Environment.TEST,
         database_url=str(database.engine.url),
+        source_policy_directory=enroll_for_cli(database),
         log_level=LogLevel.WARNING,
     )
 

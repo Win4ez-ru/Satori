@@ -1,7 +1,10 @@
 # ADR-0013: Exact episodic retrieval and grounded memory context
 
-- Status: Accepted
+- Status: Superseded in part by [ADR-0055](0055-canonical-memory-scope-and-legacy-quarantine.md)
 - Date: 2026-07-30
+
+ADR-0055 adds verified canonical scope and full-lineage admission to the original eligibility
+rules. Embedding spaces, ranking, budgets, grounding and derived-index ownership remain unchanged.
 
 ## Context
 

@@ -23,6 +23,15 @@ from satori.infrastructure.persistence.types import UTCDateTime
 class SatoriPositionRow(Base):
     __tablename__ = "satori_positions"
     __table_args__ = (
+        CheckConstraint(
+            (
+                "(body_state = 'available' AND proposition IS NOT NULL AND normalized_propos"
+                "ition IS NOT NULL AND body_action_id IS NULL) OR (body_state = 'erased' AND"
+                " proposition IS NULL AND normalized_proposition IS NULL AND body_action_id "
+                "IS NOT NULL)"
+            ),
+            name="body_consistent",
+        ),
         CheckConstraint("schema_version >= 1", name="schema_version_positive"),
         CheckConstraint("aggregate_version >= 1", name="aggregate_version_positive"),
         CheckConstraint("policy_version >= 1", name="policy_version_positive"),
@@ -69,8 +78,8 @@ class SatoriPositionRow(Base):
     policy_version: Mapped[int] = mapped_column(Integer, nullable=False)
     formation_version: Mapped[int] = mapped_column(Integer, nullable=False)
     normalization_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    proposition: Mapped[str] = mapped_column(String(240), nullable=False)
-    normalized_proposition: Mapped[str] = mapped_column(String(240), nullable=False)
+    proposition: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    normalized_proposition: Mapped[str | None] = mapped_column(String(240), nullable=True)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     stance: Mapped[str] = mapped_column(String(16), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
@@ -85,10 +94,24 @@ class SatoriPositionRow(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
 
+    body_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="available", server_default="available"
+    )
+    body_action_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("erasure_body_applications.action_id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+
 
 class PositionEvidenceRow(Base):
     __tablename__ = "satori_position_evidence"
     __table_args__ = (
+        CheckConstraint(
+            "(quote IS NOT NULL AND normalized_signature IS NOT NULL) OR "
+            "(quote IS NULL AND normalized_signature IS NULL)",
+            name="body_pair_consistent",
+        ),
         UniqueConstraint("position_id", "source_message_id"),
         UniqueConstraint("position_id", "normalized_signature"),
         CheckConstraint(
@@ -112,8 +135,8 @@ class PositionEvidenceRow(Base):
         nullable=False,
     )
     source_counterparty_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    quote: Mapped[str] = mapped_column(Text, nullable=False)
-    normalized_signature: Mapped[str] = mapped_column(String(512), nullable=False)
+    quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    normalized_signature: Mapped[str | None] = mapped_column(String(512), nullable=True)
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     observed_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
 
@@ -206,10 +229,19 @@ class PositionRevisionRow(Base):
 
 
 class SatoriInclinationRow(Base):
-    """Identity-global Stage 13 inclination aggregate, separate from epistemic positions."""
+    "Identity-global Stage 13 inclination aggregate, separate from epistemic positions."
 
     __tablename__ = "satori_inclinations"
     __table_args__ = (
+        CheckConstraint(
+            (
+                "(body_state = 'available' AND topic IS NOT NULL AND normalized_topic IS NOT"
+                " NULL AND body_action_id IS NULL) OR (body_state = 'erased' AND topic IS NU"
+                "LL AND normalized_topic IS NULL AND alternative_topic IS NULL AND normalize"
+                "d_alternative_topic IS NULL AND body_action_id IS NOT NULL)"
+            ),
+            name="body_consistent",
+        ),
         UniqueConstraint("identity_id", "inclination_key"),
         CheckConstraint("schema_version >= 1", name="schema_version_positive"),
         CheckConstraint("aggregate_version >= 1", name="aggregate_version_positive"),
@@ -220,7 +252,7 @@ class SatoriInclinationRow(Base):
         CheckConstraint("confidence >= 0.0 AND confidence <= 1.0", name="confidence_valid"),
         CheckConstraint("stability >= 0.0 AND stability <= 1.0", name="stability_valid"),
         CheckConstraint(
-            "(kind = 'interest' AND alternative_topic IS NULL "
+            "body_state = 'erased' OR (kind = 'interest' AND alternative_topic IS NULL "
             "AND normalized_alternative_topic IS NULL AND score >= 0.0) OR "
             "(kind = 'preference' AND alternative_topic IS NOT NULL "
             "AND normalized_alternative_topic IS NOT NULL)",
@@ -244,8 +276,8 @@ class SatoriInclinationRow(Base):
     policy_version: Mapped[int] = mapped_column(Integer, nullable=False)
     normalization_version: Mapped[int] = mapped_column(Integer, nullable=False)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    topic: Mapped[str] = mapped_column(String(96), nullable=False)
-    normalized_topic: Mapped[str] = mapped_column(String(96), nullable=False)
+    topic: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    normalized_topic: Mapped[str | None] = mapped_column(String(96), nullable=True)
     alternative_topic: Mapped[str | None] = mapped_column(String(96), nullable=True)
     normalized_alternative_topic: Mapped[str | None] = mapped_column(String(96), nullable=True)
     score: Mapped[float] = mapped_column(Float, nullable=False)
@@ -255,6 +287,15 @@ class SatoriInclinationRow(Base):
     last_accepted_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+
+    body_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="available", server_default="available"
+    )
+    body_action_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("erasure_body_applications.action_id", ondelete="RESTRICT"),
+        nullable=True,
+    )
 
 
 class InclinationEvidenceRow(Base):

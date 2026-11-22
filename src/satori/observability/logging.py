@@ -2,14 +2,80 @@
 
 import json
 import logging
+import os
+import stat
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from io import TextIOWrapper
 from pathlib import Path
 from typing import TextIO
 
 from satori.config import LogLevel
 from satori.observability.trace import current_trace_id, reset_trace_id, set_trace_id
+
+
+def _ensure_private_parent(parent: Path) -> None:
+    """Create missing parents privately without changing existing directory modes."""
+
+    missing: list[Path] = []
+    candidate = parent
+    while not candidate.exists():
+        missing.append(candidate)
+        if candidate == candidate.parent:
+            break
+        candidate = candidate.parent
+    for directory in reversed(missing):
+        try:
+            directory.mkdir(mode=0o700)
+        except FileExistsError:
+            continue
+        os.chmod(directory, 0o700)
+
+
+class _PrivateFileHandler(logging.FileHandler):
+    """Append to one private regular file without following a final symlink."""
+
+    def _open(self) -> TextIOWrapper:
+        path = Path(self.baseFilename)
+        try:
+            current = path.lstat()
+        except FileNotFoundError:
+            current = None
+        if current is not None and not stat.S_ISREG(current.st_mode):
+            raise OSError(f"refusing non-regular runtime log path: {path}")
+
+        no_follow = getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(
+            path,
+            os.O_WRONLY | os.O_APPEND | os.O_CREAT | no_follow,
+            0o600,
+        )
+        try:
+            opened = os.fstat(descriptor)
+            observed = path.stat(follow_symlinks=False)
+            if not stat.S_ISREG(opened.st_mode) or (
+                opened.st_dev,
+                opened.st_ino,
+            ) != (observed.st_dev, observed.st_ino):
+                raise OSError(f"refusing non-regular runtime log path: {path}")
+            os.fchmod(descriptor, 0o600)
+            stream = open(  # noqa: SIM115 - handler owns and closes the returned stream
+                descriptor,
+                mode=self.mode,
+                encoding=self.encoding,
+                errors=self.errors,
+                closefd=True,
+            )
+            descriptor = -1
+            if not isinstance(stream, TextIOWrapper):
+                stream.close()
+                raise OSError(f"could not open text runtime log: {path}")
+            return stream
+        except BaseException:
+            if descriptor >= 0:
+                os.close(descriptor)
+            raise
 
 
 class JsonFormatter(logging.Formatter):
@@ -66,9 +132,12 @@ def configure_logging(
     level_mapping = logging.getLevelNamesMapping()
     configured_levels = [level_mapping[str(console_level or level)]]
     if file_path is not None:
-        path = Path(file_path).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(path, encoding="utf-8")
+        requested_path = Path(file_path).expanduser()
+        if not requested_path.is_absolute():
+            requested_path = Path.cwd() / requested_path
+        path = requested_path.parent.resolve() / requested_path.name
+        _ensure_private_parent(path.parent)
+        file_handler = _PrivateFileHandler(path, encoding="utf-8")
         file_handler.setFormatter(JsonFormatter())
         file_handler.setLevel(str(level))
         root.addHandler(file_handler)

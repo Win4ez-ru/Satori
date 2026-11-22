@@ -306,7 +306,12 @@ class PersonalityCheckpointApprovalRow(Base):
         UniqueConstraint("checkpoint_id"),
         CheckConstraint("length(checkpoint_hash) = 64", name="checkpoint_hash_length"),
         CheckConstraint("expected_aggregate_version >= 1", name="expected_aggregate_positive"),
-        CheckConstraint("length(reason) > 0", name="reason_not_blank"),
+        CheckConstraint(
+            "(reason_state='available' AND reason IS NOT NULL AND length(reason)>0 "
+            "AND reason_action_id IS NULL) OR (reason_state='erased' AND reason IS NULL "
+            "AND reason_action_id IS NOT NULL)",
+            name="reason_body_consistent",
+        ),
         Index(
             "ix_personality_checkpoint_approvals_identity_approved",
             "identity_id",
@@ -327,7 +332,15 @@ class PersonalityCheckpointApprovalRow(Base):
     )
     checkpoint_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     expected_aggregate_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reason_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="available", server_default="available"
+    )
+    reason_action_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("erasure_body_applications.action_id", ondelete="RESTRICT"),
+        nullable=True,
+    )
     approved_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
 
 
@@ -350,7 +363,12 @@ class PersonalityRestoreEventRow(Base):
             "source_checkpoint_id != resulting_checkpoint_id",
             name="checkpoint_lineage_distinct",
         ),
-        CheckConstraint("length(reason) > 0", name="reason_not_blank"),
+        CheckConstraint(
+            "(reason_state='available' AND reason IS NOT NULL AND length(reason)>0 "
+            "AND reason_action_id IS NULL) OR (reason_state='erased' AND reason IS NULL "
+            "AND reason_action_id IS NOT NULL)",
+            name="reason_body_consistent",
+        ),
         Index(
             "ix_personality_restore_events_identity_restored",
             "identity_id",
@@ -383,5 +401,13 @@ class PersonalityRestoreEventRow(Base):
     before_aggregate_version: Mapped[int] = mapped_column(Integer, nullable=False)
     after_aggregate_version: Mapped[int] = mapped_column(Integer, nullable=False)
     trait_diffs: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
-    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reason_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="available", server_default="available"
+    )
+    reason_action_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("erasure_body_applications.action_id", ondelete="RESTRICT"),
+        nullable=True,
+    )
     restored_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)

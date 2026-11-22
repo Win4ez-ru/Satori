@@ -11,6 +11,7 @@ from satori.domain.affect import (
     FastAffectiveState,
     MoodState,
 )
+from satori.domain.source_policy import PayloadRef
 
 EMOTIONAL_EXPRESSION_CONTEXT_SCHEMA_VERSION = 1
 
@@ -53,3 +54,6 @@ class PreparedAffectiveContext:
     request_build_latency_ms: float = 0.0
     appraisal_latency_ms: float = 0.0
     provider_metrics: ProviderExecutionMetrics | None = None
+    source_input_id: str | None = None
+    actual_input_root_message_ids: tuple[str, ...] = ()
+    actual_input_payload_refs: tuple[PayloadRef, ...] = ()

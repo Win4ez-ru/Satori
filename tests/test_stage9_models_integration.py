@@ -60,6 +60,7 @@ def create_interaction(
         conversation_settings(counterparty_id),
         clock=FrozenClock(INTERACTION_TIME + timedelta(days=day)),
         id_generator=id_sequence(prefix),
+        source_policy_required=False,
     )
 
     async def execute() -> str:
@@ -256,6 +257,7 @@ def test_persistence_replay_restart_retention_and_counterparty_isolation(
         conversation_settings("alice"),
         clock=FrozenClock(INTERACTION_TIME + timedelta(days=3)),
         id_generator=id_sequence("alice-context"),
+        source_policy_required=False,
     )
     context_reply = asyncio.run(
         context_services.talk.execute(
@@ -303,6 +305,7 @@ def test_post_response_wiring_forms_models_without_affecting_committed_reply(
         clock=FrozenClock(INTERACTION_TIME + timedelta(days=1)),
         id_generator=id_sequence("post-model"),
         model_provider=model_provider,
+        source_policy_required=False,
     )
 
     async def execute() -> tuple[str, PostResponseReport]:

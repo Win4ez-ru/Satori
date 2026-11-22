@@ -18,6 +18,8 @@ from satori.application.retrieval.use_cases import IndexEpisodicMemory
 from satori.application.semantic.use_cases import FormSemanticMemory
 from satori.core.reflection import ReflectionPurpose
 from satori.domain.conversation_history import InteractionStatus
+from satori.domain.memory import MemoryLifecycleStatus
+from satori.domain.memory_scope import MemoryScope
 from satori.domain.reflection import ReflectionRunStatus, ReflectionTriggerKind
 
 
@@ -73,6 +75,21 @@ class ProcessPostResponse:
         total_started = self.monotonic()
         episode_ms = embedding_ms = semantic_ms = 0.0
         failures: list[str] = []
+        header = self.interaction_log.get_header(interaction_id)
+        if header is not None and header.has_terminal_body:
+            self.logger.info(
+                "post_response_terminal_body_skipped",
+                extra=_log_fields(
+                    interaction_id=interaction_id, reason="dialogue_body_unavailable"
+                ),
+            )
+            return PostResponseReport(
+                interaction_id=interaction_id,
+                episode_formation_ms=0.0,
+                episode_embedding_ms=0.0,
+                semantic_consolidation_ms=0.0,
+                total_ms=(self.monotonic() - total_started) * 1000,
+            )
         interaction = self.interaction_log.get(interaction_id)
         if interaction is None or interaction.status is not InteractionStatus.COMPLETED:
             raise ValueError("post-response processing requires a completed interaction")
@@ -165,38 +182,82 @@ class ProcessPostResponse:
                 personality_reflection_ms,
             )
         episode_ms = (self.monotonic() - episode_started) * 1000
-        if decision.memory is not None and self.index_memory is not None:
+        episode_scope = None
+        if decision.memory is not None:
+            episode_scope = self._episode_scope(
+                interaction.session_id, interaction_id=interaction_id, failures=failures
+            )
+        skip_episode_work = decision.memory is not None and self._archived(
+            decision.memory.memory_id,
+            episode_scope,
+            interaction_id=interaction_id,
+            failures=failures,
+        )
+        if skip_episode_work and decision.memory is not None:
+            self._log_archive_skip(interaction_id, decision.memory.memory_id)
+        if decision.memory is not None and self.index_memory is not None and not skip_episode_work:
             embedding_started = self.monotonic()
             try:
                 await self.index_memory.execute(decision.memory, trace_id=trace_id)
             except Exception as error:
-                failures.append("episode_embedding")
-                self.logger.warning(
-                    "post_response_processing_degraded",
-                    extra=_log_fields(
-                        interaction_id=interaction_id,
-                        memory_id=decision.memory.memory_id,
-                        phase="episode_embedding",
-                        error_type=type(error).__name__,
-                    ),
-                )
+                if self._archive_exclusion(
+                    error,
+                    decision.memory.memory_id,
+                    episode_scope,
+                    interaction_id=interaction_id,
+                    failures=failures,
+                ):
+                    skip_episode_work = True
+                    self._log_archive_skip(interaction_id, decision.memory.memory_id)
+                else:
+                    failures.append("episode_embedding")
+                    self.logger.warning(
+                        "post_response_processing_degraded",
+                        extra=_log_fields(
+                            interaction_id=interaction_id,
+                            memory_id=decision.memory.memory_id,
+                            phase="episode_embedding",
+                            error_type=type(error).__name__,
+                        ),
+                    )
             embedding_ms = (self.monotonic() - embedding_started) * 1000
 
-        if decision.memory is not None and self.form_semantic is not None:
+        if (
+            decision.memory is not None
+            and not skip_episode_work
+            and self._archived(
+                decision.memory.memory_id,
+                episode_scope,
+                interaction_id=interaction_id,
+                failures=failures,
+            )
+        ):
+            skip_episode_work = True
+            self._log_archive_skip(interaction_id, decision.memory.memory_id)
+        if decision.memory is not None and self.form_semantic is not None and not skip_episode_work:
             semantic_started = self.monotonic()
             try:
                 await self.form_semantic.execute(decision.memory.memory_id, trace_id=trace_id)
             except Exception as error:
-                failures.append("semantic_consolidation")
-                self.logger.warning(
-                    "post_response_processing_degraded",
-                    extra=_log_fields(
-                        interaction_id=interaction_id,
-                        memory_id=decision.memory.memory_id,
-                        phase="semantic_consolidation",
-                        error_type=type(error).__name__,
-                    ),
-                )
+                if self._archive_exclusion(
+                    error,
+                    decision.memory.memory_id,
+                    episode_scope,
+                    interaction_id=interaction_id,
+                    failures=failures,
+                ):
+                    self._log_archive_skip(interaction_id, decision.memory.memory_id)
+                else:
+                    failures.append("semantic_consolidation")
+                    self.logger.warning(
+                        "post_response_processing_degraded",
+                        extra=_log_fields(
+                            interaction_id=interaction_id,
+                            memory_id=decision.memory.memory_id,
+                            phase="semantic_consolidation",
+                            error_type=type(error).__name__,
+                        ),
+                    )
             semantic_ms = (self.monotonic() - semantic_started) * 1000
 
         reflection_ms, personality_reflection_ms = await self._run_reflections(
@@ -217,6 +278,89 @@ class ProcessPostResponse:
             position_formation_ms,
             reflection_ms,
             personality_reflection_ms,
+        )
+
+    def _episode_scope(
+        self, session_id: str, *, interaction_id: str, failures: list[str]
+    ) -> MemoryScope | None:
+        try:
+            session = self.interaction_log.get_session(session_id)
+            return (
+                MemoryScope(session.identity_id, session.counterparty_id)
+                if session is not None and session.scope_verified
+                else None
+            )
+        except Exception as error:
+            self._inspection_failed(error, interaction_id=interaction_id, failures=failures)
+            return None
+
+    def _archived(
+        self,
+        memory_id: str,
+        scope: MemoryScope | None,
+        *,
+        interaction_id: str,
+        failures: list[str],
+    ) -> bool:
+        if scope is None:
+            return False
+        try:
+            with self.form_episode.unit_of_work_factory() as unit:
+                memory = unit.episodic_memory.get_memory(
+                    memory_id, scope=scope, include_archived=True
+                )
+            return memory is not None and memory.lifecycle_status is MemoryLifecycleStatus.ARCHIVED
+        except Exception as error:
+            self._inspection_failed(error, interaction_id=interaction_id, failures=failures)
+            return False
+
+    def _inspection_failed(
+        self, error: Exception, *, interaction_id: str, failures: list[str]
+    ) -> None:
+        phase = "memory_lifecycle_inspection"
+        if phase in failures:
+            return
+        failures.append(phase)
+        self.logger.warning(
+            "post_response_processing_degraded",
+            extra=_log_fields(
+                interaction_id=interaction_id,
+                phase=phase,
+                error_type=type(error).__name__,
+            ),
+        )
+
+    def _archive_exclusion(
+        self,
+        error: Exception,
+        memory_id: str,
+        scope: MemoryScope | None,
+        *,
+        interaction_id: str,
+        failures: list[str],
+    ) -> bool:
+        return (
+            isinstance(error, ValueError)
+            and error.args
+            in (
+                ("memory_source_ineligible",),
+                ("memory_source_changed",),
+                ("semantic_source_ineligible",),
+                ("semantic_source_changed",),
+                ("semantic_sources_changed",),
+            )
+            and self._archived(memory_id, scope, interaction_id=interaction_id, failures=failures)
+        )
+
+    def _log_archive_skip(self, interaction_id: str, memory_id: str) -> None:
+        self.logger.info(
+            "post_response_memory_archived_skipped",
+            extra=_log_fields(
+                interaction_id=interaction_id,
+                memory_id=memory_id,
+                reason_code="episode_archived",
+                phase="episode_index_semantic",
+            ),
         )
 
     async def _run_reflections(

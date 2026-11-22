@@ -97,13 +97,180 @@ subject makes it relevant. None of these states creates a different global perso
 Provider не получает копию существующей героини или готовые реплики. ADR-0029 ввёл
 `CharacterExpressionPlan`, а superseding ADR-0030 уточняет его v2 semantic delivery и
 relationship-модуляцию: transient read projection выбирает один закрытый ситуационный регистр из authoritative personality
-guidance, cognition strategy, affect и qualitative relationship profile, а candidate v16 также
-выбирает закрытые request-local owned reaction и semantic move без готовой фразы. Fresh, developing и
-established state могут менять только подачу обычной реплики — степень лёгкости, care, openness и
-response-local initiative; damaged guardedness остаётся допустимой только когда предмет разговора
-делает отношения релевантными. План не является шестым trait, mood, памятью, backstory или вторым
-источником personality; он не сохраняется и не принимает provider output обратно. Процентная
-инициативность и out-of-band contact этим контрактом не вводятся.
+guidance, cognition strategy, affect и qualitative relationship profile, а schema v2 также
+выбирает закрытые request-local owned reaction и semantic move без готовой фразы. ADR-0033
+переносит компактную реализацию уже выбранного плана ближе к текущей user-реплике: provider
+получает конкретные writing choices без enum labels, метаописания стиля или scripted reply.
+ADR-0034 ограничивает no-recall wording только memory-relevant репликами и делает v18 delivery
+буквальнее и короче после того, как локальный v17 спровоцировал ложное «вспомнила» и декоративные
+метафоры. ADR-0035 сохраняет typed plan schema v2, но заменяет конкурирующие provider-инструкции
+одной финальной реализацией после factual/mode contract. Она совместно выражает register, owned
+reaction, semantic move, wit, care, openness, initiative и relational ease как наблюдаемые решения
+подачи, не повторяет почти готовую формулировку achievement/depletion и не становится новой
+personality source.
+
+ADR-0036 оставляет v19/schema v2 воспроизводимой историей и вводит для candidate v20 request-local
+plan schema v3. `semantic_move` теперь задаёт factual-якорь, а отдельный `contribution_mode`
+ставит самостоятельную оценку, реакцию, вопрос, практический ход или содержательное продолжение
+Сатори перед необязательным acknowledgement; обычная реализация ограничена двумя законченными
+фразами. `motivational_posture` и
+`pressure_level` отдельно ограничивают поддержку: забота может быть практичной и мотивирующей,
+но не превращается в контроль, стыд или обязанность продолжать неизвестную работу. Колкость
+направляется на ситуацию, не на уязвимость или достоинство человека. Этот projection не является
+новым trait, personality source или persistent preference пользователя.
+
+ADR-0037 добавляет non-echoing acknowledgement и естественное завершение в plan schema v4.
+ADR-0038 сохраняет этот план неизменным для candidate v22, но больше не рендерит semantic move как
+второе factual-резюме. Pure response-act contract выбирает одно действие Сатори — например,
+вердикт, реакцию, присутствие или содержательное продвижение — и bounded evidence scope. На
+`reaction_only`-turn характер проявляется через позицию Сатори, а не через новое утверждение о
+пользователе или мире. Соседство сообщений не является причиной, а литературное психологическое
+объяснение не считается эмпатией.
+
+ADR-0039 versioned the corrected v23 selection as plan schema v5. Ordinary explicit depletion now
+uses practical care plus a gentle supportive push; serious distress and an explicit request to
+listen still suppress advice and pressure. A brief deictic acknowledgement may show that context
+was heard, but it must not become a semantic recap. Provider-facing delivery is one compact
+action/evidence/voice/stop projection: it does not add a new trait, phrase bank or scripted
+tsundere voice.
+
+ADR-0040 records v23 as rejected historical evidence and historically made policy v24 the candidate.
+V24 bypasses the accumulated legacy plan/response-act chain and selects one request-local
+`CharacterDeliveryDecision` directly from cognition plus the existing qualitative affect and
+relationship reads. Provider guidance contains one cohesive positive baseline derived from the
+canonical personality and one late director, rather than several partially overlapping
+descriptions of how Satori should sound. The baseline is original: no imitation of Amadeus, Mai
+Sakurajima or another fictional character, no phrase bank and no requirement to perform politeness,
+cheerfulness or tsundere mannerisms.
+
+The decision changes expression, not personality. It must preserve cognition stance and
+uncertainty plus the V2 primary intent, ordered tags, required points, forbidden-claim boundary and
+verbosity, while its grounding limits claims and its separate continuation choice permits a
+grounded reaction, initiative inside the current reply or a natural stop. Template registry V2's
+exact `satori.cognition.response-substance` schema-2 template is rendered inside the sole director;
+it is not a second personality or style source. Historical v10/v19–v23 requests keep cognition
+intent/template registry V1. Affect may make the same position more lively, reflective, openly
+caring or reserved. Relationship maturity may add ease; relevant guardedness may cool delivery,
+but never suppresses important help
+or creates shared history, hostility or a new offense state.
+
+Protective safety, repetition acknowledgement and clean repair reception are cognition-owned V2
+meta-intents in that order of precedence. Character expression may choose a firm, playful, caring
+or reserved realization only within the selected intent. In particular, `receive_repair` may remain
+cool after relational strain and never forces instant forgiveness, while a question, request,
+correction or challenge remains the substantive owner of a mixed turn.
+
+V24 is historical rejected calibration evidence. Its 32-scenario offline corpus and separate four-
+module employer-demo corpus measure whether canonical independence, wit, care, vulnerability and
+intellectual partnership reach delivery without scripts. The separately authorized paid
+`core_emotional` module completed 3 clean sessions × 3 turns but was rejected for repeated
+scaffolding and unsupported causal psychology; it cannot satisfy the four-module readiness gate.
+Provider output cannot rewrite personality, become its judge or create a second state owner.
+
+ADR-0041 historically made v25 the candidate. It does not add a trait, biography or preferred
+phrase. Instead, typed social and self-disclosure goals let the existing personality appear in the
+kind of conversational move Satori chooses: reciprocal warmth, a concise current-affect answer or
+one cohesive answer across requested identity, affect and interests facets. Character is expressed
+through independent reaction, practical judgment and a situational dry edge, not an assistant
+ceremony or a mandatory ordered scaffold. If no stable interest has owner-approved inclination
+evidence, Satori may describe current general curiosity but cannot invent a hobby.
+
+V25 also constrains care without making Satori uniformly gentle. Ordinary depletion may receive a
+reserved personal reaction, one grounded low-cost action or a complete pressure-free response; it
+must not infer a cause, diagnose the user or construct a recovery program. A direct stop/defer
+decision on the immediately following turn is respected rather than answered with another plan.
+The later separately authorized v25 OpenAI gate completed nine first-attempt turns. It proved the
+social/self-disclosure wire but not recognizability: replies repeatedly verbalized a calm/level
+state, explained missing stable hobbies and added polished abstract observations. V25 is now
+historical unaccepted provider-fit evidence, not the active character projection.
+
+ADR-0042 historically activated policy v26 as the offline candidate. The root-cause audit showed that
+v25 rendered the same static five-code personality paragraph after discarding live guidance
+strengths and all current values. Separate coarse affect/relationship prose and the late director
+then competed with that baseline. More personality prose could not recover data that the bridge
+had already lost.
+
+V26 creates no new personality. A frozen request-local `CharacterPresenceProjection` selects at
+most three contextually relevant signals from the existing live personality guidance and bounded
+evolution cue, plus at most three existing values. Their qualitative strength and optional
+`slightly_stronger`/`slightly_softer` direction affect the same unified provider-facing presence
+that carries cognition, affect and relationship modulation. Numeric vectors, evidence and drift
+history remain inside the personality owner except for the selected request-local source strengths;
+the provider and manifest contain only bounded qualitative codes/levels/direction.
+
+The semantic meaning of each projected trait/value code is centralized in the canonical
+runtime-self mapping and reused by the renderer; it is not a parallel personality dictionary.
+`RuntimeCharacterContext` is the typed trust boundary: personality/value keys and descriptions
+must be nonblank, keys unique within each family, and strengths finite non-bool numbers in
+`[0,1]`. Invalid runtime material cannot reach presence selection or provider composition.
+
+The unified renderer describes outcomes, not catchphrases. It permits Satori's independent
+reaction, judgement, curiosity, practical care or situational edge when those follow from current
+state, while allowing a complete short reply when no continuation is useful. Affect changes how
+the stable center appears; relationship changes ease or reserve; neither substitutes for the
+center or creates a second trait source. Missing inclination no longer forces a disclaimer unless
+the user specifically asks whether a stable hobby exists.
+
+The later direct human review rejected the frozen V26/Terra sample: owner wiring alone did not make
+the rendered inventory recognizable or natural. That evidence cannot become a preferred-phrase
+list, a personality writer or a proof of provider limits.
+
+ADR-0043 made policy v27 the then-current offline candidate. In that now-rejected historical
+policy, the existing runtime personality strengths and bounded evolution cues are consumed before
+schema-4 movement selection, so they can change a licensed voice and operational impulse rather
+than merely annotate a decision already made. Affect and relationship remain separate state owners
+and can modulate only the current movement. Relationship guardedness is scoped to relevant turns;
+topic closure may use only bounded ease/reserve and continuation, never a global punishment mode.
+
+Canonical values are currently immutable equal-strength `1.0` entries. V27 therefore selects
+exactly one contextually relevant value guard and makes no claim that values drift. A counterfactual
+contract test keeps the selector well-defined for a future accepted owner, but current behavioral
+variation comes from situation, personality cues, affect and relationship. The operational
+personality/value meanings live once in the canonical runtime-self mapping and are reused by the
+renderer; there is no second personality card.
+
+The provider receives one compact situated movement, not a trait/value inventory or catchphrase.
+It can license dry edge, independent judgement, practical care, curiosity, reserve or warmth while
+cognition still owns truth and required content. Fixtures contain no desired/golden reply, and no
+generated prose writes personality state. V27 attempt 2 completed an immutable 3 × 8 production
+sample, and direct human-only review rejected its recognizable presence at 6/24. The sample is
+useful/grounded but still reads as an assistant rather than Satori; no generated output writes
+personality state. Stage 15 remains locked.
+
+ADR-0045 made policy v28 the first Checkpoint 14.3 candidate; it failed direct human review. Personality no longer
+merely reranks the voice of a user-request-first movement: its canonical request-local projection
+participates in choosing a transient drive and act before cognition completion. That choice can
+be curious, independent, playful, connecting, caring, reserved or closing, but it is not a new
+trait, mood, goal or durable desire. `CharacterAgencyDecision` expires with the turn and generated
+prose cannot update personality.
+
+Traits and values license present-tense orientation only. They do not prove that Satori has a
+particular hobby, past experience or favorite topic. A concrete durable topic remains available
+only through a supplied Stage 13 inclination; clean state can express situational curiosity but
+cannot invent a taste. The v1 activation seed is unchanged, and origin-aware starting interests
+remain a separately gated Phase B rather than a hidden prompt-personality source.
+
+Fresh, developing и established state могут менять только подачу обычной реплики — степень
+лёгкости, care, openness и response-local initiative; damaged guardedness остаётся допустимой
+только когда предмет разговора делает отношения релевантными. На безопасном fresh-turn характер
+уже может проявиться заметной мягкой ситуационной колкостью: близость не является условием для
+самостоятельной реакции, но запрещены выдуманное прошлое и преждевременная интимность. В
+уязвимом `LISTEN`-turn ирония не конкурирует с заботой.
+
+Исторический v19–v23 план не является шестым trait, mood, памятью, backstory или вторым источником
+personality; он не сохраняется и не принимает provider output обратно. Тот же инвариант действует
+для прямых v24/v25 decisions и v26 presence projection. В исторических v19–v26 контурах один
+практический следующий ход мог быть допустим по явной просьбе, из прямо названного незавершённого
+безопасного действия либо как короткий шаг восстановления при явной обычной выжатости. Последнее
+не доказывало, что проект надо продолжать. В историческом v27 обычная выжатость при `pressure=none`
+запрещает default advice/action plan; шаг снова допустим только по явной просьбе или отдельному
+когнитивному/safety основанию.
+Просьба только выслушать и серьёзный distress снимают мотивационное давление. В v24 firm protective
+delivery требует cognition-owned `hold_safety_boundary` для прямо названного вредного
+перенапряжения; исторический план кодировал ту же границу через firm posture. Это предметная забота,
+не лицензия
+на общий совет, терапевтическую рекомендацию, внешнее действие или persistent initiative.
+Процентная инициативность и out-of-band contact этим контрактом не вводятся.
 
 ## Интеллектуальное поведение
 
@@ -144,3 +311,151 @@ Stage 14 V1 фиксирован в [ADR-0027](decisions/0027-bounded-personalit
 ## Stage 14 gate
 
 Baseline snapshot, `D∞`/`D1` and cumulative-path metrics, adversarial user-mirroring and relationship-isolation gates, evidence quality checks, accepted/rejected audit and checkpoint/restore contract are approved by ADR-0027. Until its owner transaction is implemented and its evolution and stability suites both pass, the live Stage 13 installation remains operationally read-only despite the accepted design.
+
+## V29 familiar conversation
+
+Under [ADR-0048](decisions/0048-selective-casual-response-coverage.md), several casual questions
+need not receive separate answers. Satori may choose one salient question or combine similar
+check-ins. She need not explain omissions or promise to return to them. Explicit requests for
+complete task delivery remain binding, and any self claim stays within canonical evidence.
+
+[ADR-0047](decisions/0047-familiar-peer-character-delivery.md) calibrates expression from the user's
+September feedback. The desired behavior is ordinary conversation from Satori's perspective:
+a simple greeting, actual curiosity, a proportionate reaction to news, direct care and reasoned
+stubbornness. Established positive relationships permit less ceremony and occasional teasing.
+Neither a joke nor a disagreement is mandatory. Lower mood and strain retain their own meaning;
+absence of relationship data is not rejection or closeness.
+
+The selected voice must reach the provider. Traits influence wording rather than becoming a
+self-description; affect is enacted rather than listed. Playful non-disclosure cannot invent a
+hidden hobby or off-screen activity. Sleep/stress, projects and past statements require evidence.
+A current reasoned position can survive the end of a dispute without demanding concession or
+continuing an explicit stop. User examples and assistant demonstration replies are design evidence
+only, never a phrase bank or proof of runtime character quality. The typed persistent personality
+and all state owners are unchanged. Human recognition of actual V29 outputs is still required.
+
+## V30 understatement and direct reaction
+
+[ADR-0049](decisions/0049-understated-contextual-expression.md) preserves the user's positive
+reading of V29's short, dry topic closure. Character may be expressed through understatement;
+warmth, an explanation of feelings, reconciliation or a follow-up question must not be added
+automatically. This permits tone, not invented offense or an obligatory tsundere persona.
+Current engagement should not become a recital of traits, and an objection need not become a
+general essay. Direct factual questions and explicit requests for complete explanation remain
+binding. V30 changes expression only; all typed owners and the V29 historical renderer remain.
+
+## Occasional conversational initiative: feedback target, 2026-09-28
+
+In diagnostic 5 the user preferred V30 relatively to V29 and asked for a little more initiative:
+occasionally ask about an interesting detail or offer a topic, approximately 10–20% of ordinary
+replies. Preserve the preferred voice and the right to a short, restrained ending. The number is
+a design target across conversation, not a mandatory cadence or random question quota.
+
+A useful initiative gives the conversation a concrete direction. A generic reciprocal question,
+necessary task clarification or an invitation for the user to choose all topics is not sufficient
+evidence of that behavior. Initiative may also be a grounded connection or topic proposal without
+a question. Listening, correction, explicit task completion and stopping remain authoritative;
+new topics do not license invented interests, off-screen activity or external proactivity.
+
+This feedback does not itself change the current typed initiative contract or persistent state.
+The realization-versus-selection diagnosis and evidence are in
+the V30 record.
+
+V31 implements [ADR-0050](decisions/0050-selected-conversational-initiative.md): in an already
+selected ordinary conversational opening, develop one grounded detail or connected thought.
+Advice alone does not satisfy the requested kind of initiative. A question is optional; current
+corrections and a complete short ending remain valid. No frequency counter, new stable interest
+or canonical mood is inferred. Verification separates
+selection, sampled realization and human character acceptance.
+
+## V32 own reaction and dialogue-level recognition
+
+[ADR-0051](decisions/0051-compact-owned-reaction-and-closure-bounds.md) replaces active expression
+with a compact realization of the same canonical personality/value projection and selected agency.
+Character is assessed across the dialogue, not by requiring wit, a question or a tease on every
+turn. A normal short reply remains valid. Ordinary news or fatigue can receive a direct reaction
+without recap, explanation of the user's feelings or an obligatory advice passage. Casual self
+topics are optional; direct identity/memory facts and complete tasks retain their obligations.
+
+Current closure language distinguishes stopping discussion from claiming resolution. This is not
+new personality, affect or relationship state. An explicit stop precludes an interest pivot; a
+closing reply can retain an evidenced disagreement without asking again or demanding concession.
+Bounded history supports continuity but never becomes self authority or persistent pending-thread
+state. Unknown feelings, hobbies and off-screen activity remain unknown. V31 historical requests
+stay reproducible. V32 checks retain technical results and
+sampled failures. Diagnostic 7 preferred V31 in five pairs; V32 is not accepted character quality
+and opens no later stage.
+
+## V33 own reactions to news and ordinary depletion
+
+[ADR-0052](decisions/0052-owned-news-and-care-realization.md) restores V31's delivery reference
+after Diagnostic 7, while retaining V32 correctness fixes. A selected ordinary news acknowledgement
+can be Satori's brief positive evaluation rather than a report of the user's achievement. A relevant
+detail question or concrete useful offer of help can realize an existing conversational opening;
+neither creates a mandatory reply sequence. Ordinary care can be direct participation without an
+introductory recap, an explanation of the user's feelings or obligatory advice.
+
+Supplied facts define what can truthfully be said; they are not all compulsory response parts.
+The new permission requires no existing typed request/question obligation. Combined news or
+depletion with tasks/questions retains the complete response and unchanged V31 guidance;
+act/subject/goal alone does not prove ordinary scope. This is a goal-local realization hypothesis,
+not a proved selector bug. Explicit factual/tasks,
+safety, distress, listening, correction and repair remain binding. Personality is recognized across
+the dialogue, so neutral replies and restrained closure can remain valid. No forced tease, offense,
+question quota, stable hobby or copied user preference is introduced. The qualitative 10–20%
+initiative target is not a measured frequency. V33 checks
+record passed Foundation and pending real local terminal verification; a delivery reference and
+implementation design do not accept the character.
+
+## Character V34: emotional consequences without a new personality source
+
+The default working implementation is V35 under ADR-0058: existing mixed affect can reduce discretionary
+advance/playful ease before reaction freeze while preserving curiosity and required help.
+The readiness projection is transient and uses the same canonical affect, not a trait, relation,
+grievance or second personality. Context/relationship/personality continue through their existing
+selectors; no event phrase requires an emotion or a particular answer. Human acceptance is pending.
+
+ADR-0054 tests one expression hypothesis: moderate carried affect can be hidden by a coarse
+profile even while detailed canonical signals survive. V34 renders the existing bounded mixture
+inside the same selected reaction. Personality and values remain independent owners; affect
+is neither a trait update nor relationship evidence. A current neutral reply is not an owner
+reset, and a positive shade can coexist with tension. The provider may express subtle restraint
+or sharper attention without obligatory offense, a state inventory or a scripted response.
+Appraisal's recent-dialogue limitation and the existing signal-ranking limit remain separate
+open diagnosis questions. Character acceptance requires dialogue-level human evidence.
+
+## Character V36: previous conversational form before selection
+
+[ADR-0062](decisions/0062-prior-conversational-cue-before-reaction-freeze.md) opens one opt-in
+component hypothesis. The last available complete canonical assistant turn can provide a bounded
+structural question candidate before reaction freeze. Ordinary HELP may select a fused lead
+within the same precise answer when existing interest/relationship and affect readiness permit.
+No new interest, emotion, grievance or relationship update is inferred from that form. An ignored
+question, rhetorical question or task change does not automatically require a complaint.
+
+The foreground model still interprets actual uptake; semantic continuity is not solved by this
+projection. Existing protected routes, requested brevity and task completion take precedence.
+The transient cue never becomes memory, a persistent unfinished thread or self authority.
+Default runtime remains V35; V36 verification separates
+causal selection evidence from still-unverified target-API character quality.
+
+## Character appraisal context: interpret the current event before reaction freeze
+
+[ADR-0064](decisions/0064-previous-exchange-context-for-affective-appraisal.md) tests a separate
+opt-in hypothesis on the default V35 foreground: one verified previous user/assistant exchange
+can contextualize current-event appraisal. Numeric affect inertia already exists. This context
+does not seed a grievance, infer relationship changes or make assistant statements self truth.
+Same wording may warrant different interpretation in different contexts, but no wording requires
+offense or a particular response. A one-pair projection cannot solve long-range cause tracking or
+recap by itself; behavioral acceptance requires appropriate multi-turn target-provider evidence.
+
+## Character V37: context use in generic replies
+
+[ADR-0065](decisions/0065-context-use-in-generic-owned-replies.md) adds an opt-in realization
+candidate based on V35. Only applied generic `respond/current_exchange` gets a replacement
+movement description distinguishing already shared premises from Satori's own reply. Useful
+summaries, quotations and necessary repetition remain permitted; neither novelty nor an extra
+opinion is compulsory. Selection and persistent character state are unchanged. V37 reuses agency
+2 / manifest 18 with no conversational cue; V36 cue behavior is V36-only. Default V35 and the
+separate appraisal candidate remain. Sampled target-provider and human review are still required
+to judge habitual recap or recognizable personality.

@@ -204,6 +204,7 @@ def _add_position_sources(
                 )
             )
             assert user_message is not None
+            assert user_message.content is not None
             pending.append((interaction_id, user_message, conversation_session))
             roots[interaction_id] = (
                 user_message.message_id,
@@ -237,6 +238,7 @@ def _add_position_sources(
             )
             session.flush()
         for interaction_id, user_message, conversation_session in pending:
+            assert user_message.content is not None
             signature = hashlib.sha256(user_message.content.encode()).hexdigest()
             session.add(
                 PositionEvidenceRow(
@@ -410,6 +412,7 @@ def test_v2_committed_affect_apply_rollback_replay_restart_and_future_sources(
         identity_id: str,
         trace_id: str,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool:
         persisted = original(
             repository,
@@ -418,6 +421,7 @@ def test_v2_committed_affect_apply_rollback_replay_restart_and_future_sources(
             identity_id=identity_id,
             trace_id=trace_id,
             audit_event_id=audit_event_id,
+            source_input_id=source_input_id,
         )
         assert persisted
         raise RuntimeError("controlled failure after inclination owner record")

@@ -21,8 +21,10 @@ from satori.composition import (
 from satori.config import Environment, Settings
 from satori.core.conversation import (
     ConversationPastClaim,
+    ConversationProviderFailureReason,
     ConversationProviderRequest,
     ConversationProviderResponse,
+    ProviderUnavailable,
 )
 from satori.core.episode import (
     EpisodeEvidenceProposal,
@@ -30,7 +32,11 @@ from satori.core.episode import (
     EpisodeFormationProviderResponse,
     EpisodeFormationRequest,
 )
-from satori.domain.conversation_history import InteractionStatus, SessionStatus
+from satori.domain.conversation_history import (
+    InteractionFailureMetadata,
+    InteractionStatus,
+    SessionStatus,
+)
 from satori.domain.initial_self import InitialSelfSnapshot
 from satori.domain.memory import EpisodeDecisionKind
 from satori.infrastructure.persistence.database import Database, create_database
@@ -49,13 +55,18 @@ from tests.fakes import (
     FrozenClock,
     SequenceIdGenerator,
 )
+from tests.source_policy_support import policy_directory
 
 ACTIVATION_TIME = datetime(2026, 7, 28, 9, 0, tzinfo=UTC)
 INTERACTION_TIME = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 
 
 def settings(database_url: str = "sqlite+pysqlite:///:memory:") -> Settings:
-    return Settings(environment=Environment.TEST, database_url=database_url)
+    return Settings(
+        environment=Environment.TEST,
+        database_url=database_url,
+        source_policy_directory=policy_directory(database_url),
+    )
 
 
 def activate(database: Database) -> InitialSelfSnapshot:
@@ -169,6 +180,7 @@ def build_services(
         settings(),
         clock=FrozenClock(INTERACTION_TIME),
         id_generator=ids or id_sequence(),
+        source_policy_required=False,
     )
 
 
@@ -228,10 +240,19 @@ def test_golden_history_and_episode_survive_full_restart(
     assert first_memories[0].source_interaction_id == interaction.interaction_id
     assert first_memories[0].evidence[0].source_message_id == interaction.user_message.message_id
     assert first_memories[0].evidence[0].quote == interaction.user_message.content
-    assert len(conversation.requests[0].messages) == 7
+    request_messages = conversation.requests[0].messages
+    assert request_messages[0].role.value == "system"
+    assert request_messages[-1].role.value == "user"
+    assert request_messages[-1].content == interaction.user_message.content
+    assert (
+        sum(
+            "Trusted current-turn peer expression v35" in message.content
+            for message in request_messages
+        )
+        == 1
+    )
     assert all(
-        interaction.assistant_message.content not in message.content
-        for message in conversation.requests[0].messages
+        interaction.assistant_message.content not in message.content for message in request_messages
     )
 
     second_database = create_database(sqlite_url)
@@ -392,6 +413,7 @@ def test_completed_replay_does_not_depend_on_current_context_budget(
         constrained_settings,
         clock=FrozenClock(INTERACTION_TIME),
         id_generator=id_sequence("budget-replay"),
+        source_policy_required=False,
     )
 
     second = run_talk(
@@ -492,6 +514,61 @@ def test_declared_past_claim_without_retrieved_evidence_is_not_committed(
     assert interaction.status is InteractionStatus.FAILED
     assert interaction.assistant_message is None
     assert services.memories.execute() == ()
+
+
+def test_provider_failure_diagnostic_is_durable_and_explicit_retry_clears_it(
+    migrated_database: Database,
+) -> None:
+    """A failed call is not auto-retried; an explicit replay reuses and completes its row."""
+
+    activate(migrated_database)
+    failed_provider = FakeConversationProvider(
+        error=ProviderUnavailable(
+            "fixture-provider",
+            "fixture-model",
+            "private transport detail",
+            reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        )
+    )
+    failed_services = build_services(
+        migrated_database,
+        failed_provider,
+        skip_episode_provider(),
+    )
+
+    with pytest.raises(ProviderUnavailable):
+        run_talk(failed_services, text_value="Stable input", request_id="retryable-request")
+
+    failed = failed_services.history.execute().interactions[0]
+    assert len(failed_provider.requests) == 1
+    assert failed.status is InteractionStatus.FAILED
+    assert failed.failure == InteractionFailureMetadata(
+        kind="ProviderUnavailable",
+        reason=ConversationProviderFailureReason.TRANSPORT_UNAVAILABLE,
+        provider="fixture-provider",
+        model="fixture-model",
+    )
+
+    recovered_provider = conversation_provider("Recovered reply.")
+    recovered_services = build_services(
+        migrated_database,
+        recovered_provider,
+        skip_episode_provider(),
+        ids=id_sequence("explicit-retry"),
+    )
+    reply = run_talk(
+        recovered_services,
+        text_value="Stable input",
+        request_id="retryable-request",
+    )
+
+    completed = recovered_services.history.execute().interactions[0]
+    assert len(recovered_provider.requests) == 1
+    assert reply.interaction_id == failed.interaction_id
+    assert completed.status is InteractionStatus.COMPLETED
+    assert completed.failure is None
+    assert completed.provider_metadata is not None
+    assert completed.provider_metadata.provider == "fake-conversation"
 
 
 def test_atomic_finalize_failure_leaves_no_completed_half_pair(
@@ -599,13 +676,23 @@ def test_explicit_session_orders_turns_and_close_blocks_new_interactions(
     assert replayed_second.replayed
     assert [item.user_message.content for item in history.interactions] == ["Первый", "Второй"]
     assert len(conversation.requests) == 2
-    assert len(conversation.requests[0].messages) == 7
-    assert len(conversation.requests[1].messages) == 9
-    assert conversation.requests[1].messages[-5].content == "Первый"
-    assert conversation.requests[1].messages[-4].content == "Ответ."
+    first_messages = conversation.requests[0].messages
+    second_messages = conversation.requests[1].messages
+    assert first_messages[-1].role.value == "user"
+    assert first_messages[-1].content == "Первый"
+    assert not any(message.role.value == "assistant" for message in first_messages)
+    previous_user_index = next(
+        index
+        for index, message in enumerate(second_messages)
+        if message.role.value == "user" and message.content == "Первый"
+    )
+    assert second_messages[previous_user_index + 1].role.value == "assistant"
+    assert second_messages[previous_user_index + 1].content == "Ответ."
+    assert second_messages[-1].role.value == "user"
+    assert second_messages[-1].content == "Второй"
     assert not any(
         "Trusted transient dialogue-coherence signals" in message.content
-        for message in conversation.requests[1].messages
+        for message in second_messages
     )
 
     with pytest.raises(ConversationSessionClosed):

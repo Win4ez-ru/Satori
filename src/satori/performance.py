@@ -21,6 +21,7 @@ from satori.core.episode import (
     EpisodeFormationRequest,
 )
 from satori.core.ids import IdGenerator
+from satori.domain.memory_scope import MemoryScope
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,7 +260,8 @@ async def _prepare_controlled_recall_memory(
         for scenario in INFERENCE_BENCHMARK_SCENARIOS_V1
         if scenario.scenario_id == "project_recall"
     )
-    session_id = services.start_session.execute().session_id
+    session = services.start_session.execute()
+    session_id = session.session_id
     started = time.perf_counter()
     try:
         trace_id = id_generator.new()
@@ -293,6 +295,10 @@ async def _prepare_controlled_recall_memory(
                 trace_id=id_generator.new(),
                 cutoff=datetime.now(UTC),
                 current_interaction_id=None,
+                scope=MemoryScope(
+                    identity_id=session.identity_id,
+                    counterparty_id=session.counterparty_id,
+                ),
             )
         )
         if probe.status is not RetrievalStatus.RETRIEVED or not probe.memories:

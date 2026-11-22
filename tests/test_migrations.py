@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError
 
 from satori.composition import build_initial_self_services
 from satori.domain.personality_evolution import PersonalityCheckpointKind, checkpoint_hash
@@ -73,6 +74,18 @@ STAGE_13_TABLES = STAGE_12_TABLES | {
     "satori_inclinations",
 }
 STAGE_14_TABLES = STAGE_13_TABLES | {
+    "audit_metadata_bindings",
+    "erasure_body_applications",
+    "erasure_body_bindings",
+    "erasure_policy_bindings",
+    "erasure_preparations",
+    "source_policy_bindings",
+    "source_inputs",
+    "source_payload_receipts",
+    "owner_source_withdrawals",
+    "source_excluded_roots",
+    "source_owner_repairs",
+    "memory_lifecycle_decisions",
     "personality_checkpoint_approvals",
     "personality_checkpoint_traits",
     "personality_checkpoints",
@@ -80,6 +93,7 @@ STAGE_14_TABLES = STAGE_13_TABLES | {
     "personality_restore_events",
     "personality_revisions",
 }
+ACTIVE_SCHEMA_REVISION = "0024_checkpoint_reasons"
 
 
 def current_revision(database_url: str) -> str | None:
@@ -120,7 +134,7 @@ def test_migration_upgrade_from_clean_database(
     upgrade_database(sqlite_url, config_path=project_root / "alembic.ini")
 
     assert table_names(sqlite_url) == STAGE_14_TABLES
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert {
         "retrieval_status",
         "retrieved_memory_ids",
@@ -151,6 +165,7 @@ def test_migration_upgrade_from_clean_database(
         "personality_aggregate_version",
         "personality_expression_schema_version",
         "personality_expression_cues",
+        "failure_reason",
     } <= column_names(
         sqlite_url,
         "conversation_interactions",
@@ -194,7 +209,7 @@ def test_migration_upgrades_existing_stage_1_database(
     assert table_names(sqlite_url) == {"alembic_version"}
 
     upgrade_database(sqlite_url, config_path=config_path)
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
 
 
@@ -211,7 +226,7 @@ def test_migration_upgrades_existing_stage_3_database(
 
     upgrade_database(sqlite_url, config_path=config_path)
 
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
 
 
@@ -222,13 +237,13 @@ def test_stage_5_migration_downgrade_and_reupgrade(
     """Stage 5 can drop only derived retrieval state and then reapply cleanly."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0004_episodic_retrieval")
     downgrade_database(sqlite_url, config_path=config_path, revision="0003_conversation_memory")
     assert current_revision(sqlite_url) == "0003_conversation_memory"
     assert table_names(sqlite_url) == STAGE_4_TABLES
 
     upgrade_database(sqlite_url, config_path=config_path)
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
 
 
@@ -239,13 +254,13 @@ def test_full_stage_4_and_5_chain_can_return_to_stage_2(
     """The cumulative conversation/memory/retrieval schema remains fully reversible."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0004_episodic_retrieval")
     downgrade_database(sqlite_url, config_path=config_path, revision="0002_initial_self")
     assert current_revision(sqlite_url) == "0002_initial_self"
     assert table_names(sqlite_url) == STAGE_2_TABLES
 
     upgrade_database(sqlite_url, config_path=config_path)
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
 
 
@@ -256,14 +271,14 @@ def test_stage_6_migration_downgrade_preserves_stage_5(
     """Removing semantic state preserves history, episodes, and retrieval indexes."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0005_semantic_memory")
     downgrade_database(sqlite_url, config_path=config_path, revision="0004_episodic_retrieval")
 
     assert current_revision(sqlite_url) == "0004_episodic_retrieval"
     assert table_names(sqlite_url) == STAGE_5_TABLES
 
     upgrade_database(sqlite_url, config_path=config_path)
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
 
 
@@ -274,14 +289,14 @@ def test_stage_7_migration_downgrade_preserves_stage_6(
     """Removing affect leaves all accepted Stage 0-6 state and then reapplies cleanly."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0006_affective_state")
     downgrade_database(sqlite_url, config_path=config_path, revision="0005_semantic_memory")
 
     assert current_revision(sqlite_url) == "0005_semantic_memory"
     assert table_names(sqlite_url) == STAGE_6_TABLES
 
     upgrade_database(sqlite_url, config_path=config_path)
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
 
 
@@ -292,13 +307,13 @@ def test_stage_8_migration_downgrade_preserves_stage_7(
     """Removing relationship state preserves all accepted Stage 0-7 state."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0007_relationship_state")
     downgrade_database(sqlite_url, config_path=config_path, revision="0006_affective_state")
     assert current_revision(sqlite_url) == "0006_affective_state"
     assert table_names(sqlite_url) == STAGE_7_TABLES
 
     upgrade_database(sqlite_url, config_path=config_path)
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
 
 
@@ -309,13 +324,13 @@ def test_stage_9_migration_downgrade_preserves_stage_8(
     """Removing current models preserves the accepted relationship schema."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0008_user_world_models")
     downgrade_database(sqlite_url, config_path=config_path, revision="0007_relationship_state")
     assert current_revision(sqlite_url) == "0007_relationship_state"
     assert table_names(sqlite_url) == STAGE_8_TABLES
 
     upgrade_database(sqlite_url, config_path=config_path)
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
 
 
@@ -326,13 +341,13 @@ def test_stage_12_migration_downgrade_preserves_stage_11(
     """Removing reflection records preserves all position-owned state."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0010_reflection_runs")
     downgrade_database(sqlite_url, config_path=config_path, revision="0009_satori_positions")
     assert current_revision(sqlite_url) == "0009_satori_positions"
     assert table_names(sqlite_url) == STAGE_11_TABLES
 
     upgrade_database(sqlite_url, config_path=config_path)
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
 
 
@@ -343,7 +358,7 @@ def test_stage_13_migration_downgrade_preserves_stage_12(
     """Removing inclinations restores the exact accepted Reflection V1 schema."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0011_satori_inclinations")
     downgrade_database(sqlite_url, config_path=config_path, revision="0010_reflection_runs")
 
     assert current_revision(sqlite_url) == "0010_reflection_runs"
@@ -357,8 +372,107 @@ def test_stage_13_migration_downgrade_preserves_stage_12(
     }.isdisjoint(column_names(sqlite_url, "conversation_interactions"))
 
     upgrade_database(sqlite_url, config_path=config_path)
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
+
+
+def test_provider_failure_diagnostics_migration_is_reversible(
+    sqlite_url: str,
+    project_root: Path,
+) -> None:
+    """The optional safe diagnosis can be discarded without losing the failed attempt."""
+
+    config_path = project_root / "alembic.ini"
+    upgrade_database(
+        sqlite_url, config_path=config_path, revision="0013_conversation_failure_reason"
+    )
+    database = create_database(sqlite_url)
+    try:
+        snapshot = build_initial_self_services(database).activate.execute(
+            JsonSeedLoader().load_canonical(),
+            trace_id="provider-failure-migration-fixture",
+        )
+    finally:
+        database.dispose()
+
+    instant = datetime(2026, 8, 28, tzinfo=UTC)
+    engine = create_engine(sqlite_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO conversation_sessions "
+                    "(session_id, identity_id, counterparty_id, schema_version, kind, status, "
+                    "started_at, ended_at) VALUES "
+                    "('failure-session', :identity, 'local-default', 1, 'explicit', 'open', "
+                    ":instant, NULL)"
+                ),
+                {"identity": snapshot.identity.identity_id, "instant": instant},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO conversation_interactions "
+                    "(interaction_id, session_id, client_request_id, trace_id, schema_version, "
+                    "status, started_at, provider, model, failure_kind, failure_reason, "
+                    "relationship_processing_required, model_processing_required, "
+                    "position_processing_required) VALUES "
+                    "('failure-interaction', 'failure-session', 'failure-request', "
+                    "'failure-trace', 1, 'failed', :instant, 'openai', 'fixture-model', "
+                    "'GenerationFailed', 'output_token_limit', 0, 0, 0)"
+                ),
+                {"instant": instant},
+            )
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE conversation_interactions SET failure_reason = 'free-form' "
+                    "WHERE interaction_id = 'failure-interaction'"
+                )
+            )
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE conversation_interactions SET model = NULL "
+                    "WHERE interaction_id = 'failure-interaction'"
+                )
+            )
+    finally:
+        engine.dispose()
+
+    downgrade_database(
+        sqlite_url,
+        config_path=config_path,
+        revision="0012_personality_evolution",
+    )
+    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert "failure_reason" not in column_names(sqlite_url, "conversation_interactions")
+    engine = create_engine(sqlite_url)
+    try:
+        with engine.connect() as connection:
+            preserved = connection.execute(
+                text(
+                    "SELECT status, failure_kind, provider, model "
+                    "FROM conversation_interactions WHERE interaction_id = 'failure-interaction'"
+                )
+            ).one()
+        assert tuple(preserved) == ("failed", "GenerationFailed", None, None)
+    finally:
+        engine.dispose()
+
+    upgrade_database(sqlite_url, config_path=config_path)
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
+    engine = create_engine(sqlite_url)
+    try:
+        with engine.connect() as connection:
+            restored = connection.execute(
+                text(
+                    "SELECT failure_reason, provider, model FROM conversation_interactions "
+                    "WHERE interaction_id = 'failure-interaction'"
+                )
+            ).one()
+        assert tuple(restored) == (None, None, None)
+    finally:
+        engine.dispose()
 
 
 def test_stage_14_downgrade_and_reupgrade_backfills_exact_activation_checkpoint(
@@ -368,7 +482,7 @@ def test_stage_14_downgrade_and_reupgrade_backfills_exact_activation_checkpoint(
     """An existing Stage 13 self receives the same checkpoint as a fresh activation."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0012_personality_evolution")
     database = create_database(sqlite_url)
     try:
         snapshot = build_initial_self_services(database).activate.execute(
@@ -428,7 +542,7 @@ def test_stage_14_downgrade_and_reupgrade_backfills_exact_activation_checkpoint(
     }.isdisjoint(column_names(sqlite_url, "conversation_interactions"))
 
     upgrade_database(sqlite_url, config_path=config_path)
-    assert current_revision(sqlite_url) == "0012_personality_evolution"
+    assert current_revision(sqlite_url) == ACTIVE_SCHEMA_REVISION
     assert table_names(sqlite_url) == STAGE_14_TABLES
 
     engine = create_engine(sqlite_url)
@@ -484,7 +598,7 @@ def test_stage_14_upgrade_refuses_incomplete_activation_vector_before_ddl(
     """Backfill never hides a corrupt pre-Stage-14 personality behind a partial checkpoint."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0012_personality_evolution")
     database = create_database(sqlite_url)
     try:
         build_initial_self_services(database).activate.execute(
@@ -533,7 +647,7 @@ def test_stage_14_upgrade_refuses_unprovenanced_legacy_personality_before_ddl(
     """Migration never blesses an unexplained legacy change as an activation checkpoint."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0012_personality_evolution")
     database = create_database(sqlite_url)
     try:
         build_initial_self_services(database).activate.execute(
@@ -621,7 +735,7 @@ def test_stage_14_downgrade_refuses_personality_reflection_run(
     """A V3 personality run cannot outlive the schema that explains its purpose."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0012_personality_evolution")
     database = create_database(sqlite_url)
     try:
         snapshot = build_initial_self_services(database).activate.execute(
@@ -670,7 +784,7 @@ def test_stage_14_downgrade_refuses_non_activation_checkpoint(
     """A restorable owner checkpoint is never dropped while current state remains."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0012_personality_evolution")
     database = create_database(sqlite_url)
     try:
         snapshot = build_initial_self_services(database).activate.execute(
@@ -723,7 +837,7 @@ def test_stage_8_migration_does_not_fabricate_relationship_from_old_history(
     """Pre-Stage-8 completed turns remain ineligible and create no relationship rows."""
 
     config_path = project_root / "alembic.ini"
-    upgrade_database(sqlite_url, config_path=config_path)
+    upgrade_database(sqlite_url, config_path=config_path, revision="0012_personality_evolution")
     database = create_database(sqlite_url)
     initial = build_initial_self_services(database)
     initial.activate.execute(JsonSeedLoader().load_canonical(), trace_id="migration-activate")

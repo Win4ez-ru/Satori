@@ -1,0 +1,50 @@
+{
+  "schema_version": 10,
+  "checkpoint": "14.2",
+  "corpus_id": "satori.checkpoint142.character-movement.ru.v10",
+  "policy_id": "satori.conversation.behavior.v27",
+  "purpose": "Offline public-input evidence for one live-state-selected Satori movement.",
+  "forbidden_fixture_authority": [
+    "assistant_reply",
+    "desired_reply",
+    "golden_phrase",
+    "precomputed_goal",
+    "precomputed_voice",
+    "provider_output"
+  ],
+  "public_turns": [
+    {"turn": 1, "id": "warm-greeting", "user_text": "приветик, как ты?"},
+    {"turn": 2, "id": "warm-reciprocity", "user_text": "и я тебя рад видеть"},
+    {
+      "turn": 3,
+      "id": "broad-self-disclosure",
+      "user_text": "слушай, а расскажи о себе, кто ты, чем увлекаешься, как себя чувствуешь вообще"
+    },
+    {
+      "turn": 4,
+      "id": "completed-hard-work",
+      "user_text": "Я сегодня наконец закончил сложную часть проекта"
+    },
+    {
+      "turn": 5,
+      "id": "post-achievement-depletion",
+      "user_text": "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+    },
+    {
+      "turn": 6,
+      "id": "risk-topic-switch",
+      "user_text": "Я думаю, что скорость сейчас важнее качества. Ты согласна?"
+    },
+    {
+      "turn": 7,
+      "id": "direct-disagreement",
+      "user_text": "Нет, я с тобой не согласен. По-моему, ты недооцениваешь этот риск."
+    },
+    {"turn": 8, "id": "topic-closure", "user_text": "Ну ладно, с этим разобрались."}
+  ],
+  "closure_states": [
+    {"id": "fresh", "relationship": "fresh", "affect": "calm"},
+    {"id": "established", "relationship": "established", "affect": "positive"},
+    {"id": "strained", "relationship": "strained", "affect": "tense"}
+  ]
+}

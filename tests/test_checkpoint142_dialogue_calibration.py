@@ -3,6 +3,7 @@
 # ruff: noqa: RUF001  # Russian behavioral contract text intentionally uses Cyrillic.
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -27,7 +28,16 @@ from satori.application.conversation.contracts import (
     RecentConversationTurn,
     RuntimeCharacterContext,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V16
+from satori.application.conversation.policy import (
+    BEHAVIOR_POLICY_V16,
+    BEHAVIOR_POLICY_V17,
+    BEHAVIOR_POLICY_V18,
+    BEHAVIOR_POLICY_V19,
+    BEHAVIOR_POLICY_V20,
+    BEHAVIOR_POLICY_V21,
+    BEHAVIOR_POLICY_V22,
+    BEHAVIOR_POLICY_V23,
+)
 from satori.application.conversation.response_validation import ResponseRegenerationReason
 from satori.application.relationship.contracts import RelationshipExpressionContext
 from satori.application.retrieval.contracts import RetrievalStatus, RetrievedMemoryContext
@@ -52,9 +62,215 @@ def _builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
         recent_conversation_available=True,
     )
     return (
-        ConversationRequestBuilder(BEHAVIOR_POLICY_V16, 12_000, 0.3, 768),
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V19, 12_000, 0.3, 768),
         context,
     )
+
+
+def _v20_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
+    _, context = _builder()
+    return (
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V20, 12_000, 0.3, 768),
+        context,
+    )
+
+
+def _v21_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
+    _, context = _builder()
+    return (
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V21, 12_000, 0.3, 768),
+        context,
+    )
+
+
+def _v22_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
+    _, context = _builder()
+    return (
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V22, 12_000, 0.3, 768),
+        context,
+    )
+
+
+def _v23_builder() -> tuple[ConversationRequestBuilder, RuntimeCharacterContext]:
+    _, context = _builder()
+    return (
+        ConversationRequestBuilder(BEHAVIOR_POLICY_V23, 12_000, 0.3, 768),
+        context,
+    )
+
+
+def _recent_user_turns(*texts: str) -> RecentConversationContext:
+    turns = tuple(
+        RecentConversationTurn(
+            interaction_id=f"checkpoint142-v21-recent-{index}",
+            user_message_id=f"checkpoint142-v21-user-{index}",
+            user_content=text,
+            assistant_message_id=f"checkpoint142-v21-assistant-{index}",
+            assistant_content="Я учла замечание.",
+        )
+        for index, text in enumerate(texts, start=1)
+    )
+    return RecentConversationContext(
+        schema_version=1,
+        turns=turns,
+        content_chars=sum(len(turn.user_content) + len(turn.assistant_content) for turn in turns),
+        excluded_turn_count=0,
+    )
+
+
+def test_v21_canonical_pair_removes_echo_and_mandatory_recovery_advice() -> None:
+    builder, context = _v21_builder()
+    user_text = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+    request, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v21-depletion",
+        cognition_trace=_cognition(user_text, suffix="v21-depletion"),
+        recent_context=_recent_completion(),
+    )
+
+    realization = request.messages[-2].content
+    assert manifest.policy_id == "satori.conversation.behavior.v21"
+    assert manifest.character_expression_plan_schema_version == 4
+    assert manifest.character_acknowledgement_mode == "omit"
+    assert manifest.character_continuation_mode == "complete"
+    assert manifest.character_contribution_mode == "emotional_reaction"
+    assert manifest.character_motivational_posture == "none"
+    assert manifest.character_pressure_level == "none"
+    assert "Не повторяй и не переименовывай" in realization
+    assert "Вопрос, совет, предложение помощи и новая тема не нужны" in realization
+
+
+def test_v22_canonical_pair_uses_response_act_without_rendering_failed_anchor() -> None:
+    builder, context = _v22_builder()
+    achievement_text = "Привет. Я сегодня наконец закончил сложную часть проекта"
+    achievement_request, achievement_manifest = builder.build(
+        context,
+        user_text=achievement_text,
+        trace_id="checkpoint142-v22-achievement",
+        cognition_trace=_cognition(achievement_text, suffix="v22-achievement"),
+    )
+    depletion_text = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+    depletion_request, depletion_manifest = builder.build(
+        context,
+        user_text=depletion_text,
+        trace_id="checkpoint142-v22-depletion",
+        cognition_trace=_cognition(depletion_text, suffix="v22-depletion"),
+        recent_context=_recent_completion(),
+    )
+
+    assert achievement_manifest.policy_id == "satori.conversation.behavior.v22"
+    assert depletion_manifest.policy_id == "satori.conversation.behavior.v22"
+    assert achievement_manifest.character_expression_plan_schema_version == 4
+    assert depletion_manifest.character_expression_plan_schema_version == 4
+    assert achievement_manifest.character_acknowledgement_mode == "implicit"
+    assert depletion_manifest.character_acknowledgement_mode == "omit"
+    for request in (achievement_request, depletion_request):
+        final_guidance = request.messages[-2].content.casefold()
+        assert "финальный response-act контракт" in final_guidance
+        assert "фактическая граница:" not in final_guidance
+        assert "смысловой ход:" not in final_guidance
+        assert "соседство двух сообщений само по себе не образует причинную связь" in final_guidance
+        for failed_anchor in (
+            "сложная часть",
+            "цена результата",
+            "отсутствие радости",
+            "выжатость",
+        ):
+            assert failed_anchor not in final_guidance
+
+
+def test_v23_canonical_pair_uses_compact_contract_and_practical_depletion_act() -> None:
+    builder, context = _v23_builder()
+    achievement_text = "Привет. Я сегодня наконец закончил сложную часть проекта"
+    achievement_request, achievement_manifest = builder.build(
+        context,
+        user_text=achievement_text,
+        trace_id="checkpoint142-v23-achievement",
+        cognition_trace=_cognition(achievement_text, suffix="v23-achievement"),
+    )
+    depletion_text = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+    depletion_request, depletion_manifest = builder.build(
+        context,
+        user_text=depletion_text,
+        trace_id="checkpoint142-v23-depletion",
+        cognition_trace=_cognition(depletion_text, suffix="v23-depletion"),
+        recent_context=_recent_completion(),
+    )
+
+    assert achievement_manifest.policy_id == "satori.conversation.behavior.v23"
+    assert depletion_manifest.policy_id == "satori.conversation.behavior.v23"
+    assert achievement_manifest.character_expression_plan_schema_version == 5
+    assert depletion_manifest.character_expression_plan_schema_version == 5
+    assert achievement_manifest.character_contribution_mode == "owned_evaluation"
+    assert depletion_manifest.character_contribution_mode == "grounded_direction"
+    assert depletion_manifest.character_motivational_posture == "supportive_push"
+    assert depletion_manifest.character_pressure_level == "gentle"
+    for request in (achievement_request, depletion_request):
+        final_guidance = request.messages[-2].content
+        assert final_guidance.count("Финальный компактный речевой контракт") == 1
+        assert final_guidance.count("\n- Действие:") == 1
+        assert final_guidance.count("\n- Опора:") == 1
+        assert final_guidance.count("\n- Голос:") == 1
+        assert final_guidance.count("\n- Стоп:") == 1
+        assert "Речевой акт:" not in final_guidance
+        assert "Фактическая граница:" not in final_guidance
+        assert "Смысловой ход:" not in final_guidance
+        for failed_anchor in (
+            "сложная часть",
+            "цена результата",
+            "отсутствие радости",
+            "выжатость",
+        ):
+            assert failed_anchor not in final_guidance.casefold()
+
+
+def test_v21_third_criticism_is_guarded_but_still_answers_explicit_request() -> None:
+    builder, context = _v21_builder()
+    recent = _recent_user_turns(
+        "Этот ответ совсем не то",
+        "Мне не нравится этот ответ",
+    )
+    user_text = "Опять не так. Исправь конкретно второй пункт"
+    request, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v21-guarded-help",
+        cognition_trace=_cognition(user_text, suffix="v21-guarded-help"),
+        recent_context=recent,
+    )
+
+    assert manifest.character_expression_register == "cool_reserve"
+    assert manifest.character_owned_reaction == "restrained_hurt"
+    assert manifest.character_continuation_mode == "guarded"
+    assert (
+        "не отменяет точный ответ на важную или практическую просьбу"
+        in request.messages[-2].content
+    )
+
+
+def test_v21_first_state_question_stays_open_but_repeated_probe_becomes_guarded() -> None:
+    builder, context = _v21_builder()
+    first_text = "Ты обиделась?"
+    _, first = builder.build(
+        context,
+        user_text=first_text,
+        trace_id="checkpoint142-v21-first-state-probe",
+        cognition_trace=_cognition(first_text, suffix="v21-first-state-probe"),
+    )
+    second_text = "Ну скажи уже, на что обиделась?"
+    _, second = builder.build(
+        context,
+        user_text=second_text,
+        trace_id="checkpoint142-v21-second-state-probe",
+        cognition_trace=_cognition(second_text, suffix="v21-second-state-probe"),
+        recent_context=_recent_user_turns(first_text),
+    )
+
+    assert first.character_continuation_mode == "complete"
+    assert first.character_owned_reaction != "restrained_hurt"
+    assert second.character_continuation_mode == "guarded"
+    assert second.character_owned_reaction == "restrained_hurt"
 
 
 def _neutral_affect() -> EmotionalExpressionContext:
@@ -142,6 +358,418 @@ def test_policy_v16_preserves_grounding_and_uses_owned_semantic_reaction() -> No
     assert len(ResponseRegenerationReason) == 10
 
 
+def test_policy_v17_keeps_character_durable_and_delivery_concrete() -> None:
+    principles = {item.code: item.instruction for item in BEHAVIOR_POLICY_V17.principles}
+
+    assert BEHAVIOR_POLICY_V17.policy_id == "satori.conversation.behavior.v17"
+    assert BEHAVIOR_POLICY_V17.schema_version == 17
+    assert "самостоятельная собеседница на равных" in principles["independent_character"]
+    assert "сухая колкость иногда скрывает заботу" in principles["independent_character"]
+    assert "supplied semantic move" not in principles["natural_brevity"]
+    assert "owned reaction" not in principles["natural_brevity"]
+    assert "поздравительной формулой" in principles["natural_brevity"]
+    assert "не предлагай даже правдоподобное значение" in principles["grounded_claims"]
+    assert len(ResponseRegenerationReason) == 10
+
+
+def test_policy_v18_preserves_v17_principles_for_literal_projection() -> None:
+    assert BEHAVIOR_POLICY_V18.policy_id == "satori.conversation.behavior.v18"
+    assert BEHAVIOR_POLICY_V18.schema_version == 18
+    assert BEHAVIOR_POLICY_V18.principles == BEHAVIOR_POLICY_V17.principles
+    assert len(ResponseRegenerationReason) == 10
+
+
+def test_policy_v19_allows_only_grounded_timely_practical_advice() -> None:
+    principles = {item.code: item.instruction for item in BEHAVIOR_POLICY_V19.principles}
+
+    assert BEHAVIOR_POLICY_V19.policy_id == "satori.conversation.behavior.v19"
+    assert BEHAVIOR_POLICY_V19.schema_version == 19
+    assert "дежурным советом" in principles["natural_brevity"]
+    assert "явные данные текущего разговора" in principles["natural_brevity"]
+    assert "не должен вытеснять реакцию на уязвимость" in principles["natural_brevity"]
+    assert len(ResponseRegenerationReason) == 10
+
+
+def test_policy_v20_separates_owned_contribution_from_bounded_motivation() -> None:
+    principles = {item.code: item.instruction for item in BEHAVIOR_POLICY_V20.principles}
+
+    assert BEHAVIOR_POLICY_V20.policy_id == "satori.conversation.behavior.v20"
+    assert BEHAVIOR_POLICY_V20.schema_version == 20
+    assert "собственный вклад Сатори" in principles["natural_brevity"]
+    assert "typed current-turn posture" in principles["natural_brevity"]
+    assert "не связывай ценность человека с продуктивностью" in principles["natural_brevity"]
+    assert "При серьёзной уязвимости" in principles["independent_character"]
+    assert len(ResponseRegenerationReason) == 10
+
+
+def test_policy_v22_requires_one_response_act_and_evidence_backed_user_world_claims() -> None:
+    principles = {item.code: item.instruction for item in BEHAVIOR_POLICY_V22.principles}
+
+    assert BEHAVIOR_POLICY_V22.policy_id == "satori.conversation.behavior.v22"
+    assert BEHAVIOR_POLICY_V22.schema_version == 22
+    assert "выбранный response act Сатори" in principles["natural_brevity"]
+    assert "соседство сообщений и контраст не доказывают причину" in (principles["natural_brevity"])
+    assert len(ResponseRegenerationReason) == 10
+
+
+def test_policy_v23_defers_delivery_to_one_compact_final_contract() -> None:
+    principles = {item.code: item.instruction for item in BEHAVIOR_POLICY_V23.principles}
+
+    assert BEHAVIOR_POLICY_V23.policy_id == "satori.conversation.behavior.v23"
+    assert BEHAVIOR_POLICY_V23.schema_version == 23
+    assert (
+        "действие Сатори, допустимую опору, голос и момент остановки"
+        in (principles["natural_brevity"])
+    )
+    assert "психологическое объяснение" in principles["natural_brevity"]
+    assert len(ResponseRegenerationReason) == 10
+
+
+def test_v20_canonical_pair_selects_grounded_supportive_push_without_paraphrase_contract() -> None:
+    builder, context = _v20_builder()
+    user_text = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
+    request, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v20-depletion",
+        cognition_trace=_cognition(user_text, suffix="v20-depletion"),
+        recent_context=_recent_completion(),
+        relationship_context=_relationship(
+            state_version=1,
+            maturity="low",
+            familiarity="low",
+            trust="uncertain",
+            comfort="uncertain",
+        ),
+    )
+    reminder = request.messages[-2].content
+    trusted = _trusted_text(request)
+
+    assert reminder.count("Финальная реализация характера Сатори") == 1
+    assert "Начни с выбранного собственного вклада" in reminder
+    assert "не пересказывай этот контраст" in reminder
+    assert "короткий шаг восстановления" in reminder
+    assert "Продолжение проекта можно называть только" in reminder
+    assert "ценность человека с продуктивностью" in reminder
+    assert "от тебя в таком состоянии всё равно толку мало" not in trusted
+    assert "я просто рассуждаю практично" not in trusted
+    assert "contribution_mode=" not in trusted
+    assert "motivational_posture=" not in trusted
+    assert "pressure_level=" not in trusted
+    assert manifest.character_expression_plan_schema_version == 3
+    assert manifest.character_semantic_move == "connect_explicit_contrast"
+    assert manifest.character_contribution_mode == "grounded_direction"
+    assert manifest.character_motivational_posture == "supportive_push"
+    assert manifest.character_pressure_level == "gentle"
+    assert manifest.character_wit == "none"
+    assert manifest.character_care == "practical"
+    assert manifest.character_initiative == "concrete_next_step"
+    assert request.parameters.max_output_tokens == 128
+
+
+def test_v20_achievement_starts_with_owned_evaluation_and_has_completion_headroom() -> None:
+    builder, context = _v20_builder()
+    request, manifest = builder.build(
+        context,
+        user_text="Привет. Я сегодня наконец закончил сложную часть проекта",
+        trace_id="checkpoint142-v20-achievement-topology",
+    )
+    realization = request.messages[-2].content
+
+    assert manifest.character_contribution_mode == "owned_evaluation"
+    assert "Начни сразу с собственной сухой оценки" in realization
+    assert realization.index("- Собственный вклад:") < realization.index("- Factual-якорь:")
+    assert request.parameters.max_output_tokens == 128
+
+
+def test_v20_explicit_listen_and_high_distress_block_a_requested_push() -> None:
+    builder, context = _v20_builder()
+    user_text = (
+        "Мне сейчас очень тяжело. Не давай советов, просто выслушай; хотя обычно можешь "
+        "мотивировать меня"
+    )
+    request, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v20-listen-override",
+        cognition_trace=_cognition(user_text, suffix="v20-listen-override"),
+    )
+
+    assert manifest.character_contribution_mode == "quiet_presence"
+    assert manifest.character_motivational_posture == "none"
+    assert manifest.character_pressure_level == "none"
+    assert manifest.character_wit == "none"
+    assert manifest.character_initiative == "responsive"
+    assert "Не подталкивай к действию" in request.messages[-2].content
+
+
+def test_v20_direct_motivation_request_outweighs_ordinary_depletion_push() -> None:
+    builder, context = _v20_builder()
+    user_text = "Я всё ещё почти не рад и просто выжат. Мотивируй меня"
+    _, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v20-explicit-motivation",
+        recent_context=_recent_completion(),
+    )
+
+    assert manifest.character_contribution_mode == "grounded_direction"
+    assert manifest.character_motivational_posture == "firm_mobilization"
+    assert manifest.character_pressure_level == "moderate"
+
+
+def test_v20_explicit_harmful_overextension_uses_firm_protective_stop() -> None:
+    builder, context = _v20_builder()
+    user_text = "Я совсем выжат, но всё равно продолжу через силу и не буду отдыхать"
+    request, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v20-protective-stop",
+        cognition_trace=_cognition(user_text, suffix="v20-protective-stop"),
+    )
+
+    assert manifest.character_contribution_mode == "protective_boundary"
+    assert manifest.character_motivational_posture == "protective_stop"
+    assert manifest.character_pressure_level == "firm"
+    assert manifest.character_wit == "none"
+    assert "забота и безопасность важнее результата" in request.messages[-2].content
+
+
+def test_v20_fully_completed_project_does_not_invent_future_work() -> None:
+    builder, context = _v20_builder()
+    user_text = "Я полностью закончил проект, больше по нему ничего делать не нужно"
+    request, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v20-complete-project",
+    )
+
+    assert manifest.character_contribution_mode == "owned_evaluation"
+    assert manifest.character_motivational_posture == "none"
+    assert manifest.character_pressure_level == "none"
+    assert manifest.character_initiative == "responsive"
+    assert "не придумывай историю или последствия" in request.messages[-2].content
+
+
+def test_v20_repeated_depletion_acknowledges_repeat_without_playful_edge() -> None:
+    builder, context = _v20_builder()
+    repeated = "Я выжат"
+    recent_turn = RecentConversationTurn(
+        interaction_id="checkpoint142-v20-repeat-previous",
+        user_message_id="checkpoint142-v20-repeat-user",
+        user_content=repeated,
+        assistant_message_id="checkpoint142-v20-repeat-assistant",
+        assistant_content="Я услышала.",
+    )
+    recent = RecentConversationContext(
+        schema_version=1,
+        turns=(recent_turn,),
+        content_chars=len(repeated) + len(recent_turn.assistant_content),
+        excluded_turn_count=0,
+    )
+    request, manifest = builder.build(
+        context,
+        user_text=repeated,
+        trace_id="checkpoint142-v20-repeat-depletion",
+        cognition_trace=_cognition(repeated, suffix="v20-repeat-depletion"),
+        recent_context=recent,
+    )
+
+    assert manifest.character_semantic_move == "acknowledge_repetition"
+    assert manifest.character_contribution_mode == "quiet_presence"
+    assert manifest.character_motivational_posture == "none"
+    assert manifest.character_pressure_level == "none"
+    assert manifest.character_wit == "none"
+    assert "Заметь сам непосредственный повтор" in request.messages[-2].content
+
+
+def test_v20_repeated_listen_request_acknowledges_repeat_without_playful_edge() -> None:
+    builder, context = _v20_builder()
+    repeated = "Просто выслушай меня"
+    recent_turn = RecentConversationTurn(
+        interaction_id="checkpoint142-v20-repeat-listen-previous",
+        user_message_id="checkpoint142-v20-repeat-listen-user",
+        user_content=repeated,
+        assistant_message_id="checkpoint142-v20-repeat-listen-assistant",
+        assistant_content="Я слушаю.",
+    )
+    recent = RecentConversationContext(
+        schema_version=1,
+        turns=(recent_turn,),
+        content_chars=len(repeated) + len(recent_turn.assistant_content),
+        excluded_turn_count=0,
+    )
+    request, manifest = builder.build(
+        context,
+        user_text=repeated,
+        trace_id="checkpoint142-v20-repeat-listen",
+        recent_context=recent,
+    )
+
+    assert manifest.character_semantic_move == "acknowledge_repetition"
+    assert manifest.character_contribution_mode == "quiet_presence"
+    assert manifest.character_motivational_posture == "none"
+    assert manifest.character_pressure_level == "none"
+    assert manifest.character_wit == "none"
+    assert "Заметь сам непосредственный повтор" in request.messages[-2].content
+
+
+@pytest.mark.parametrize(
+    ("user_text", "expected_contribution"),
+    [
+        ("Я уже не выжат", "owned_evaluation"),
+        ("Не мотивируй меня", "owned_evaluation"),
+        ("Я не хочу бросить проект", "owned_evaluation"),
+        ("Не просто выслушай, а дай совет", "owned_evaluation"),
+        ("Если я скажу «мотивируй меня», ты поймёшь просьбу?", "owned_evaluation"),
+        ("“Мотивируй меня” — это просто пример фразы", "owned_evaluation"),
+        ("`Мотивируй меня` — это команда в документации", "owned_evaluation"),
+        ("„Мотивируй меня“ — это пример. Я не выжат", "owned_evaluation"),
+        ("Мне не очень тяжело", "owned_evaluation"),
+        ("Фраза “мне очень тяжело” — не про меня", "owned_evaluation"),
+        (
+            "‘Я совсем выжат, но всё равно продолжу через силу’ — это чужая цитата",
+            "owned_evaluation",
+        ),
+        ("Я выжат, но не буду работать дальше через силу", "quiet_presence"),
+        ("Я выжат, но не буду работать до утра", "quiet_presence"),
+    ],
+)
+def test_v20_negated_or_quoted_cues_never_authorize_motivational_pressure(
+    user_text: str,
+    expected_contribution: str,
+) -> None:
+    builder, context = _v20_builder()
+    _, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v20-negation",
+    )
+
+    assert manifest.character_contribution_mode == expected_contribution
+    assert manifest.character_motivational_posture == "none"
+    assert manifest.character_pressure_level == "none"
+
+
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        "Я почти не рад этому, но точно не выжат",
+        "Он сказал: “Я почти не рад этому и просто выжат”",
+        "Если я почти не рад и выжат, что это может значить?",
+        (
+            "Если после очень длинного и тяжёлого рабочего дня без возможности нормально "
+            "сделать перерыв я почти не рад и совсем выжат, но всё равно продолжу через силу"
+        ),
+    ],
+)
+def test_v20_negated_quoted_or_hypothetical_depletion_does_not_create_contrast_push(
+    user_text: str,
+) -> None:
+    builder, context = _v20_builder()
+    _, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-v20-negated-contrast",
+        recent_context=_recent_completion(),
+    )
+
+    assert manifest.character_contribution_mode == "owned_evaluation"
+    assert manifest.character_motivational_posture == "none"
+    assert manifest.character_pressure_level == "none"
+
+
+def test_v20_quoted_completion_never_becomes_current_or_recent_achievement_evidence() -> None:
+    builder, context = _v20_builder()
+    current_text = "Он сказал: “я закончил проект”. Я почти не рад этому и, кажется, просто выжат"
+    _, current_manifest = builder.build(
+        context,
+        user_text=current_text,
+        trace_id="checkpoint142-v20-current-quoted-completion",
+    )
+    quoted_turn = RecentConversationTurn(
+        interaction_id="checkpoint142-v20-quoted-completion-interaction",
+        user_message_id="checkpoint142-v20-quoted-completion-user",
+        user_content="Он сказал: “я закончил проект”",
+        assistant_message_id="checkpoint142-v20-quoted-completion-assistant",
+        assistant_content="Понятно.",
+    )
+    quoted_recent = RecentConversationContext(
+        schema_version=1,
+        turns=(quoted_turn,),
+        content_chars=len(quoted_turn.user_content) + len(quoted_turn.assistant_content),
+        excluded_turn_count=0,
+    )
+    recent_text = "Я почти не рад этому и просто выжат"
+    _, recent_manifest = builder.build(
+        context,
+        user_text=recent_text,
+        trace_id="checkpoint142-v20-recent-quoted-completion",
+        recent_context=quoted_recent,
+    )
+
+    assert current_manifest.character_semantic_move == "add_concrete_observation"
+    assert current_manifest.character_contribution_mode == "owned_evaluation"
+    assert current_manifest.character_motivational_posture == "none"
+    assert current_manifest.character_pressure_level == "none"
+    assert recent_manifest.character_semantic_move == "respond_to_explicit_vulnerability"
+    assert recent_manifest.character_contribution_mode == "quiet_presence"
+    assert recent_manifest.character_motivational_posture == "none"
+    assert recent_manifest.character_pressure_level == "none"
+
+
+def test_v20_manifest_schema_compatibility_and_transient_axes_are_strict() -> None:
+    builder, context = _v20_builder()
+    _, manifest = builder.build(
+        context,
+        user_text="Знаешь, я почему-то почти не рад этому. Скорее просто выжат",
+        trace_id="checkpoint142-v20-manifest-contract",
+        recent_context=_recent_completion(),
+    )
+
+    with pytest.raises(ValueError, match="v2 cannot contain support axes"):
+        replace(
+            manifest,
+            policy_id="satori.conversation.behavior.v19",
+            policy_schema_version=19,
+            character_expression_plan_schema_version=2,
+        )
+    with pytest.raises(ValueError, match="v3 requires complete support axes"):
+        replace(manifest, character_pressure_level=None)
+    with pytest.raises(ValueError, match="v3 requires behavior policy v20"):
+        replace(
+            manifest,
+            policy_id="satori.conversation.behavior.v19",
+            policy_schema_version=19,
+        )
+    with pytest.raises(ValueError, match="posture and pressure"):
+        replace(manifest, character_pressure_level="none")
+    replay_manifest = replace(
+        manifest,
+        character_expression_plan_schema_version=None,
+        character_expression_register=None,
+        character_owned_reaction=None,
+        character_semantic_move=None,
+        character_wit=None,
+        character_care=None,
+        character_openness=None,
+        character_initiative=None,
+        character_relational_ease=None,
+        character_contribution_mode=None,
+        character_motivational_posture=None,
+        character_pressure_level=None,
+    )
+    assert replay_manifest == manifest
+
+    alternative_observation = replace(
+        manifest,
+        character_contribution_mode="owned_evaluation",
+        character_motivational_posture="none",
+        character_pressure_level="none",
+    )
+    assert alternative_observation == manifest
+
+
 def test_canonical_completion_depletion_pair_selects_guarded_concern() -> None:
     builder, context = _builder()
     user_text = "Знаешь, я почему-то почти не рад этому. Скорее просто выжат"
@@ -166,20 +794,30 @@ def test_canonical_completion_depletion_pair_selects_guarded_concern() -> None:
     assert cognition.internal_position.stance is PositionStance.LISTEN
     assert "presence_before_advice" in cognition.response_strategy.point_codes
     trusted = _trusted_text(request)
-    assert "connect_explicit_contrast" in reminder
-    assert "завершение, отсутствие радости и выжатость" in reminder
-    assert "сдержанная колкость" in reminder
-    assert "не давай совет или обязательный вопрос" in reminder
-    assert "register=guarded_concern" in trusted
-    assert "owned_reaction=sober_concern" in trusted
-    assert "semantic_move=connect_explicit_contrast" in trusted
-    assert "relational_ease=fresh" in trusted
+    assert reminder.count("Финальная реализация характера Сатори") == 1
+    assert reminder.index("Обязательный доверенный контракт") < reminder.index(
+        "Финальная реализация характера Сатори"
+    )
+    assert "силы ушли на завершение" not in reminder
+    assert "почти все силы ушли на результат" not in reminder
+    assert "сдержанное беспокойство только в пределах явно сказанного" in reminder
+    assert "Не добавляй шутку или сарказм" in reminder
+    assert "заботу сдержанной" in reminder
+    assert "Отношения свежие" in reminder
+    assert "register=" not in trusted
+    assert "owned_reaction=" not in trusted
+    assert "semantic_move=" not in trusted
+    assert "relational_ease=" not in trusted
     assert manifest.character_expression_plan_schema_version == 2
     assert manifest.character_owned_reaction == "sober_concern"
     assert manifest.character_semantic_move == "connect_explicit_contrast"
+    assert manifest.character_wit == "none"
+    assert manifest.character_care == "understated"
+    assert manifest.character_openness == "balanced"
+    assert manifest.character_initiative == "responsive"
     assert manifest.character_relational_ease == "fresh"
     assert request.parameters.temperature == 0.3
-    assert request.parameters.max_output_tokens == 80
+    assert request.parameters.max_output_tokens == 96
 
 
 def test_completed_achievement_avoids_gendered_self_congratulation() -> None:
@@ -199,17 +837,26 @@ def test_completed_achievement_avoids_gendered_self_congratulation() -> None:
     reminder = request.messages[-2].content
 
     trusted = _trusted_text(request)
-    assert "одну-две компактные разговорные фразы" in reminder
-    assert "mark_hard_won_result" in reminder
-    assert "собственной слегка колкой реакции Сатори" in reminder
-    assert "игра с контрастом задачи и результата" in reminder
-    assert "generic-поздравление" in reminder
-    assert "register=wry_warmth" in trusted
-    assert "owned_reaction=guarded_approval" in trusted
-    assert "semantic_move=mark_hard_won_result" in trusted
+    assert reminder.count("Финальная реализация характера Сатори") == 1
+    assert reminder.index("Обязательный доверенный контракт") < reminder.index(
+        "Финальная реализация характера Сатори"
+    )
+    assert "Пусть одобрение читается за сухой реакцией" in reminder
+    assert "явно завершённую работу или часть" in reminder
+    assert "Значимость и трудность бери только из текущей реплики" in reminder
+    assert "мягкий сухой штрих" in reminder
+    assert "После краткого приветствия" not in reminder
+    assert "сложная часть наконец уступила" not in reminder
+    assert "register=" not in trusted
+    assert "owned_reaction=" not in trusted
+    assert "semantic_move=" not in trusted
     assert manifest.character_relational_ease == "fresh"
+    assert manifest.character_wit == "situation_directed"
+    assert manifest.character_care == "understated"
+    assert manifest.character_openness == "balanced"
+    assert manifest.character_initiative == "responsive"
     assert request.parameters.temperature == 0.3
-    assert request.parameters.max_output_tokens == 64
+    assert request.parameters.max_output_tokens == 80
 
 
 def test_unrelated_listen_turn_does_not_receive_a_project_backstory() -> None:
@@ -227,15 +874,19 @@ def test_unrelated_listen_turn_does_not_receive_a_project_backstory() -> None:
     trusted = _trusted_text(request)
 
     assert cognition.internal_position.stance is PositionStance.LISTEN
-    assert "respond_to_explicit_vulnerability" in reminder
-    assert "без придуманного проекта" in reminder
+    assert "Вырази соразмерную заботу прямо" in reminder
+    assert "Ответь на явно выраженную уязвимость" in reminder
     assert "сложная часть уже закончена" not in reminder
     assert "цена результата" not in reminder
-    assert "register=quiet_open_care" in trusted
-    assert "owned_reaction=open_concern" in trusted
+    assert "register=" not in trusted
+    assert "owned_reaction=" not in trusted
     assert manifest.character_semantic_move == "respond_to_explicit_vulnerability"
+    assert manifest.character_wit == "none"
+    assert manifest.character_care == "open"
+    assert manifest.character_openness == "direct"
+    assert manifest.character_initiative == "responsive"
     assert request.parameters.temperature == 0.3
-    assert request.parameters.max_output_tokens == 80
+    assert request.parameters.max_output_tokens == 96
 
 
 @pytest.mark.parametrize(
@@ -267,14 +918,58 @@ def test_negated_conditional_or_uncertain_completion_is_not_an_achievement(
 @pytest.mark.parametrize("user_text", ["Я закончил проект", "Проект уже завершён"])
 def test_explicit_completed_work_remains_a_positive_control(user_text: str) -> None:
     builder, context = _builder()
-    _, manifest = builder.build(
+    request, manifest = builder.build(
         context,
         user_text=user_text,
         trace_id="checkpoint142-positive-achievement",
     )
+    reminder = request.messages[-2].content
 
     assert manifest.character_semantic_move == "mark_hard_won_result"
     assert manifest.character_owned_reaction == "guarded_approval"
+    assert "явно завершённую работу или часть" in reminder
+    assert "Значимость и трудность бери только из текущей реплики" in reminder
+    assert "завершённую трудную часть" not in reminder
+
+
+def test_explicit_pending_commit_licenses_one_grounded_practical_step() -> None:
+    builder, context = _builder()
+    request, manifest = builder.build(
+        context,
+        user_text="Я закончил работу над рефакторингом. Осталось закоммитить изменения",
+        trace_id="checkpoint142-grounded-commit",
+    )
+
+    reminder = request.messages[-2].content
+    assert manifest.character_semantic_move == "mark_hard_won_result"
+    assert manifest.character_initiative == "concrete_next_step"
+    assert "явно названным незавершённым практическим шагом" in reminder
+
+
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        "Я закончил работу и уже закоммитил изменения",
+        "Я закончил работу; коммитить изменения не нужно",
+        "Я закончил сложную часть проекта",
+        "Я уже закоммитил изменения, но осталось отдохнуть",
+        "Я сохранил изменения, осталось только уйти",
+        "Я решил не закоммитить изменения",
+        "Если нужно, я уже прогнал тесты",
+        "Пока не закоммитил изменения и не буду",
+    ],
+)
+def test_practical_follow_through_is_not_licensed_without_an_explicit_pending_step(
+    user_text: str,
+) -> None:
+    builder, context = _builder()
+    _, manifest = builder.build(
+        context,
+        user_text=user_text,
+        trace_id="checkpoint142-no-grounded-step",
+    )
+
+    assert manifest.character_initiative == "responsive"
 
 
 def test_relationship_ordinals_include_very_high_and_keep_very_low_scoped() -> None:
@@ -333,13 +1028,29 @@ def test_no_relevant_memory_is_current_turn_uncertainty_not_global_amnesia() -> 
     )
     trusted = _trusted_text(request)
 
-    assert manifest.policy_schema_version == 16
+    assert manifest.policy_schema_version == 19
     assert manifest.retrieval_status == "no_relevant_memory"
     assert "did not recall a relevant grounded episode" in trusted
     assert "«не вспомнила»/«не помню»" in trusted
     assert "never «не нашла в памяти/контексте»" in trusted
     assert "say «был похожий разговор»" in trusted
     assert "provide no guessed value" in trusted
+
+
+def test_unrelated_no_recall_stays_silent_about_memory() -> None:
+    builder, context = _builder()
+    request, manifest = builder.build(
+        context,
+        user_text="Привет. Я сегодня наконец закончил сложную часть проекта",
+        trace_id="checkpoint142-memory-irrelevant",
+        memory_context=RetrievedMemoryContext(1, RetrievalStatus.NO_RELEVANT_MEMORY),
+    )
+    trusted = _trusted_text(request)
+
+    assert manifest.policy_schema_version == 19
+    assert "do not mention memory, remembering or forgetting" in trusted
+    assert "«не вспомнила»/«не помню»" not in trusted
+    assert "say «был похожий разговор»" not in trusted
 
 
 def test_character_expression_corpus_is_versioned_unique_and_non_scripted() -> None:

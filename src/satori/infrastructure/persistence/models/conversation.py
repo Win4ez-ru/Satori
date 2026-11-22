@@ -13,11 +13,17 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from satori.core.conversation import ConversationProviderFailureReason
 from satori.infrastructure.persistence.base import Base
 from satori.infrastructure.persistence.types import UTCDateTime
+
+_FAILURE_REASON_VALUES_SQL = ", ".join(
+    f"'{reason.value}'" for reason in ConversationProviderFailureReason
+)
 
 
 class ConversationSessionRow(Base):
@@ -28,6 +34,7 @@ class ConversationSessionRow(Base):
         CheckConstraint("schema_version >= 1", name="schema_version_positive"),
         CheckConstraint("kind IN ('explicit', 'implicit')", name="kind_valid"),
         CheckConstraint("status IN ('open', 'closed')", name="status_valid"),
+        CheckConstraint("scope_verified IN (0, 1)", name="scope_verified_valid"),
         CheckConstraint(
             "(status = 'open' AND ended_at IS NULL) OR "
             "(status = 'closed' AND ended_at IS NOT NULL)",
@@ -42,6 +49,7 @@ class ConversationSessionRow(Base):
         nullable=False,
     )
     counterparty_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    scope_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("0"))
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -100,13 +108,27 @@ class ConversationInteractionRow(Base):
             "AND context_schema_version IS NOT NULL "
             "AND context_manifest_schema_version IS NOT NULL "
             "AND policy_id IS NOT NULL AND policy_schema_version IS NOT NULL "
-            "AND failure_kind IS NULL) OR "
-            "(status != 'completed' AND completed_at IS NULL AND provider IS NULL "
+            "AND failure_kind IS NULL AND failure_reason IS NULL) OR "
+            "(status = 'pending' AND completed_at IS NULL AND provider IS NULL "
             "AND model IS NULL AND finish_status IS NULL "
+            "AND input_tokens IS NULL AND output_tokens IS NULL "
             "AND context_schema_version IS NULL "
             "AND context_manifest_schema_version IS NULL "
-            "AND policy_id IS NULL AND policy_schema_version IS NULL)",
+            "AND policy_id IS NULL AND policy_schema_version IS NULL "
+            "AND failure_kind IS NULL AND failure_reason IS NULL) OR "
+            "(status = 'failed' AND completed_at IS NULL AND finish_status IS NULL "
+            "AND input_tokens IS NULL AND output_tokens IS NULL "
+            "AND context_schema_version IS NULL "
+            "AND context_manifest_schema_version IS NULL "
+            "AND policy_id IS NULL AND policy_schema_version IS NULL "
+            "AND failure_kind IS NOT NULL AND "
+            "((failure_reason IS NULL AND provider IS NULL AND model IS NULL) OR "
+            "(failure_reason IS NOT NULL AND provider IS NOT NULL AND model IS NOT NULL)))",
             name="completion_metadata_consistent",
+        ),
+        CheckConstraint(
+            f"failure_reason IS NULL OR failure_reason IN ({_FAILURE_REASON_VALUES_SQL})",
+            name="failure_reason_valid",
         ),
     )
 
@@ -143,6 +165,7 @@ class ConversationInteractionRow(Base):
     relationship_context_schema_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     relationship_state_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     failure_kind: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     relationship_processing_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
     model_processing_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
     position_processing_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
@@ -180,7 +203,12 @@ class ConversationMessageRow(Base):
         CheckConstraint("schema_version >= 1", name="schema_version_positive"),
         CheckConstraint("role IN ('user', 'assistant')", name="role_valid"),
         CheckConstraint("sequence IN (1, 2)", name="sequence_valid"),
-        CheckConstraint("length(content) > 0", name="content_not_blank"),
+        CheckConstraint(
+            "(body_state = 'available' AND content IS NOT NULL AND length(content) > 0 "
+            "AND body_action_id IS NULL) OR (body_state = 'erased' AND content IS NULL "
+            "AND body_action_id IS NOT NULL)",
+            name="body_consistent",
+        ),
     )
 
     message_id: Mapped[str] = mapped_column(String(128), primary_key=True)
@@ -188,6 +216,14 @@ class ConversationMessageRow(Base):
     interaction_id: Mapped[str] = mapped_column(String(128), nullable=False)
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    body_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="available", default="available"
+    )
+    body_action_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("erasure_body_applications.action_id", ondelete="RESTRICT"),
+        nullable=True,
+    )

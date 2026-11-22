@@ -10,10 +10,12 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from satori.application.personality.ports import (
+    PersonalityCheckpointApprovalHeader,
     PersonalityCheckpointApprovalRecord,
     PersonalityCheckpointRecord,
     PersonalityEvidenceRecord,
     PersonalityEvolutionWrite,
+    PersonalityRestoreEventHeader,
     PersonalityRestoreEventRecord,
     PersonalityRestoreWrite,
     PersonalityRevisionRecord,
@@ -31,6 +33,13 @@ from satori.core.reflection import (
     ReflectionPurpose,
     ReflectionSourceKind,
     ReflectionTargetOwner,
+)
+from satori.domain.audit_metadata import AuditMetadataFamily
+from satori.domain.erasure_personality_reasons import (
+    MAX_CHECKPOINT_REASON_TARGETS,
+    CheckpointReasonAction,
+    CheckpointReasonKind,
+    CheckpointReasonTarget,
 )
 from satori.domain.errors import CorruptSatoriState
 from satori.domain.personality import Personality, PersonalityTrait
@@ -55,11 +64,19 @@ from satori.domain.reflection import (
     ReflectionSourceRecord,
     source_set_hash,
 )
+from satori.domain.source_policy import SourcePolicyError
+from satori.infrastructure.persistence.audit_metadata_writer import bind_metadata
+from satori.infrastructure.persistence.erasure_body_codec import decode_body_action
+from satori.infrastructure.persistence.memory_scope import (
+    admitted_episode_predicate,
+    require_live_message_content,
+)
 from satori.infrastructure.persistence.models.conversation import (
     ConversationInteractionRow,
     ConversationMessageRow,
     ConversationSessionRow,
 )
+from satori.infrastructure.persistence.models.erasure_bodies import ErasureBodyApplicationRow
 from satori.infrastructure.persistence.models.initial_self import (
     AuditEventRow,
     PersonalityStateRow,
@@ -84,6 +101,13 @@ from satori.infrastructure.persistence.models.reflection import (
     ReflectionProposalRow,
     ReflectionRunRow,
     ReflectionSourceRow,
+)
+from satori.infrastructure.persistence.source_policy import (
+    eligible_payload,
+    eligible_root,
+    policy_snapshot,
+    require_source_inputs,
+    verify_mirror,
 )
 
 
@@ -160,19 +184,20 @@ class SQLAlchemyPersonalityRepository:
         return self._map_checkpoint(rows[0]) if rows else None
 
     def get_approved_checkpoint(self, identity_id: str) -> PersonalityCheckpointRecord | None:
-        approval = (
-            self._session.execute(
-                select(PersonalityCheckpointApprovalRow)
-                .where(PersonalityCheckpointApprovalRow.identity_id == identity_id)
-                .order_by(
-                    PersonalityCheckpointApprovalRow.approved_at.desc(),
-                    PersonalityCheckpointApprovalRow.expected_aggregate_version.desc(),
-                    PersonalityCheckpointApprovalRow.approval_id.desc(),
-                )
+        # The latest approval remains the budget anchor after its reason is erased.
+        approval = self._session.execute(
+            select(
+                PersonalityCheckpointApprovalRow.checkpoint_id,
+                PersonalityCheckpointApprovalRow.checkpoint_hash,
+                PersonalityCheckpointApprovalRow.expected_aggregate_version,
             )
-            .scalars()
-            .first()
-        )
+            .where(PersonalityCheckpointApprovalRow.identity_id == identity_id)
+            .order_by(
+                PersonalityCheckpointApprovalRow.approved_at.desc(),
+                PersonalityCheckpointApprovalRow.expected_aggregate_version.desc(),
+                PersonalityCheckpointApprovalRow.approval_id.desc(),
+            )
+        ).first()
         if approval is None:
             return self.get_activation_checkpoint(identity_id)
         checkpoint = self.get_checkpoint(approval.checkpoint_id)
@@ -219,9 +244,15 @@ class SQLAlchemyPersonalityRepository:
     def list_checkpoint_approvals(
         self, identity_id: str
     ) -> tuple[PersonalityCheckpointApprovalRecord, ...]:
+        self._admit_reason_read(identity_id)
         rows = self._session.execute(
             select(PersonalityCheckpointApprovalRow)
-            .where(PersonalityCheckpointApprovalRow.identity_id == identity_id)
+            .where(
+                PersonalityCheckpointApprovalRow.identity_id == identity_id,
+                PersonalityCheckpointApprovalRow.reason_state == "available",
+                PersonalityCheckpointApprovalRow.reason_action_id.is_(None),
+                PersonalityCheckpointApprovalRow.reason.is_not(None),
+            )
             .order_by(
                 PersonalityCheckpointApprovalRow.approved_at,
                 PersonalityCheckpointApprovalRow.approval_id,
@@ -230,15 +261,158 @@ class SQLAlchemyPersonalityRepository:
         return tuple(self._map_approval(item) for item in rows)
 
     def list_restore_events(self, identity_id: str) -> tuple[PersonalityRestoreEventRecord, ...]:
+        self._admit_reason_read(identity_id)
         rows = self._session.execute(
             select(PersonalityRestoreEventRow)
-            .where(PersonalityRestoreEventRow.identity_id == identity_id)
+            .where(
+                PersonalityRestoreEventRow.identity_id == identity_id,
+                PersonalityRestoreEventRow.reason_state == "available",
+                PersonalityRestoreEventRow.reason_action_id.is_(None),
+                PersonalityRestoreEventRow.reason.is_not(None),
+            )
             .order_by(
                 PersonalityRestoreEventRow.after_aggregate_version,
                 PersonalityRestoreEventRow.restore_id,
             )
         ).scalars()
         return tuple(self._map_restore(item) for item in rows)
+
+    def _admit_reason_read(self, identity_id: str) -> None:
+        snapshot = policy_snapshot(self._session)
+        if snapshot is None:
+            if self._session.info.get("source_runtime") is not None:
+                raise SourcePolicyError("source_policy_admission_required")
+            return
+        if snapshot.identity_id != identity_id:
+            raise SourcePolicyError("checkpoint_reason_scope_mismatch")
+        verify_mirror(self._session, snapshot)
+
+    def list_checkpoint_approval_headers(
+        self, identity_id: str
+    ) -> tuple[PersonalityCheckpointApprovalHeader, ...]:
+        row = PersonalityCheckpointApprovalRow
+        headers = self._session.execute(
+            select(
+                row.approval_id,
+                row.identity_id,
+                row.checkpoint_id,
+                row.checkpoint_hash,
+                row.expected_aggregate_version,
+                row.approved_at,
+                row.reason_state,
+                row.reason_action_id,
+            )
+            .where(row.identity_id == identity_id)
+            .order_by(row.approved_at, row.approval_id)
+        ).mappings()
+        result = []
+        for header in headers:
+            self._validate_reason_header(header["reason_state"], header["reason_action_id"])
+            result.append(PersonalityCheckpointApprovalHeader(**dict(header)))
+        return tuple(result)
+
+    def list_restore_headers(self, identity_id: str) -> tuple[PersonalityRestoreEventHeader, ...]:
+        row = PersonalityRestoreEventRow
+        headers = self._session.execute(
+            select(
+                row.restore_id,
+                row.revision_id,
+                row.identity_id,
+                row.source_checkpoint_id,
+                row.source_checkpoint_hash,
+                row.resulting_checkpoint_id,
+                row.before_aggregate_version,
+                row.after_aggregate_version,
+                row.trait_diffs,
+                row.restored_at,
+                row.reason_state,
+                row.reason_action_id,
+            )
+            .where(row.identity_id == identity_id)
+            .order_by(row.after_aggregate_version, row.restore_id)
+        ).mappings()
+        result = []
+        for header in headers:
+            self._validate_reason_header(header["reason_state"], header["reason_action_id"])
+            values = dict(header)
+            values["trait_diffs"] = self._map_trait_diffs(values["trait_diffs"])
+            result.append(PersonalityRestoreEventHeader(**values))
+        return tuple(result)
+
+    @staticmethod
+    def _validate_reason_header(state: object, action_id: object) -> None:
+        if not (
+            (state == "available" and action_id is None)
+            or (state == "erased" and isinstance(action_id, str) and action_id.strip())
+        ):
+            raise SourcePolicyError("checkpoint_reason_state_invalid")
+
+    def erase_reason_bodies(
+        self, targets: tuple[CheckpointReasonTarget, ...], *, action_id: str
+    ) -> None:
+        from satori.infrastructure.persistence.checkpoint_reason_material import (
+            read_checkpoint_reason_material,
+        )
+
+        if (
+            not 1 <= len(targets) <= MAX_CHECKPOINT_REASON_TARGETS
+            or any(not isinstance(target, CheckpointReasonTarget) for target in targets)
+            or len({target.selector.key for target in targets}) != len(targets)
+        ):
+            raise SourcePolicyError("checkpoint_reason_target_invalid")
+        receipt = self._session.get(ErasureBodyApplicationRow, action_id)
+        if receipt is None:
+            raise SourcePolicyError("body_action_missing")
+        try:
+            approved = decode_body_action(receipt.action)
+        except (ValueError, TypeError, KeyError, RecursionError):
+            raise SourcePolicyError("body_action_target_mismatch") from None
+        if not isinstance(approved, CheckpointReasonAction) or (
+            approved.action_id != receipt.action_id
+            or approved.floor_id != receipt.floor_id
+            or approved.proposal.scope.identity_id != receipt.identity_id
+            or receipt.root_message_id is not None
+            or approved.proposal.scope.lineage_id != receipt.lineage_id
+            or approved.proposal.request_id != receipt.request_id
+            or approved.result_body_revision != receipt.body_revision
+            or any(target not in approved.proposal.targets for target in targets)
+        ):
+            raise SourcePolicyError("body_action_target_mismatch")
+        index = read_checkpoint_reason_material(
+            self._session,
+            tuple(target.selector for target in targets),
+            scope=approved.proposal.scope,
+            require_terminal=False,
+        )
+        for target in targets:
+            owner = index.rows.get(target.selector.key)
+            if (
+                owner is None
+                or owner["reason_state"] != "available"
+                or owner["reason_action_id"] is not None
+                or owner["identity_id"] != approved.proposal.scope.identity_id
+                or index.digest(target.selector, terminal=False) != target.body_digest
+                or index.digest(target.selector, terminal=True) != target.terminal_digest
+                or index.metadata_reference_count(target.selector)
+                != target.metadata_reference_count
+            ):
+                raise SourcePolicyError("body_owner_state_changed")
+            index.check_scope(target.selector, approved.proposal.scope)
+        connection = self._session.connection()
+        for target in targets:
+            table, key = (
+                ("personality_checkpoint_approvals", "approval_id")
+                if target.selector.kind is CheckpointReasonKind.CHECKPOINT_APPROVAL
+                else ("personality_restore_events", "restore_id")
+            )
+            changed = connection.exec_driver_sql(
+                f"UPDATE {table} SET reason=NULL,reason_state='erased',reason_action_id=? "
+                f"WHERE {key}=? AND reason_state='available' AND reason_action_id IS NULL",
+                (action_id, target.selector.record_id),
+            )
+            if changed.rowcount != 1:
+                raise SourcePolicyError("body_owner_state_changed")
+        self._session.expire_all()
 
     def list_evolution_records(self, identity_id: str) -> tuple[PersonalityEvolutionRecord, ...]:
         rows = self._session.execute(
@@ -291,7 +465,16 @@ class SQLAlchemyPersonalityRepository:
         """Re-resolve V3 provenance independently of generation-context assembly."""
 
         run = self._session.get(ReflectionRunRow, reflection_run_id)
-        proposal_row = self._session.get(ReflectionProposalRow, reflection_proposal_id)
+        proposal_row = self._session.scalar(
+            select(ReflectionProposalRow)
+            .where(
+                ReflectionProposalRow.proposal_id == reflection_proposal_id,
+                ReflectionProposalRow.body_state == "available",
+                ReflectionProposalRow.body_action_id.is_(None),
+                ReflectionProposalRow.payload.is_not(None),
+            )
+            .execution_options(populate_existing=True)
+        )
         if (
             run is None
             or run.identity_id != identity_id
@@ -307,6 +490,10 @@ class SQLAlchemyPersonalityRepository:
             or proposal_row.target_owner != ReflectionTargetOwner.PERSONALITY.value
         ):
             raise ValueError("personality proposal is absent from the target V3 run")
+        if not eligible_payload(self._session, "reflection_proposal", proposal_row.proposal_id):
+            raise ValueError("personality_source_ineligible")
+        if proposal_row.payload is None:
+            raise ValueError("personality_source_ineligible")
         stored_payload = dict(proposal_row.payload)
         stored_target = stored_payload.pop("target_owner", None)
         expected_payload = proposal.model_dump(mode="json")
@@ -373,9 +560,11 @@ class SQLAlchemyPersonalityRepository:
         identity_id: str,
         trace_id: str,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool:
         """Atomically store the terminal outcome and optional owner-approved evolution."""
 
+        require_source_inputs(self._session, source_input_id)
         accepted = outcome.decision is ReflectionOutcomeDecision.ACCEPTED
         if accepted != (evolution is not None):
             raise ValueError("personality outcome and evolution write disagree")
@@ -415,24 +604,31 @@ class SQLAlchemyPersonalityRepository:
                 identity_id=identity_id,
             )
         self._session.add(
-            AuditEventRow(
-                event_id=audit_event_id,
-                schema_version=1,
-                event_type=f"reflection.personality_{outcome.decision.value}",
-                aggregate_type="personality",
-                aggregate_id=identity_id,
-                occurred_at=outcome.decided_at,
-                trace_id=trace_id,
-                details={
-                    "outcome_id": outcome.outcome_id,
-                    "proposal_id": outcome.proposal_id,
-                    "target_policy_version": outcome.target_policy_version,
-                    "reason_code": outcome.reason_code,
-                    "revision_id": revision_id,
-                    "aggregate_version": aggregate_version,
-                    "evidence_ids": evidence_ids,
-                    "evidence_count": len(evidence_ids),
-                },
+            bind_metadata(
+                self._session,
+                AuditEventRow(
+                    event_id=audit_event_id,
+                    schema_version=1,
+                    event_type=f"reflection.personality_{outcome.decision.value}",
+                    aggregate_type="personality",
+                    aggregate_id=identity_id,
+                    occurred_at=outcome.decided_at,
+                    trace_id=trace_id,
+                    details={
+                        "outcome_id": outcome.outcome_id,
+                        "proposal_id": outcome.proposal_id,
+                        "target_policy_version": outcome.target_policy_version,
+                        "reason_code": outcome.reason_code,
+                        "revision_id": revision_id,
+                        "aggregate_version": aggregate_version,
+                        "evidence_ids": evidence_ids,
+                        "evidence_count": len(evidence_ids),
+                    },
+                ),
+                family=AuditMetadataFamily.REFLECTION_PERSONALITY,
+                identity_id=identity_id,
+                owner_record_id=outcome.outcome_id,
+                source_input_id=source_input_id,
             )
         )
         return True
@@ -473,20 +669,26 @@ class SQLAlchemyPersonalityRepository:
         if self._session.execute(statement).scalar_one_or_none() is None:
             return False
         self._session.add(
-            AuditEventRow(
-                event_id=audit_event_id,
-                schema_version=1,
-                event_type="personality.checkpoint_approved",
-                aggregate_type="personality",
-                aggregate_id=approval.identity_id,
-                occurred_at=approval.approved_at,
-                trace_id=trace_id,
-                details={
-                    "approval_id": approval.approval_id,
-                    "checkpoint_id": approval.checkpoint_id,
-                    "checkpoint_hash": approval.checkpoint_hash,
-                    "aggregate_version": approval.expected_aggregate_version,
-                },
+            bind_metadata(
+                self._session,
+                AuditEventRow(
+                    event_id=audit_event_id,
+                    schema_version=1,
+                    event_type="personality.checkpoint_approved",
+                    aggregate_type="personality",
+                    aggregate_id=approval.identity_id,
+                    occurred_at=approval.approved_at,
+                    trace_id=trace_id,
+                    details={
+                        "approval_id": approval.approval_id,
+                        "checkpoint_id": approval.checkpoint_id,
+                        "checkpoint_hash": approval.checkpoint_hash,
+                        "aggregate_version": approval.expected_aggregate_version,
+                    },
+                ),
+                family=AuditMetadataFamily.CHECKPOINT_APPROVAL,
+                identity_id=approval.identity_id,
+                owner_record_id=approval.approval_id,
             )
         )
         return True
@@ -603,24 +805,30 @@ class SQLAlchemyPersonalityRepository:
             )
         )
         self._session.add(
-            AuditEventRow(
-                event_id=audit_event_id,
-                schema_version=1,
-                event_type="personality.checkpoint_restored",
-                aggregate_type="personality",
-                aggregate_id=identity_id,
-                occurred_at=restored_at,
-                trace_id=trace_id,
-                details={
-                    "restore_id": restore.restore_id,
-                    "revision_id": restore.revision_id,
-                    "source_checkpoint_id": restore.source_checkpoint.checkpoint_id,
-                    "source_checkpoint_hash": restore.source_checkpoint.checkpoint_hash,
-                    "resulting_checkpoint_id": restore.resulting_checkpoint.checkpoint_id,
-                    "before_aggregate_version": before.aggregate_version,
-                    "after_aggregate_version": after.aggregate_version,
-                    "changed_trait_keys": [item.trait_key for item in diffs],
-                },
+            bind_metadata(
+                self._session,
+                AuditEventRow(
+                    event_id=audit_event_id,
+                    schema_version=1,
+                    event_type="personality.checkpoint_restored",
+                    aggregate_type="personality",
+                    aggregate_id=identity_id,
+                    occurred_at=restored_at,
+                    trace_id=trace_id,
+                    details={
+                        "restore_id": restore.restore_id,
+                        "revision_id": restore.revision_id,
+                        "source_checkpoint_id": restore.source_checkpoint.checkpoint_id,
+                        "source_checkpoint_hash": restore.source_checkpoint.checkpoint_hash,
+                        "resulting_checkpoint_id": restore.resulting_checkpoint.checkpoint_id,
+                        "before_aggregate_version": before.aggregate_version,
+                        "after_aggregate_version": after.aggregate_version,
+                        "changed_trait_keys": [item.trait_key for item in diffs],
+                    },
+                ),
+                family=AuditMetadataFamily.PERSONALITY_RESTORE,
+                identity_id=identity_id,
+                owner_record_id=restore.restore_id,
             )
         )
 
@@ -646,8 +854,11 @@ class SQLAlchemyPersonalityRepository:
             message is None
             or interaction is None
             or conversation_session is None
+            or not conversation_session.scope_verified
             or message.role != "user"
             or message.interaction_id != interaction.interaction_id
+            or message.session_id != interaction.session_id
+            or not eligible_root(self._session, record.root_message_id)
             or interaction.status != "completed"
             or conversation_session.identity_id != run.identity_id
             or conversation_session.counterparty_id != record.root_counterparty_id
@@ -662,6 +873,10 @@ class SQLAlchemyPersonalityRepository:
             if (
                 edge is None
                 or position is None
+                or position.body_state != "available"
+                or position.body_action_id is not None
+                or edge.quote is None
+                or edge.normalized_signature is None
                 or position.identity_id != run.identity_id
                 or edge.source_message_id != message.message_id
                 or edge.source_interaction_id != interaction.interaction_id
@@ -682,10 +897,19 @@ class SQLAlchemyPersonalityRepository:
             )
             if (
                 memory_edge is None
+                or memory_edge.quote is None
+                or memory_edge.body_state != "available"
                 or memory is None
                 or memory_edge.source_message_id != message.message_id
                 or memory.source_interaction_id != interaction.interaction_id
                 or memory.lifecycle_status != "active"
+                or self._session.execute(
+                    select(EpisodicMemoryRow.memory_id).where(
+                        EpisodicMemoryRow.memory_id == memory.memory_id,
+                        admitted_episode_predicate(self._session, None),
+                    )
+                ).scalar_one_or_none()
+                is None
                 or memory.importance < 0.65
                 or record.upstream_lineage_kind != ReflectionLineageKind.EPISODIC_MEMORY.value
                 or record.upstream_lineage_id != memory.memory_id
@@ -699,7 +923,7 @@ class SQLAlchemyPersonalityRepository:
         if (
             record.evidence_edge_version != 1
             or record.observed_at != observed_at
-            or quote not in message.content
+            or quote not in require_live_message_content(message)
             or hashlib.sha256(quote.encode("utf-8")).hexdigest() != record.content_hash
         ):
             raise ValueError("personality source edge version, time, or content hash changed")
@@ -766,9 +990,20 @@ class SQLAlchemyPersonalityRepository:
         self._validate_checkpoint(evolution.source_checkpoint)
         self._validate_checkpoint(evolution.resulting_checkpoint)
         accepted_ids = {item.source_id for item in plan.accepted_sources}
-        proposal_row = self._session.get(ReflectionProposalRow, evolution.reflection_proposal_id)
+        proposal_row = self._session.scalar(
+            select(ReflectionProposalRow)
+            .where(
+                ReflectionProposalRow.proposal_id == evolution.reflection_proposal_id,
+                ReflectionProposalRow.body_state == "available",
+                ReflectionProposalRow.body_action_id.is_(None),
+                ReflectionProposalRow.payload.is_not(None),
+            )
+            .execution_options(populate_existing=True)
+        )
         if proposal_row is None or proposal_row.run_id != evolution.reflection_run_id:
             raise ValueError("persisted personality proposal lineage is invalid")
+        if proposal_row.payload is None:
+            raise ValueError("personality_source_ineligible")
         persisted_payload = dict(proposal_row.payload)
         persisted_payload.pop("target_owner", None)
         persisted_proposal = PersonalityChangeProposal.model_validate_json(
@@ -1107,6 +1342,12 @@ class SQLAlchemyPersonalityRepository:
     def _map_approval(
         row: PersonalityCheckpointApprovalRow,
     ) -> PersonalityCheckpointApprovalRecord:
+        if (
+            row.reason_state != "available"
+            or not isinstance(row.reason, str)
+            or not row.reason.strip()
+        ):
+            raise SourcePolicyError("checkpoint_reason_unavailable")
         return PersonalityCheckpointApprovalRecord(
             approval_id=row.approval_id,
             identity_id=row.identity_id,
@@ -1119,6 +1360,12 @@ class SQLAlchemyPersonalityRepository:
 
     @staticmethod
     def _map_restore(row: PersonalityRestoreEventRow) -> PersonalityRestoreEventRecord:
+        if (
+            row.reason_state != "available"
+            or not isinstance(row.reason, str)
+            or not row.reason.strip()
+        ):
+            raise SourcePolicyError("checkpoint_reason_unavailable")
         return PersonalityRestoreEventRecord(
             restore_id=row.restore_id,
             revision_id=row.revision_id,

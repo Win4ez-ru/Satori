@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "corpus_id": "assistant-calendar-requests-v1",
+  "provenance": "public-synthetic; authored for offline routing evaluation; no user or source content",
+  "cases": [
+    {
+      "id": "planned_tomorrow",
+      "text": "Что у меня запланировано на завтра?",
+      "kind": "calendar_agenda",
+      "day_offset": 1
+    },
+    {
+      "id": "planned_today",
+      "text": "Что у меня запланировано сегодня?",
+      "kind": "calendar_agenda",
+      "day_offset": 0
+    },
+    {
+      "id": "planned_no_preposition",
+      "text": "Что у меня запланировано завтра?",
+      "kind": "calendar_agenda",
+      "day_offset": 1
+    },
+    {
+      "id": "planned_subject_order",
+      "text": "Что запланировано у меня на завтра?",
+      "kind": "calendar_agenda",
+      "day_offset": 1
+    },
+    {
+      "id": "planned_day_order",
+      "text": "Что у меня завтра запланировано?",
+      "kind": "calendar_agenda",
+      "day_offset": 1
+    },
+    {
+      "id": "planned_calendar_suffix",
+      "text": "Что у меня запланировано сегодня в календаре?",
+      "kind": "calendar_agenda",
+      "day_offset": 0
+    },
+    {
+      "id": "planned_case",
+      "text": "ЧТО У МЕНЯ ЗАПЛАНИРОВАНО НА ЗАВТРА?",
+      "kind": "calendar_agenda",
+      "day_offset": 1
+    },
+    {
+      "id": "planned_whitespace",
+      "text": "  Что  у меня\n запланировано на завтра?  ",
+      "kind": "calendar_agenda",
+      "day_offset": 1
+    },
+    {
+      "id": "free_tomorrow",
+      "text": "Есть ли у меня свободное время завтра?",
+      "kind": "calendar_gaps",
+      "day_offset": 1
+    },
+    {
+      "id": "free_day_order",
+      "text": "Есть ли у меня завтра свободное время?",
+      "kind": "calendar_gaps",
+      "day_offset": 1
+    },
+    {
+      "id": "free_without_li",
+      "text": "Есть у меня свободное окно сегодня?",
+      "kind": "calendar_gaps",
+      "day_offset": 0
+    },
+    {
+      "id": "free_windows",
+      "text": "Есть ли у меня сегодня свободные окна?",
+      "kind": "calendar_gaps",
+      "day_offset": 0
+    },
+    {
+      "id": "free_short_windows",
+      "text": "Есть ли у меня окна завтра?",
+      "kind": "calendar_gaps",
+      "day_offset": 1
+    },
+    {
+      "id": "free_case",
+      "text": "ЕСТЬ ЛИ У МЕНЯ СВОБОДНОЕ ВРЕМЯ СЕГОДНЯ?",
+      "kind": "calendar_gaps",
+      "day_offset": 0
+    },
+    {
+      "id": "free_single_window",
+      "text": "Есть ли у меня свободное окно завтра?",
+      "kind": "calendar_gaps",
+      "day_offset": 1
+    },
+    {
+      "id": "free_plural_suffix",
+      "text": "Есть ли у меня свободные окна завтра?",
+      "kind": "calendar_gaps",
+      "day_offset": 1
+    },
+    {
+      "id": "existing_plans",
+      "text": "Какие у меня планы на завтра?",
+      "kind": "calendar_agenda",
+      "day_offset": 1
+    },
+    {
+      "id": "existing_today",
+      "text": "Что у меня сегодня?",
+      "kind": "calendar_agenda",
+      "day_offset": 0
+    },
+    {
+      "id": "existing_calendar",
+      "text": "Покажи календарь на завтра?",
+      "kind": "calendar_agenda",
+      "day_offset": 1
+    },
+    {
+      "id": "existing_gaps",
+      "text": "Когда у меня завтра свободное время?",
+      "kind": "calendar_gaps",
+      "day_offset": 1
+    },
+    {
+      "id": "existing_windows",
+      "text": "Покажи мои свободные окна сегодня?",
+      "kind": "calendar_gaps",
+      "day_offset": 0
+    },
+    {
+      "id": "existing_day_first",
+      "text": "Какие сегодня свободные окна?",
+      "kind": "calendar_gaps",
+      "day_offset": 0
+    },
+    {
+      "id": "conflicting_free_days",
+      "text": "Есть ли у меня сегодня свободное время завтра?",
+      "kind": "clarification",
+      "day_offset": null
+    },
+    {
+      "id": "existing_conflicting_days",
+      "text": "Когда сегодня свободные окна завтра?",
+      "kind": "clarification",
+      "day_offset": null
+    },
+    {
+      "id": "existing_missing_year",
+      "text": "Что в календаре 1 ноября?",
+      "kind": "clarification",
+      "day_offset": null
+    },
+    {
+      "id": "existing_reminder_time",
+      "text": "Напомни завтра вечером купить чай",
+      "kind": "clarification",
+      "day_offset": 1
+    },
+    {
+      "id": "negated_show",
+      "text": "Не показывай, что у меня запланировано на завтра",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "negated_free",
+      "text": "Не говори, есть ли у меня свободное время завтра?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "negative_planned",
+      "text": "Что у меня не запланировано на завтра?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "unsupported_negative_form",
+      "text": "Нет ли у меня завтра свободного времени?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "reported_speech",
+      "text": "Я спросил: что у меня запланировано на завтра?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "quoted_agenda",
+      "text": "«Что у меня запланировано на завтра?»",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "quoted_free",
+      "text": "\"Есть ли у меня свободное время завтра?\"",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "example_prefix",
+      "text": "Напиши пример: Есть ли у меня свободное время завтра?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "compound_delete",
+      "text": "Что у меня запланировано на завтра? Потом удали все встречи.",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "compound_booking",
+      "text": "Есть ли у меня свободное время завтра и забронируй кафе",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "conditional_request",
+      "text": "Если у меня будет свободное время завтра, напомни про чай",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "unsupported_day_after",
+      "text": "Что у меня запланировано на послезавтра?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "unsupported_iso",
+      "text": "Что у меня запланировано на 2026-11-03?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "unsupported_week",
+      "text": "Есть ли у меня свободное время на следующей неделе?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "unsupported_weekday",
+      "text": "Есть ли у меня свободное время в понедельник?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "missing_planned_day",
+      "text": "Что у меня запланировано?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "missing_free_day",
+      "text": "Есть ли у меня свободное время?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "ordinary_opinion",
+      "text": "Что ты думаешь о свободном времени?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "ordinary_greeting",
+      "text": "Привет",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "memory_question",
+      "text": "Напомни, что у меня запланировано на завтра?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "unsupported_filter",
+      "text": "Какие встречи у меня завтра?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "unsupported_count",
+      "text": "Сколько встреч у меня завтра?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "conditional_calendar",
+      "text": "Есть ли у меня свободное время завтра, если отменить работу?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "alternative_days",
+      "text": "Что у меня запланировано сегодня или завтра?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "unsupported_scope",
+      "text": "Что у меня запланировано завтра в другом календаре?",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "example_suffix",
+      "text": "Что у меня запланировано на завтра? Это пример для документации.",
+      "kind": null,
+      "day_offset": null
+    },
+    {
+      "id": "compound_days",
+      "text": "Что у меня запланировано на завтра и на сегодня?",
+      "kind": null,
+      "day_offset": null
+    }
+  ]
+}

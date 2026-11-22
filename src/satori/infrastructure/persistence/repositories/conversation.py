@@ -2,26 +2,88 @@
 
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import exists, literal, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.selectable import Select
 
+from satori.core.conversation import ConversationProviderFailureReason
 from satori.domain.conversation_history import (
     ConversationHistorySnapshot,
     ConversationInteraction,
+    ConversationInteractionHeader,
     ConversationSession,
+    DialogueBodyState,
     HistoricalMessage,
+    HistoricalMessageHeader,
     HistoricalMessageRole,
+    InteractionFailureMetadata,
     InteractionProviderMetadata,
     InteractionStatus,
     SessionKind,
     SessionStatus,
 )
+from satori.domain.erasure_dialogue import (
+    MAX_DIALOGUE_TARGETS,
+    DialogueBodyAction,
+    DialogueBodyTarget,
+)
+from satori.domain.memory_scope import MemoryScope
+from satori.domain.source_policy import SourcePolicyError
+from satori.infrastructure.persistence.canonical_provenance import dialogue_message_digest
+from satori.infrastructure.persistence.erasure_body_codec import decode_body_action
+from satori.infrastructure.persistence.memory_scope import admitted_interaction_predicate
 from satori.infrastructure.persistence.models.conversation import (
     ConversationInteractionRow,
     ConversationMessageRow,
     ConversationSessionRow,
 )
+from satori.infrastructure.persistence.models.erasure_bodies import ErasureBodyApplicationRow
+from satori.infrastructure.persistence.source_policy import (
+    eligible_payload,
+    eligible_root,
+    payload_admission_predicate,
+    policy_snapshot,
+    record_payload,
+    require_source_inputs,
+    root_admission_predicate,
+)
+
+type _HeaderValues = tuple[str, str, str, int, str, datetime, int, str, str | None]
+
+
+def _admitted(session: Session) -> ColumnElement[bool]:
+    user = ConversationMessageRow.__table__.alias()
+    assistant = ConversationMessageRow.__table__.alias()
+    return exists(
+        select(user.c.message_id).where(
+            user.c.interaction_id == ConversationInteractionRow.interaction_id,
+            user.c.session_id == ConversationInteractionRow.session_id,
+            user.c.role == "user",
+            user.c.sequence == 1,
+            user.c.body_state == "available",
+            user.c.body_action_id.is_(None),
+            user.c.content.is_not(None),
+            root_admission_predicate(session, user.c.message_id),
+        )
+    ).correlate(ConversationInteractionRow) & or_(
+        ConversationInteractionRow.status != "completed",
+        exists(
+            select(assistant.c.message_id).where(
+                assistant.c.interaction_id == ConversationInteractionRow.interaction_id,
+                assistant.c.session_id == ConversationInteractionRow.session_id,
+                assistant.c.role == "assistant",
+                assistant.c.sequence == 2,
+                assistant.c.body_state == "available",
+                assistant.c.body_action_id.is_(None),
+                assistant.c.content.is_not(None),
+            )
+        )
+        & payload_admission_predicate(
+            session, "assistant_reply", ConversationInteractionRow.interaction_id, literal(1)
+        ),
+    )
 
 
 class SQLAlchemyConversationHistoryRepository:
@@ -41,6 +103,7 @@ class SQLAlchemyConversationHistoryRepository:
                 session_id=session.session_id,
                 identity_id=session.identity_id,
                 counterparty_id=session.counterparty_id,
+                scope_verified=session.scope_verified,
                 schema_version=session.schema_version,
                 kind=session.kind.value,
                 status=session.status.value,
@@ -79,6 +142,180 @@ class SQLAlchemyConversationHistoryRepository:
         row = self._session.get(ConversationInteractionRow, interaction_id)
         return self._map_interaction(row) if row is not None else None
 
+    def get_interaction_header(self, interaction_id: str) -> ConversationInteractionHeader | None:
+        """Select metadata only; the resulting header grants no source/body access."""
+
+        row = self._session.get(ConversationInteractionRow, interaction_id)
+        if row is None:
+            return None
+        snapshot = policy_snapshot(self._session)
+        if snapshot is not None:
+            partition = self._session.get(ConversationSessionRow, row.session_id)
+            if (
+                partition is None
+                or not partition.scope_verified
+                or (partition.identity_id != snapshot.identity_id)
+            ):
+                return None
+        headers = self._message_headers(interaction_id)
+        users = tuple(header for header in headers if header.role is HistoricalMessageRole.USER)
+        assistants = tuple(
+            header for header in headers if header.role is HistoricalMessageRole.ASSISTANT
+        )
+        if len(users) != 1 or len(assistants) > 1:
+            raise SourcePolicyError("dialogue_header_invalid")
+        return ConversationInteractionHeader(
+            interaction_id=row.interaction_id,
+            session_id=row.session_id,
+            status=InteractionStatus(row.status),
+            user_message=users[0],
+            assistant_message=assistants[0] if assistants else None,
+            relationship_processing_required=row.relationship_processing_required,
+            model_processing_required=row.model_processing_required,
+            position_processing_required=row.position_processing_required,
+        )
+
+    def get_erased_header(
+        self, message_id: str, *, scope: MemoryScope
+    ) -> HistoricalMessageHeader | None:
+        """Return one scoped terminal header without loading its former body."""
+
+        selected = (
+            self._session.execute(
+                self._header_query()
+                .join(
+                    ConversationInteractionRow,
+                    ConversationInteractionRow.interaction_id
+                    == ConversationMessageRow.interaction_id,
+                )
+                .join(ConversationSessionRow)
+                .where(
+                    ConversationMessageRow.message_id == message_id,
+                    ConversationMessageRow.session_id == ConversationInteractionRow.session_id,
+                    ConversationSessionRow.identity_id == scope.identity_id,
+                    ConversationSessionRow.counterparty_id == scope.counterparty_id,
+                    ConversationSessionRow.scope_verified.is_(True),
+                    ConversationMessageRow.body_state == "erased",
+                )
+            )
+            .tuples()
+            .first()
+        )
+        return self._map_header(selected) if selected is not None else None
+
+    def erase_bodies(self, targets: tuple[DialogueBodyTarget, ...], *, action_id: str) -> None:
+        """Apply only approved owner selectors within the caller's atomic transaction."""
+
+        if (
+            not 1 <= len(targets) <= MAX_DIALOGUE_TARGETS
+            or any(not isinstance(target, DialogueBodyTarget) for target in targets)
+            or len({target.message_id for target in targets}) != len(targets)
+        ):
+            raise SourcePolicyError("dialogue_body_target_invalid")
+        receipt = self._session.get(ErasureBodyApplicationRow, action_id)
+        if receipt is None:
+            raise SourcePolicyError("body_action_missing")
+        try:
+            approved = decode_body_action(receipt.action)
+        except (ValueError, TypeError, KeyError):
+            raise SourcePolicyError("body_action_target_mismatch") from None
+        if not isinstance(approved, DialogueBodyAction) or (
+            approved.action_id != receipt.action_id
+            or approved.floor_id != receipt.floor_id
+            or approved.proposal.root.identity_id != receipt.identity_id
+            or approved.proposal.root.message_id != receipt.root_message_id
+            or approved.proposal.root.lineage_id != receipt.lineage_id
+            or approved.proposal.request_id != receipt.request_id
+            or approved.result_body_revision != receipt.body_revision
+            or any(target not in approved.proposal.targets for target in targets)
+        ):
+            raise SourcePolicyError("body_action_target_mismatch")
+        for target in targets:
+            physical = (
+                self._session.connection()
+                .exec_driver_sql(
+                    "SELECT * FROM conversation_messages WHERE message_id=?", (target.message_id,)
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if physical is None or (
+                dialogue_message_digest(dict(physical)) != target.body_digest
+                or dialogue_message_digest(dict(physical), terminal=True) != target.terminal_digest
+            ):
+                raise SourcePolicyError("body_owner_state_changed")
+            row = self._session.get(
+                ConversationMessageRow, target.message_id, populate_existing=True
+            )
+            if (
+                row is None
+                or row.schema_version != target.schema_version
+                or row.body_state != "available"
+                or row.body_action_id is not None
+                or row.content is None
+                or not row.content.strip()
+            ):
+                raise SourcePolicyError("body_owner_state_changed")
+            pair = (
+                self._session.execute(
+                    select(
+                        ConversationMessageRow.session_id,
+                        ConversationMessageRow.role,
+                        ConversationMessageRow.sequence,
+                    ).where(ConversationMessageRow.interaction_id == row.interaction_id)
+                )
+                .tuples()
+                .all()
+            )
+            if len(pair) != 2 or set(pair) != {
+                (row.session_id, "user", 1),
+                (row.session_id, "assistant", 2),
+            }:
+                raise SourcePolicyError("body_action_target_mismatch")
+            partition = self._session.execute(
+                select(ConversationSessionRow.identity_id, ConversationSessionRow.counterparty_id)
+                .join(
+                    ConversationInteractionRow,
+                    ConversationInteractionRow.session_id == ConversationSessionRow.session_id,
+                )
+                .where(
+                    ConversationInteractionRow.interaction_id == row.interaction_id,
+                    ConversationInteractionRow.session_id == row.session_id,
+                    ConversationInteractionRow.status == "completed",
+                    ConversationSessionRow.scope_verified.is_(True),
+                )
+            ).one_or_none()
+            if (
+                partition is None
+                or tuple(partition)
+                != (
+                    approved.proposal.root.identity_id,
+                    approved.proposal.root.counterparty_id,
+                )
+                or (
+                    row.role == "user"
+                    and (row.sequence != 1 or row.message_id != approved.proposal.root.message_id)
+                )
+                or (row.role == "assistant" and row.sequence != 2)
+            ):
+                raise SourcePolicyError("body_action_target_mismatch")
+        for target in targets:
+            changed = self._session.execute(
+                update(ConversationMessageRow)
+                .where(
+                    ConversationMessageRow.message_id == target.message_id,
+                    ConversationMessageRow.schema_version == target.schema_version,
+                    ConversationMessageRow.body_state == "available",
+                    ConversationMessageRow.body_action_id.is_(None),
+                    ConversationMessageRow.content.is_not(None),
+                )
+                .values(content=None, body_state="erased", body_action_id=action_id)
+                .returning(ConversationMessageRow.message_id)
+            ).scalar_one_or_none()
+            if changed is None:
+                raise SourcePolicyError("body_owner_state_changed")
+        self._session.expire_all()
+
     def add_interaction(self, interaction: ConversationInteraction) -> bool:
         if interaction.status is not InteractionStatus.PENDING:
             raise ValueError("new interaction must be pending")
@@ -104,14 +341,20 @@ class SQLAlchemyConversationHistoryRepository:
         self._session.add(self._message_row(interaction.user_message))
         return True
 
-    def mark_failed(self, interaction_id: str, *, failure_kind: str) -> None:
+    def mark_failed(self, interaction_id: str, *, failure: InteractionFailureMetadata) -> None:
         self._session.execute(
             update(ConversationInteractionRow)
             .where(
                 ConversationInteractionRow.interaction_id == interaction_id,
                 ConversationInteractionRow.status != InteractionStatus.COMPLETED.value,
             )
-            .values(status=InteractionStatus.FAILED.value, failure_kind=failure_kind)
+            .values(
+                status=InteractionStatus.FAILED.value,
+                failure_kind=failure.kind,
+                failure_reason=(failure.reason.value if failure.reason is not None else None),
+                provider=failure.provider,
+                model=failure.model,
+            )
         )
         current = self._session.get(ConversationInteractionRow, interaction_id)
         if current is None:
@@ -125,12 +368,18 @@ class SQLAlchemyConversationHistoryRepository:
         completed_at: datetime,
         provider_metadata: InteractionProviderMetadata,
         close_session: bool,
+        source_input_id: str | None = None,
     ) -> ConversationInteraction:
+        require_source_inputs(self._session, source_input_id)
         row = self._session.get(ConversationInteractionRow, interaction_id)
         if row is None:
             raise RuntimeError("interaction is missing during finalize")
+        header = self.get_interaction_header(interaction_id)
+        if header is not None and header.has_terminal_body:
+            raise SourcePolicyError("dialogue_body_unavailable")
         if row.status == InteractionStatus.COMPLETED.value:
             return self._map_interaction(row)
+        record_payload(self._session, "assistant_reply", interaction_id, 1, source_input_id)
         self._session.add(self._message_row(assistant_message))
         self._session.flush()
         row.status = InteractionStatus.COMPLETED.value
@@ -183,6 +432,7 @@ class SQLAlchemyConversationHistoryRepository:
         )
         row.relationship_state_version = provider_metadata.relationship_state_version
         row.failure_kind = None
+        row.failure_reason = None
         if close_session:
             self._session.execute(
                 update(ConversationSessionRow)
@@ -195,9 +445,20 @@ class SQLAlchemyConversationHistoryRepository:
         self._session.flush()
         return self._map_interaction(row)
 
-    def get_history(self, *, session_id: str | None = None) -> ConversationHistorySnapshot:
-        session_query = select(ConversationSessionRow)
-        interaction_query = select(ConversationInteractionRow)
+    def get_history(
+        self, *, scope: MemoryScope, session_id: str | None = None
+    ) -> ConversationHistorySnapshot:
+        partition = (
+            ConversationSessionRow.identity_id == scope.identity_id,
+            ConversationSessionRow.counterparty_id == scope.counterparty_id,
+            ConversationSessionRow.scope_verified.is_(True),
+        )
+        session_query = select(ConversationSessionRow).where(*partition)
+        interaction_query = (
+            select(ConversationInteractionRow)
+            .join(ConversationSessionRow)
+            .where(*partition, _admitted(self._session))
+        )
         if session_id is not None:
             session_query = session_query.where(ConversationSessionRow.session_id == session_id)
             interaction_query = interaction_query.where(
@@ -226,6 +487,7 @@ class SQLAlchemyConversationHistoryRepository:
     def list_recent_completed(
         self,
         *,
+        scope: MemoryScope,
         session_id: str,
         excluded_interaction_id: str,
         limit: int,
@@ -235,10 +497,15 @@ class SQLAlchemyConversationHistoryRepository:
         rows = tuple(
             self._session.execute(
                 select(ConversationInteractionRow)
+                .join(ConversationSessionRow)
                 .where(
+                    ConversationSessionRow.identity_id == scope.identity_id,
+                    ConversationSessionRow.counterparty_id == scope.counterparty_id,
+                    ConversationSessionRow.scope_verified.is_(True),
                     ConversationInteractionRow.session_id == session_id,
                     ConversationInteractionRow.status == InteractionStatus.COMPLETED.value,
                     ConversationInteractionRow.interaction_id != excluded_interaction_id,
+                    admitted_interaction_predicate(self._session, scope),
                 )
                 .order_by(
                     ConversationInteractionRow.started_at.desc(),
@@ -249,7 +516,38 @@ class SQLAlchemyConversationHistoryRepository:
         )
         return tuple(self._map_interaction(row) for row in reversed(rows))
 
+    def get_latest_completed_header(
+        self,
+        *,
+        scope: MemoryScope,
+        session_id: str,
+        excluded_interaction_id: str,
+    ) -> ConversationInteractionHeader | None:
+        """Inspect one scoped slot without filtering admission or loading body content."""
+
+        interaction_id = self._session.execute(
+            select(ConversationInteractionRow.interaction_id)
+            .join(ConversationSessionRow)
+            .where(
+                ConversationSessionRow.identity_id == scope.identity_id,
+                ConversationSessionRow.counterparty_id == scope.counterparty_id,
+                ConversationSessionRow.scope_verified.is_(True),
+                ConversationInteractionRow.session_id == session_id,
+                ConversationInteractionRow.status == InteractionStatus.COMPLETED.value,
+                ConversationInteractionRow.interaction_id != excluded_interaction_id,
+            )
+            .order_by(
+                ConversationInteractionRow.started_at.desc(),
+                ConversationInteractionRow.interaction_id.desc(),
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+        return self.get_interaction_header(interaction_id) if interaction_id is not None else None
+
     def _map_interaction(self, row: ConversationInteractionRow) -> ConversationInteraction:
+        header = self.get_interaction_header(row.interaction_id)
+        if header is not None and header.has_terminal_body:
+            raise SourcePolicyError("dialogue_body_unavailable")
         message_rows = tuple(
             self._session.execute(
                 select(ConversationMessageRow)
@@ -263,7 +561,13 @@ class SQLAlchemyConversationHistoryRepository:
         )
         if len(user_messages) != 1 or len(assistant_messages) > 1:
             raise RuntimeError("persistent interaction has invalid raw-message cardinality")
+        if not eligible_root(self._session, user_messages[0].message_id) or (
+            row.status == "completed"
+            and not eligible_payload(self._session, "assistant_reply", row.interaction_id)
+        ):
+            raise SourcePolicyError("source_interaction_withheld")
         metadata = None
+        failure = None
         if row.status == InteractionStatus.COMPLETED.value:
             if (
                 row.provider is None
@@ -312,6 +616,20 @@ class SQLAlchemyConversationHistoryRepository:
                 relationship_context_schema_version=row.relationship_context_schema_version,
                 relationship_state_version=row.relationship_state_version,
             )
+        elif row.status == InteractionStatus.FAILED.value:
+            if row.failure_kind is None:
+                raise RuntimeError("failed interaction has no failure kind")
+            failure_reason = (
+                ConversationProviderFailureReason(row.failure_reason)
+                if row.failure_reason is not None
+                else None
+            )
+            failure = InteractionFailureMetadata(
+                kind=row.failure_kind,
+                reason=failure_reason,
+                provider=row.provider,
+                model=row.model,
+            )
         return ConversationInteraction(
             interaction_id=row.interaction_id,
             session_id=row.session_id,
@@ -326,7 +644,7 @@ class SQLAlchemyConversationHistoryRepository:
                 self._map_message(assistant_messages[0]) if assistant_messages else None
             ),
             provider_metadata=metadata,
-            failure_kind=row.failure_kind,
+            failure=failure,
             relationship_processing_required=row.relationship_processing_required,
             model_processing_required=row.model_processing_required,
             position_processing_required=row.position_processing_required,
@@ -343,10 +661,13 @@ class SQLAlchemyConversationHistoryRepository:
             started_at=row.started_at,
             ended_at=row.ended_at,
             counterparty_id=row.counterparty_id,
+            scope_verified=row.scope_verified,
         )
 
     @staticmethod
     def _map_message(row: ConversationMessageRow) -> HistoricalMessage:
+        if row.body_state != "available" or row.body_action_id is not None or row.content is None:
+            raise SourcePolicyError("dialogue_body_unavailable")
         return HistoricalMessage(
             message_id=row.message_id,
             session_id=row.session_id,
@@ -356,6 +677,49 @@ class SQLAlchemyConversationHistoryRepository:
             content=row.content,
             created_at=row.created_at,
             sequence=row.sequence,
+        )
+
+    @staticmethod
+    def _header_query() -> Select[_HeaderValues]:
+        return select(
+            ConversationMessageRow.message_id,
+            ConversationMessageRow.session_id,
+            ConversationMessageRow.interaction_id,
+            ConversationMessageRow.schema_version,
+            ConversationMessageRow.role,
+            ConversationMessageRow.created_at,
+            ConversationMessageRow.sequence,
+            ConversationMessageRow.body_state,
+            ConversationMessageRow.body_action_id,
+        )
+
+    def _message_headers(self, interaction_id: str) -> tuple[HistoricalMessageHeader, ...]:
+        selected = (
+            self._session.execute(
+                self._header_query()
+                .where(ConversationMessageRow.interaction_id == interaction_id)
+                .order_by(ConversationMessageRow.sequence)
+            )
+            .tuples()
+            .all()
+        )
+        return tuple(self._map_header(values) for values in selected)
+
+    @staticmethod
+    def _map_header(values: _HeaderValues) -> HistoricalMessageHeader:
+        message_id, session_id, owner_id, version, role, created_at, sequence, state, action = (
+            values
+        )
+        return HistoricalMessageHeader(
+            message_id,
+            session_id,
+            owner_id,
+            version,
+            HistoricalMessageRole(role),
+            created_at,
+            sequence,
+            DialogueBodyState(state),
+            action,
         )
 
     @staticmethod

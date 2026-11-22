@@ -10,15 +10,23 @@ from satori.application.affect.use_cases import (
     GetAffectiveStatus,
     PrepareAffectiveContext,
 )
+from satori.application.cognition.contracts import (
+    INTENT_REGISTRY_VERSION_V1,
+    INTENT_REGISTRY_VERSION_V2,
+)
 from satori.application.cognition.use_cases import (
     DeterministicCognitionPlanner,
     SafeCognitionPipeline,
 )
+from satori.application.conversation.character_agency import CharacterAgencyKernel
 from satori.application.conversation.coherence import SESSION_RECAP_MAX_RECENT_TURNS
 from satori.application.conversation.context import (
     CharacterContextComposer,
     ConversationRequestBuilder,
 )
+from satori.application.conversation.contracts import BehaviorPolicy
+from satori.application.conversation.current_position import PrepareCurrentPosition
+from satori.application.conversation.dialogue_relation import PreparePriorDialogueRelation
 from satori.application.conversation.grounding import ResponseGroundingGate
 from satori.application.conversation.history import (
     CloseConversationSession,
@@ -27,14 +35,16 @@ from satori.application.conversation.history import (
     InteractionLog,
     StartConversationSession,
 )
-from satori.application.conversation.policy import BEHAVIOR_POLICY_V10
+from satori.application.conversation.policy import BEHAVIOR_POLICY_V35
 from satori.application.conversation.post_processing import ProcessPostResponse
+from satori.application.conversation.repair_interpretation import PrepareRepairInterpretation
 from satori.application.conversation.use_cases import ConversationProvider, TalkToSatori
 from satori.application.initial_self.use_cases import (
     ActivateSatori,
     GetInitialSelfSnapshot,
     GetSatoriIdentity,
 )
+from satori.application.memory.lifecycle_use_cases import MemoryLifecycleControls
 from satori.application.memory.use_cases import (
     EpisodeFormationProvider,
     FormEpisodeForInteraction,
@@ -65,6 +75,7 @@ from satori.application.reflection.use_cases import (
     ProcessReflection,
 )
 from satori.application.relationship.use_cases import (
+    BackfillRelationships,
     EnsureRelationship,
     GetRelationshipForSession,
     GetRelationshipHistory,
@@ -86,11 +97,12 @@ from satori.application.semantic.use_cases import (
     RetrieveSemanticClaims,
     SemanticFormationProvider,
 )
-from satori.config import Settings
+from satori.config import Environment, Settings
 from satori.core.clock import Clock, SystemClock
 from satori.core.ids import IdGenerator, Uuid4Generator
 from satori.domain.affect import EmotionManager
 from satori.domain.memory import MemoryManager
+from satori.domain.memory_scope import MemoryScope
 from satori.domain.models import UserModelManager, WorldModelManager
 from satori.domain.personality_evolution import PersonalityManager
 from satori.domain.positions import PositionManager
@@ -150,6 +162,7 @@ class ConversationServices:
     close_session: CloseConversationSession
     history: GetConversationHistory
     memories: GetEpisodicMemories
+    memory_lifecycle: MemoryLifecycleControls
     retrieve_memories: RetrieveEpisodicMemories | None
     index_memories: IndexAllEpisodicMemories | None
     semantic_claims: GetSemanticClaims
@@ -160,6 +173,7 @@ class ConversationServices:
     relationship_status: GetRelationshipStatus
     relationship_history: GetRelationshipHistory
     process_relationship: ProcessRelationshipForInteraction | None
+    backfill_relationship: BackfillRelationships | None
     current_models: GetCurrentModels
     process_models: FormCurrentModels | None
     backfill_models: BackfillCurrentModels | None
@@ -198,6 +212,25 @@ def build_initial_self_services(
     )
 
 
+def build_memory_lifecycle_services(
+    database: Database,
+    *,
+    clock: Clock | None = None,
+    id_generator: IdGenerator | None = None,
+) -> MemoryLifecycleControls:
+    """Compose explicit owner controls without any provider or Character dependency."""
+
+    def unit_of_work_factory() -> SQLAlchemyEpisodicMemoryUnitOfWork:
+        return SQLAlchemyEpisodicMemoryUnitOfWork(database.session_factory)
+
+    return MemoryLifecycleControls(
+        unit_of_work_factory=unit_of_work_factory,
+        manager=MemoryManager(),
+        clock=clock or SystemClock(),
+        id_generator=id_generator or Uuid4Generator(),
+    )
+
+
 def build_conversation_services(
     database: Database,
     initial_self: InitialSelfServices,
@@ -214,11 +247,59 @@ def build_conversation_services(
     model_provider: ModelFormationProvider | None = None,
     position_provider: PositionFormationProvider | None = None,
     reflection_provider: ReflectionGenerationPort | None = None,
+    source_policy_required: bool = True,
+    behavior_policy: BehaviorPolicy = BEHAVIOR_POLICY_V35,
 ) -> ConversationServices:
     """Wire InteractionLog and MemoryManager to replaceable provider capabilities."""
 
+    if settings.conversation_current_position_enabled and (
+        behavior_policy.schema_version != 35
+        or settings.affective_appraisal_previous_exchange_enabled
+    ):
+        raise ValueError(
+            "current position candidate requires isolated V35 without appraisal context"
+        )
+    if settings.conversation_prior_dialogue_relation_enabled and (
+        behavior_policy.schema_version != 35
+        or settings.affective_appraisal_previous_exchange_enabled
+        or settings.conversation_current_position_enabled
+    ):
+        raise ValueError("prior dialogue relation candidate requires isolated V35")
+    if settings.conversation_repair_interpretation_enabled and (
+        behavior_policy.schema_version != 35
+        or settings.affective_appraisal_previous_exchange_enabled
+        or settings.conversation_current_position_enabled
+        or settings.conversation_prior_dialogue_relation_enabled
+    ):
+        raise ValueError("repair interpretation candidate requires isolated V35")
+    if not source_policy_required and settings.environment is not Environment.TEST:
+        raise ValueError("unmanaged composition is restricted to standalone core tests")
+    if source_policy_required:
+        from typing import cast
+
+        from satori.infrastructure.source_policy.installation import bind_installation
+        from satori.infrastructure.source_policy.runtime import SourcePolicyRuntime
+
+        configured = cast(
+            SourcePolicyRuntime | None,
+            database.session_factory.kw.get("info", {}).get("source_runtime"),
+        )
+        if configured is None:
+            bind_installation(database, settings.source_policy_directory)
+        else:
+            with configured.shared():
+                pass
+
     active_clock = clock or SystemClock()
     active_id_generator = id_generator or Uuid4Generator()
+
+    configured_counterparty_id = settings.default_counterparty_id
+
+    def current_memory_scope() -> MemoryScope:
+        return MemoryScope(
+            initial_self.get_self.execute().identity.identity_id,
+            configured_counterparty_id,
+        )
 
     def conversation_uow_factory() -> SQLAlchemyConversationHistoryUnitOfWork:
         return SQLAlchemyConversationHistoryUnitOfWork(database.session_factory)
@@ -434,6 +515,11 @@ def build_conversation_services(
         top_k=settings.position_context_top_k,
         max_context_chars=settings.position_context_max_chars,
     )
+    cognition_intent_registry_version = (
+        INTENT_REGISTRY_VERSION_V2
+        if behavior_policy.schema_version >= 24
+        else INTENT_REGISTRY_VERSION_V1
+    )
     talk = TalkToSatori(
         get_self=initial_self.get_self,
         context_composer=CharacterContextComposer(
@@ -441,10 +527,12 @@ def build_conversation_services(
             language_model=settings.conversation_model,
         ),
         request_builder=ConversationRequestBuilder(
-            policy=BEHAVIOR_POLICY_V10,
+            policy=behavior_policy,
             max_context_chars=settings.conversation_max_context_chars,
             temperature=settings.conversation_temperature,
             max_output_tokens=settings.conversation_max_output_tokens,
+            output_token_limit_floor=settings.conversation_output_token_limit_floor,
+            prior_dialogue_relation_enabled=settings.conversation_prior_dialogue_relation_enabled,
         ),
         grounding_gate=ResponseGroundingGate(),
         interaction_log=interaction_log,
@@ -454,17 +542,35 @@ def build_conversation_services(
         retrieve_memories=retrieve_memories,
         retrieve_semantic=retrieve_semantic,
         prepare_affect=prepare_affect,
+        appraisal_previous_exchange_enabled=settings.affective_appraisal_previous_exchange_enabled,
+        prepare_current_position=(
+            PrepareCurrentPosition(provider=provider)
+            if settings.conversation_current_position_enabled
+            else None
+        ),
+        prepare_prior_dialogue_relation=(
+            PreparePriorDialogueRelation(provider=provider)
+            if settings.conversation_prior_dialogue_relation_enabled
+            else None
+        ),
+        prepare_repair_interpretation=(
+            PrepareRepairInterpretation(provider=provider)
+            if settings.conversation_repair_interpretation_enabled
+            else None
+        ),
         finalize_affect=FinalizeAffectiveInteraction(
             unit_of_work_factory=affective_conversation_uow_factory,
             clock=active_clock,
             id_generator=active_id_generator,
         ),
         recent_conversation=GetRecentConversation(
+            scope_provider=current_memory_scope,
             unit_of_work_factory=conversation_uow_factory,
             max_turns=settings.recent_conversation_max_turns,
             max_chars=settings.recent_conversation_max_chars,
         ),
         recap_conversation=GetRecentConversation(
+            scope_provider=current_memory_scope,
             unit_of_work_factory=conversation_uow_factory,
             max_turns=SESSION_RECAP_MAX_RECENT_TURNS,
             max_chars=settings.recent_conversation_max_chars,
@@ -473,8 +579,15 @@ def build_conversation_services(
         get_current_models=get_current_models,
         get_positions=get_positions,
         cognition_pipeline=SafeCognitionPipeline(
-            planner=DeterministicCognitionPlanner(),
-            fallback=DeterministicCognitionPlanner(),
+            planner=DeterministicCognitionPlanner(
+                intent_registry_version=cognition_intent_registry_version
+            ),
+            fallback=DeterministicCognitionPlanner(
+                intent_registry_version=cognition_intent_registry_version
+            ),
+        ),
+        character_agency_kernel=(
+            CharacterAgencyKernel() if behavior_policy.schema_version >= 28 else None
         ),
     )
     return ConversationServices(
@@ -499,11 +612,19 @@ def build_conversation_services(
             default_counterparty_id=settings.default_counterparty_id,
         ),
         close_session=CloseConversationSession(
+            scope_provider=current_memory_scope,
             unit_of_work_factory=conversation_uow_factory,
             clock=active_clock,
         ),
-        history=GetConversationHistory(unit_of_work_factory=conversation_uow_factory),
-        memories=GetEpisodicMemories(unit_of_work_factory=memory_uow_factory),
+        history=GetConversationHistory(
+            unit_of_work_factory=conversation_uow_factory, scope_provider=current_memory_scope
+        ),
+        memories=GetEpisodicMemories(
+            unit_of_work_factory=memory_uow_factory, scope_provider=current_memory_scope
+        ),
+        memory_lifecycle=build_memory_lifecycle_services(
+            database, clock=active_clock, id_generator=active_id_generator
+        ),
         retrieve_memories=retrieve_memories,
         index_memories=index_memories,
         semantic_claims=GetSemanticClaims(unit_of_work_factory=semantic_uow_factory),
@@ -531,6 +652,14 @@ def build_conversation_services(
             ensure=ensure_relationship,
         ),
         process_relationship=process_relationship,
+        backfill_relationship=(
+            BackfillRelationships(
+                unit_of_work_factory=relationship_uow_factory,
+                process_relationship=process_relationship,
+            )
+            if process_relationship is not None
+            else None
+        ),
         current_models=get_current_models,
         process_models=form_models,
         backfill_models=(

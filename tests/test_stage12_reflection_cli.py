@@ -19,6 +19,7 @@ from satori.infrastructure.persistence.database import Database
 from satori.infrastructure.persistence.positions_uow import SQLAlchemyPositionsUnitOfWork
 from satori.infrastructure.persistence.reflection_uow import SQLAlchemyReflectionUnitOfWork
 from tests.fakes import FrozenClock
+from tests.source_policy_support import enroll_for_cli
 from tests.test_stage4_conversation_memory import INTERACTION_TIME, id_sequence
 from tests.test_stage12_reflection_integration import (
     FakeReflectionProvider,
@@ -98,6 +99,7 @@ def test_local_inspect_hides_quotes_until_explicit_opt_in(
     settings = Settings(
         environment=Environment.TEST,
         database_url=str(migrated_database.engine.url),
+        source_policy_directory=enroll_for_cli(migrated_database),
         log_level=LogLevel.WARNING,
     )
 
@@ -169,6 +171,7 @@ def test_local_process_resumes_applying_run_without_second_provider_call(
     settings = Settings(
         environment=Environment.TEST,
         database_url=str(migrated_database.engine.url),
+        source_policy_directory=enroll_for_cli(migrated_database),
         log_level=LogLevel.WARNING,
     )
     assert (

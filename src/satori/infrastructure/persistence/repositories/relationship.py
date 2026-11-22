@@ -4,11 +4,13 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import cast
 
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import and_, exists, literal, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from satori.application.relationship.ports import RelationshipSource
+from satori.domain.audit_metadata import AuditMetadataFamily
 from satori.domain.relationship import (
     RelationshipDecision,
     RelationshipDecisionKind,
@@ -18,6 +20,8 @@ from satori.domain.relationship import (
     RelationshipTransition,
     RelationshipVector,
 )
+from satori.infrastructure.persistence.audit_metadata_writer import bind_metadata
+from satori.infrastructure.persistence.memory_scope import require_live_message_content
 from satori.infrastructure.persistence.models.conversation import (
     ConversationInteractionRow,
     ConversationMessageRow,
@@ -29,11 +33,83 @@ from satori.infrastructure.persistence.models.relationship import (
     RelationshipStateRow,
     RelationshipTransitionRow,
 )
+from satori.infrastructure.persistence.source_policy import (
+    policy_snapshot,
+    record_owner_withdrawal,
+    require_source_inputs,
+    root_admission_predicate,
+)
 
 
 class SQLAlchemyRelationshipRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def withdraw_source_support(
+        self,
+        *,
+        excluded_message_ids: frozenset[str],
+        request_id: str,
+        policy_generation: int,
+        now: datetime,
+    ) -> None:
+        snapshot = policy_snapshot(self._session)
+        if snapshot is None or not excluded_message_ids:
+            return
+        decided = (
+            select(RelationshipDecisionRow.decision_id)
+            .where(
+                RelationshipDecisionRow.interaction_id == ConversationInteractionRow.interaction_id
+            )
+            .exists()
+        )
+        rows = self._session.execute(
+            select(ConversationInteractionRow.interaction_id, ConversationMessageRow.message_id)
+            .join(
+                ConversationSessionRow,
+                ConversationSessionRow.session_id == ConversationInteractionRow.session_id,
+            )
+            .join(
+                ConversationMessageRow,
+                and_(
+                    ConversationMessageRow.interaction_id
+                    == ConversationInteractionRow.interaction_id,
+                    ConversationMessageRow.session_id == ConversationInteractionRow.session_id,
+                    ConversationMessageRow.role == "user",
+                ),
+            )
+            .where(
+                ConversationSessionRow.identity_id == snapshot.identity_id,
+                ConversationInteractionRow.status == "completed",
+                ConversationInteractionRow.relationship_processing_required.is_(True),
+                ConversationMessageRow.message_id.in_(excluded_message_ids),
+                ~decided,
+            )
+        )
+        for interaction_id, message_id in rows:
+            record_owner_withdrawal(
+                self._session,
+                owner="relationship_backlog",
+                aggregate_id=interaction_id,
+                request_id=request_id,
+                policy_generation=policy_generation,
+                before_status="undecided",
+                after_status="excluded",
+                before_version=1,
+                after_version=1,
+                root_message_ids=(message_id,),
+                now=now,
+            )
+
+    def _source_admitted(self) -> ColumnElement[bool]:
+        return exists(
+            select(ConversationMessageRow.message_id).where(
+                ConversationMessageRow.interaction_id == ConversationInteractionRow.interaction_id,
+                ConversationMessageRow.session_id == ConversationInteractionRow.session_id,
+                ConversationMessageRow.role == "user",
+                root_admission_predicate(self._session, ConversationMessageRow.message_id),
+            )
+        )
 
     def get_state(self, identity_id: str, counterparty_id: str) -> RelationshipState | None:
         row = self._session.execute(
@@ -71,6 +147,11 @@ class SQLAlchemyRelationshipRepository:
             .where(
                 ConversationInteractionRow.interaction_id == interaction_id,
                 ConversationInteractionRow.status == "completed",
+                ConversationMessageRow.session_id == ConversationInteractionRow.session_id,
+                ConversationSessionRow.scope_verified.is_(True)
+                if policy_snapshot(self._session) is not None
+                else literal(True),
+                root_admission_predicate(self._session, ConversationMessageRow.message_id),
             )
         ).one_or_none()
         if row is None:
@@ -81,7 +162,7 @@ class SQLAlchemyRelationshipRepository:
         return RelationshipSource(
             interaction_id=interaction.interaction_id,
             user_message_id=message.message_id,
-            user_content=message.content,
+            user_content=require_live_message_content(message),
             session_id=interaction.session_id,
             identity_id=session.identity_id,
             counterparty_id=session.counterparty_id,
@@ -123,6 +204,10 @@ class SQLAlchemyRelationshipRepository:
                 ConversationInteractionRow.status == "completed",
                 ConversationInteractionRow.relationship_processing_required.is_(True),
                 ~decision_exists,
+                self._source_admitted(),
+                ConversationSessionRow.scope_verified.is_(True)
+                if policy_snapshot(self._session) is not None
+                else literal(True),
                 or_(
                     ConversationInteractionRow.started_at < source.started_at,
                     and_(
@@ -172,7 +257,9 @@ class SQLAlchemyRelationshipRepository:
         after: RelationshipState,
         transition: RelationshipTransition | None,
         audit_event_id: str,
+        source_input_id: str | None = None,
     ) -> bool:
+        require_source_inputs(self._session, source_input_id)
         if self.get_decision(decision.interaction_id) is not None:
             return False
         values = self._state_values(after)
@@ -194,25 +281,32 @@ class SQLAlchemyRelationshipRepository:
             self._session.add(self._transition_row(transition))
         self._session.add(self._decision_row(decision))
         self._session.add(
-            AuditEventRow(
-                event_id=audit_event_id,
-                schema_version=1,
-                event_type=f"relationship.decision_{decision.kind.value}",
-                aggregate_type="relationship",
-                aggregate_id=decision.relationship_id,
-                occurred_at=decision.decided_at,
-                trace_id=decision.trace_id,
-                details={
-                    "decision_id": decision.decision_id,
-                    "transition_id": decision.transition_id,
-                    "interaction_id": decision.interaction_id,
-                    "source_user_message_id": decision.source_user_message_id,
-                    "session_id": decision.session_id,
-                    "categories": [item.value for item in decision.categories],
-                    "reason_code": decision.reason_code,
-                    "policy_version": decision.policy_version,
-                    "appraisal_schema_version": decision.appraisal_schema_version,
-                },
+            bind_metadata(
+                self._session,
+                AuditEventRow(
+                    event_id=audit_event_id,
+                    schema_version=1,
+                    event_type=f"relationship.decision_{decision.kind.value}",
+                    aggregate_type="relationship",
+                    aggregate_id=decision.relationship_id,
+                    occurred_at=decision.decided_at,
+                    trace_id=decision.trace_id,
+                    details={
+                        "decision_id": decision.decision_id,
+                        "transition_id": decision.transition_id,
+                        "interaction_id": decision.interaction_id,
+                        "source_user_message_id": decision.source_user_message_id,
+                        "session_id": decision.session_id,
+                        "categories": [item.value for item in decision.categories],
+                        "reason_code": decision.reason_code,
+                        "policy_version": decision.policy_version,
+                        "appraisal_schema_version": decision.appraisal_schema_version,
+                    },
+                ),
+                family=AuditMetadataFamily.RELATIONSHIP_TRANSITION,
+                identity_id=before.identity_id,
+                owner_record_id=decision.decision_id,
+                source_input_id=source_input_id,
             )
         )
         self._session.flush()
@@ -225,6 +319,7 @@ class SQLAlchemyRelationshipRepository:
             select(RelationshipTransitionRow)
             .where(RelationshipTransitionRow.relationship_id == relationship_id)
             .order_by(
+                RelationshipTransitionRow.resulting_state_version.desc(),
                 RelationshipTransitionRow.committed_at.desc(),
                 RelationshipTransitionRow.transition_id.desc(),
             )
@@ -255,6 +350,10 @@ class SQLAlchemyRelationshipRepository:
                 ConversationInteractionRow.status == "completed",
                 ConversationInteractionRow.relationship_processing_required.is_(True),
                 ~decision_exists,
+                self._source_admitted(),
+                ConversationSessionRow.scope_verified.is_(True)
+                if policy_snapshot(self._session) is not None
+                else literal(True),
             )
             .order_by(
                 ConversationInteractionRow.started_at, ConversationInteractionRow.interaction_id

@@ -6,6 +6,7 @@ import pytest
 
 from satori.__main__ import main
 from satori.config import Environment, LogLevel, Settings
+from tests.source_policy_support import policy_directory
 
 
 def cli_settings(sqlite_url: str) -> Settings:
@@ -14,6 +15,7 @@ def cli_settings(sqlite_url: str) -> Settings:
     return Settings(
         environment=Environment.TEST,
         database_url=sqlite_url,
+        source_policy_directory=policy_directory(sqlite_url),
         log_level=LogLevel.WARNING,
     )
 

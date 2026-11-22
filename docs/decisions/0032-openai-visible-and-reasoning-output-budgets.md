@@ -58,4 +58,5 @@ path.
 - Operators can tune only the provider-local allowance through
   `SATORI_OPENAI_REASONING_TOKEN_ALLOWANCE`; no database migration is required.
 - This resolves a transport-budget mismatch, not OpenAI character quality. Paid semantic sampling
-  remains a separate explicit authorization gate; Stage 15 and candidate v17 remain locked.
+  remains a separate explicit authorization gate. ADR-0033 later authorizes the offline v17
+  character-delivery implementation; Stage 15 remains locked.

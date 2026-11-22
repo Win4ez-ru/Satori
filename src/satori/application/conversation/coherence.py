@@ -38,6 +38,7 @@ _GENERIC_RECIPROCAL_CLOSING_RE = re.compile(
 )
 _ACTIVITY_STEMS = ("готовл", "гуля", "игра", "слуш", "смотр", "тренир", "чита")
 _CREATION_STEMS = ("придум", "разработ", "созда")
+_COMPLETE_QUESTION_PREFIX_V32 = re.compile(r"^\s*ответь\s+на\s+каждый\s+вопрос\s*:\s*")
 
 
 class EmojiPreference(StrEnum):
@@ -139,6 +140,8 @@ class DialogueCoherenceContext:
 def analyze_dialogue_coherence(
     current_user_text: str,
     recent_context: RecentConversationContext | None,
+    *,
+    policy_schema_version: int | None = None,
 ) -> DialogueCoherenceContext:
     """Derive bounded structural continuity signals without storing or mutating state."""
 
@@ -174,11 +177,15 @@ def analyze_dialogue_coherence(
     closing_frequency = max(Counter(closings).values(), default=0)
     repeated_closing_count = closing_frequency if closing_frequency >= 2 else 0
 
-    current_question_state = _routine_question_correction_state(current_user_text)
+    current_question_state = _routine_question_correction_state(
+        current_user_text, policy_schema_version=policy_schema_version
+    )
     current_question_correction = current_question_state is True
     active_question_state: bool | None = None
     for text in (*recent_user_texts, current_user_text):
-        question_candidate = _routine_question_correction_state(text)
+        question_candidate = _routine_question_correction_state(
+            text, policy_schema_version=policy_schema_version
+        )
         if question_candidate is not None:
             active_question_state = question_candidate
     active_question_correction = active_question_state is True
@@ -350,9 +357,18 @@ def _closing_phrase(text: str) -> str:
     return " ".join(tokens[-8:])
 
 
-def _routine_question_correction_state(text: str) -> bool | None:
+def _routine_question_correction_state(
+    text: str, *, policy_schema_version: int | None = None
+) -> bool | None:
     """Return the newest explicit no-routine-question choice, reset, or no signal."""
 
+    if policy_schema_version is not None and policy_schema_version >= 32:
+        direct_text = unicodedata.normalize("NFKC", text).casefold().replace("ё", "е")
+        prefix = _COMPLETE_QUESTION_PREFIX_V32.match(direct_text)
+        if prefix is not None:
+            # A direct completeness request is not a standing question ban. The
+            # remainder still passes the unchanged correction/reset detector.
+            text = direct_text[prefix.end() :]
     normalized = _normalize_text(text)
     tokens = _tokens(text)
     inline_output_format = (
@@ -381,7 +397,11 @@ def _routine_question_correction_state(text: str) -> bool | None:
     if not question_related:
         return None
     negative_action_directive = any(
-        token.startswith(("задава", "спрашив")) and _is_negated(tokens, index)
+        token.startswith(("задава", "спрашив"))
+        and _is_negated(tokens, index)
+        and not (
+            token.startswith(("задаю", "спрашиваю")) and "я" in tokens[max(0, index - 2) : index]
+        )
         for index, token in enumerate(tokens)
     )
     negative_question_directive = any(
@@ -510,20 +530,32 @@ def brevity_relevance_feedback(text: str) -> bool:
 
 def _relevance_feedback(text: str) -> bool:
     normalized = _normalize_text(text)
-    return re.search(r"\bне\s+(?:очень\s+)?связан", normalized) is not None or any(
-        phrase in normalized
-        for phrase in (
-            "мимо вопроса",
-            "не ответила",
-            "ничего не понял",
-            "не понял ответ",
-            "тебе не интересно",
-            "не относится",
-            "не по теме",
-            "не связано",
-            "ни при чем тут",
-            "при чем тут",
-            "это нерелевантно",
+    indirect_interest_correction = (
+        re.search(
+            r"\bтебе(?:\s+(?:вообще|совсем|совершенно))?\s+не\s+интересно"
+            r"\s*[,—–-]?\s*"
+            r"(?:что|кто|где|когда|зачем|почему|как|како(?:й|е|го|му|м|ю)|чем)\b",
+            normalized,
+        )
+        is not None
+    )
+    return (
+        re.search(r"\bне\s+(?:очень\s+)?связан", normalized) is not None
+        or indirect_interest_correction
+        or any(
+            phrase in normalized
+            for phrase in (
+                "мимо вопроса",
+                "не ответила",
+                "ничего не понял",
+                "не понял ответ",
+                "не относится",
+                "не по теме",
+                "не связано",
+                "ни при чем тут",
+                "при чем тут",
+                "это нерелевантно",
+            )
         )
     )
 

@@ -1,7 +1,7 @@
 # Personality evolution specification
 
 Status: accepted 2026-08-23. Implementation and measured acceptance evidence are recorded in
-[`performance/stage-14.md`](performance/stage-14.md).
+`performance/stage-14.md`.
 
 Stage 14 implements [ADR-0027](decisions/0027-bounded-personality-evolution-and-checkpoint-restore.md).
 This document is the executable contract for proposal formation, owner decisions, persistence,
@@ -184,6 +184,13 @@ PersonalityRestoreEvent
 
 Raw source quotes remain canonical in their owning tables and are not copied into personality
 evidence, checkpoints, revisions, audit or export.
+
+Under [ADR-0072](decisions/0072-identity-scoped-checkpoint-reason-disposition.md), exact operator
+reasons have a separate identity-owned terminal contract. Main0024 permits reason SQL NULL only
+with erased availability and an approved mixed-head action. Metadata-only approval/restore headers
+preserve budget anchors, numerical history and replay without loading or recreating text. This
+operation changes no trait, checkpoint hash, revision, restore behavior or evolution budget.
+See [reason disposition controls](erasure-personality-reasons.md).
 
 ## Atomicity and replay
 
