@@ -97,7 +97,9 @@ def _no_sidecars(*databases: Path) -> None:
 def _read_database(path: Path) -> Iterator[sqlite3.Connection]:
     connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=1.0)
     try:
-        connection.enable_load_extension(False)
+        # CPython can be built without the optional SQLite load-extension API.
+        if hasattr(connection, "enable_load_extension"):
+            connection.enable_load_extension(False)
         connection.execute("PRAGMA trusted_schema=OFF")
         connection.execute("PRAGMA query_only=ON")
         if connection.execute("PRAGMA journal_mode").fetchone() != ("delete",):
