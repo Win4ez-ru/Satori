@@ -154,7 +154,8 @@ def test_ending_a_grant_drops_selected_descriptors_and_event_payloads(
     [
         (date(2011, 12, 30), "Pacific/Apia"),
         (date(2018, 11, 4), "America/Sao_Paulo"),
-        (date(2026, 11, 1), "America/Havana"),
+        # Use an observed historical fallback, not a projected DST recurrence.
+        (date(2015, 11, 1), "America/Havana"),
     ],
 )
 def test_unsupported_civil_day_boundary_fails_before_preparing_source_read(

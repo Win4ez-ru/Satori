@@ -392,7 +392,8 @@ class CalendarDialogueTests(unittest.TestCase):
         for day, zone in (
             (date(2011, 12, 30), "Pacific/Apia"),
             (date(2018, 11, 4), "America/Sao_Paulo"),
-            (date(2026, 11, 1), "America/Havana"),
+            # Use an observed historical fallback, not a projected DST recurrence.
+            (date(2015, 11, 1), "America/Havana"),
         ):
             with self.subTest(day=day, zone=zone), pytest.raises(ValidationError):
                 self.proposal(day=day, zone=zone)

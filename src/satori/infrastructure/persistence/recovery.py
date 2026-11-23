@@ -94,7 +94,9 @@ def _open_query_only(
         after = _regular_file(path)
         if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
             raise RecoveryError("snapshot_changed")
-        connection.enable_load_extension(False)
+        # CPython can be built without the optional SQLite load-extension API.
+        if hasattr(connection, "enable_load_extension"):
+            connection.enable_load_extension(False)
         connection.execute("PRAGMA trusted_schema=OFF")
         connection.execute("PRAGMA query_only=ON")
         connection.execute("BEGIN")
