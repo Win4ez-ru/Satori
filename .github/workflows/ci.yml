@@ -13,9 +13,13 @@ permissions:
   contents: read
 
 jobs:
-  quality:
+  macos:
     runs-on: macos-26
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     env:
       QT_QPA_PLATFORM: offscreen
       HF_HUB_OFFLINE: "1"
@@ -43,21 +47,36 @@ jobs:
           echo "SATORI_SOURCE_POLICY_DIRECTORY=${RUNNER_TEMP}/satori-source-policy" >> "$GITHUB_ENV"
 
       - name: Check formatting
+        if: matrix.shard == 0
         run: uv run --no-sync ruff format --check .
 
       - name: Lint
+        if: matrix.shard == 0
         run: uv run --no-sync ruff check .
 
       - name: Type-check
+        if: matrix.shard == 0
         run: uv run --no-sync mypy src tests
 
       - name: Test
-        # Keep native audio and the Qt suite in separate Python processes.
-        run: |
-          uv run --no-sync pytest --ignore=tests/test_voice_engines.py
-          uv run --no-sync pytest tests/test_voice_engines.py
+        run: uv run --no-sync python .github/pytest_shard.py ${{ matrix.shard }} ${{ strategy.job-total }} --ignore=tests/test_voice_engines.py
+
+      - name: Test native voice in a separate process
+        if: matrix.shard == 0
+        run: uv run --no-sync pytest tests/test_voice_engines.py
 
       - name: Migrate and bootstrap an isolated database
+        if: matrix.shard == 0
         run: |
           uv run --no-sync alembic upgrade head
           uv run --no-sync satori bootstrap
+
+  quality:
+    needs: macos
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every macOS shard to pass
+        env:
+          MACOS_RESULT: ${{ needs.macos.result }}
+        run: test "$MACOS_RESULT" = success
