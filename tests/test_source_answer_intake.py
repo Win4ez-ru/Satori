@@ -89,6 +89,26 @@ def test_task_intake_preserves_owner_text_and_request_identity(
 
 
 @pytest.mark.parametrize(
+    ("text", "sources"),
+    [
+        ("Мне кто-нибудь ответил по собесу?", ("mail", "telegram")),
+        ("Кто-нибудь ответил мне по собесу?", ("mail", "telegram")),
+        ("А мне кто-то написал в Gmail по собесу?", ("mail",)),
+        ("Мне кто-нибудь ответил по собеседованию в Телеграме?", ("telegram",)),
+        ("Сатори, мне кто-нибудь ответил в почте?", ("mail",)),
+    ],
+)
+def test_colloquial_reply_question_uses_the_requested_inbox(
+    text: str, sources: tuple[str, ...]
+) -> None:
+    intent = parse_assistant_intent(text, now=NOW, timezone="Europe/Moscow")
+    assert intent is not None
+    assert intent.kind == "source_answer"
+    assert intent.query == text
+    assert source_answer_sources(intent) == sources
+
+
+@pytest.mark.parametrize(
     "text",
     [
         "Привет, как дела?",
@@ -107,6 +127,12 @@ def test_task_intake_preserves_owner_text_and_request_identity(
         "Сегодня написали мне из компании после собеседования.",
         "Рекрутер ответил мне в Telegram.",
         "Мне ответили из компании после интервью.",
+        "Мне кто-то ответил в Gmail по собесу.",
+        "Мне кто-нибудь ответил?",
+        "Что значит: «Мне кто-нибудь ответил по собесу?»",
+        "«Мне кто-нибудь ответил по собесу?»",
+        "Мне кто-нибудь ответил по собесу? Не проверяй почту.",
+        "Мне кто-нибудь ответил по собесу? Ответь им.",
         "Сегодня появился ответ по собеседованию.",
         "Сегодня пришел ответ на почту.",
         "Я знаю, что мне написали в телеграмме.",

@@ -2,7 +2,7 @@
 
 import os
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -16,8 +16,12 @@ from PySide6.QtWidgets import QApplication
 from satori.application.assistant.contracts import (
     CalendarCatalog,
     CalendarDescriptor,
+    CalendarOccurrence,
+    CalendarReadRequest,
+    CalendarReadResult,
     CalendarSourceRef,
 )
+from satori.application.assistant.dialogue_contracts import PendingCalendarRead
 from satori.desktop.settings import DesktopPreferences
 from satori.desktop.ui import DesktopApplication, DesktopWindow
 
@@ -203,3 +207,127 @@ def test_unrelated_new_message_after_calendar_draft_keeps_normal_send(
     payload = sent[0][1]
     assert isinstance(payload, dict)
     assert payload["text"] == "Объясни принцип работы транзистора"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Перенеси событие «PUBLIC встреча» на пятницу",
+        "Сатори, можешь изменить время созвона завтра на 20:00?",
+        "Удали событие «PUBLIC встреча» из календаря",
+    ],
+)
+def test_existing_event_changes_are_honestly_unsupported_in_ordinary_chat(
+    window: DesktopWindow, monkeypatch: pytest.MonkeyPatch, text: str
+) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(window, "request", lambda command, data=None: sent.append(command))
+    window.editor.setPlainText(text)
+    window.send()
+    assert sent == []
+    assert window.calendar_chat.card is not None
+    assert window.calendar_chat.card.status == "unsupported"
+    assert "Ничего не меняла" in window.calendar_chat.card.message
+    assert window.calendar_chat.card.draft == ""
+    assert window.transcript.toPlainText() == ""
+    assert window.calendar_panel.controller.grant is None
+    assert not (window.preferences.data_directory / "calendar-host-leases").exists()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Перенеси файл в другую папку",
+        "Объясни, что значит «перенеси событие на пятницу»",
+        "`Перенеси событие` напиши такую фразу в инструкции",
+    ],
+)
+def test_non_calendar_mutation_and_quoted_context_keep_normal_chat(
+    window: DesktopWindow, monkeypatch: pytest.MonkeyPatch, text: str
+) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(window, "request", lambda command, data=None: sent.append(command))
+    window.editor.setPlainText(text)
+    window.send()
+    assert sent == ["send"]
+    assert window.calendar_chat.card is None
+
+
+def test_ordinary_chat_renders_exact_selected_calendar_read_without_core(
+    window: DesktopWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window.show()
+    window.activateWindow()
+    QApplication.processEvents()
+    calendar = window.calendar_panel.controller
+    calendar._coordinator.accept_catalog(
+        CalendarCatalog(
+            request_id=uuid4(),
+            observed_at=datetime.now(UTC),
+            calendars=(
+                CalendarDescriptor(
+                    source=TARGET,
+                    title="Работа",
+                    account_title="PUBLIC synthetic",
+                    writable=True,
+                ),
+            ),
+        )
+    )
+    calendar.permission_status = "full_access"
+    calendar._catalog_phase = "active"
+    assert calendar.use_calendars((TARGET,))
+    intercepted: list[PendingCalendarRead] = []
+    core: list[str] = []
+
+    def fake_start(
+        operation: str,
+        request: CalendarReadRequest,
+        *,
+        dialogue: PendingCalendarRead,
+    ) -> None:
+        assert operation == "read_events"
+        assert request == dialogue.request
+        intercepted.append(dialogue)
+
+    monkeypatch.setattr(calendar, "_start", fake_start)
+    monkeypatch.setattr(window, "request", lambda command, data=None: core.append(command))
+    window.editor.setPlainText("Что в календаре сегодня?")
+    window.send()
+    assert len(intercepted) == 1
+    pending = intercepted[0]
+    request = pending.request
+    event_start = request.starts_at + timedelta(hours=9)
+    assert calendar._dialogue is not None
+    answer = calendar._dialogue.accept(
+        pending,
+        CalendarReadResult(
+            request_id=request.request_id,
+            observed_at=datetime.now(UTC),
+            status="ok",
+            occurrences=(
+                CalendarOccurrence(
+                    source=TARGET,
+                    event_id="public-ordinary-event",
+                    occurrence_id="public-ordinary-event-1",
+                    title="PUBLIC synthetic event",
+                    starts_at=event_start,
+                    ends_at=event_start + timedelta(hours=1),
+                    timezone=request.timezone,
+                ),
+            ),
+        ),
+    )
+    assert answer.receipt.status == "ok"
+    calendar.dialogue_changed.emit()
+    assert window.assistant.card is not None
+    assert window.assistant.card.status == "ok"
+    assert "PUBLIC synthetic event" in window.assistant.card.body
+    assert "09:00" in window.assistant.card.body
+    assert core == []
+    assert window.transcript.toPlainText() == ""
+    assert window.editor.toPlainText() == ""
+    calendar.disconnect_calendar()
+    assert calendar.dialogue_answer is None
+    assert window.assistant.card is not None
+    assert "PUBLIC synthetic event" not in window.assistant.card.body

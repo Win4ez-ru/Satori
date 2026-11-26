@@ -13,6 +13,10 @@ class _ArtifactError(OSError):
     """A content-free storage failure code."""
 
 
+class ArtifactExistsError(_ArtifactError):
+    """Another publication already owns this immutable name."""
+
+
 def _same_inode(left: os.stat_result, right: os.stat_result) -> bool:
     return (left.st_dev, left.st_ino) == (right.st_dev, right.st_ino)
 
@@ -146,7 +150,7 @@ class PrivateArtifactStore:
                 previous = _target_status(parent, name)
                 if previous is not None:
                     if not overwrite:
-                        raise _ArtifactError("artifact_target_exists")
+                        raise ArtifactExistsError("artifact_target_exists")
                     if previous.st_nlink != 1:
                         raise _ArtifactError("artifact_hardlinked_target")
                 stage = f".satori-artifact-{secrets.token_hex(16)}.tmp"
@@ -172,7 +176,7 @@ class PrivateArtifactStore:
                     current = _target_status(parent, name)
                     if previous is None:
                         if current is not None:
-                            raise _ArtifactError("artifact_target_exists")
+                            raise ArtifactExistsError("artifact_target_exists")
                     elif (
                         current is None
                         or not _same_inode(previous, current)
@@ -184,13 +188,16 @@ class PrivateArtifactStore:
                     if overwrite and previous is not None:
                         os.replace(stage, name, src_dir_fd=parent, dst_dir_fd=parent)
                     else:
-                        os.link(
-                            stage,
-                            name,
-                            src_dir_fd=parent,
-                            dst_dir_fd=parent,
-                            follow_symlinks=False,
-                        )
+                        try:
+                            os.link(
+                                stage,
+                                name,
+                                src_dir_fd=parent,
+                                dst_dir_fd=parent,
+                                follow_symlinks=False,
+                            )
+                        except FileExistsError:
+                            raise ArtifactExistsError("artifact_write_failed") from None
                         os.unlink(stage, dir_fd=parent)
                     try:
                         os.fsync(parent)

@@ -65,6 +65,7 @@ from satori.desktop.calendar_chat_controller import CalendarChatController
 from satori.desktop.calendar_chat_ui import CalendarConversationPanel
 from satori.desktop.calendar_dialogue_ui import CalendarDialoguePanel
 from satori.desktop.calendar_ui import CalendarPanel
+from satori.desktop.call_inbox_ui import CallInboxDialog
 from satori.desktop.install import autostart_enabled, set_autostart
 from satori.desktop.mail_lookup_handoff import MailLookupHandoff
 from satori.desktop.mail_ui import MailPanel
@@ -98,6 +99,7 @@ from satori.desktop.voice_ui import VoiceContext, VoicePanel
 from satori.desktop.worker import WorkerResponse
 from satori.desktop.workspace_ui import ConversationPage, DesktopWorkspace, show_plain_history
 from satori.infrastructure.artifacts import PrivateArtifactStore
+from satori.infrastructure.calls.inbox import CallInbox
 
 
 class DesktopApplication(QApplication):
@@ -182,7 +184,9 @@ class DesktopWindow(QMainWindow):
         self.setWindowTitle("Сатори")
         self.resize(1000, 720)
         self.setWindowIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
+        self.call_inbox = CallInbox(preferences.data_directory)
         self.workspace = DesktopWorkspace(self)
+        self.workspace.call_inbox_button.clicked.connect(self._open_call_inbox)
         self.setPalette(self.workspace.palette())
         self.state = QLabel("Диалог выключен")
         self.state.setWordWrap(True)
@@ -434,6 +438,11 @@ class DesktopWindow(QMainWindow):
         if record.delivery_state not in {"scheduled", "delivered"}:
             # Foreground-process fallback only; this is not a delivery receipt.
             self.tray.showMessage("Сатори", "Пришло время напоминания. Открой список в Сатори.")
+
+    def _open_call_inbox(self) -> None:
+        dialog = CallInboxDialog(self.call_inbox, self)
+        dialog.exec()
+        dialog.deleteLater()
 
     def _open_conversation(self) -> None:
         self.tabs.setCurrentWidget(self.conversation_page)
@@ -830,6 +839,7 @@ class DesktopWindow(QMainWindow):
         layout.addWidget(self.calendar_chat_panel)
         self.source_answer_panel = ConversationSourcePanel(self.source_answer, parent=page)
         self.source_answer_panel.settings_requested.connect(self._open_gpt_settings)
+        self.source_answer_panel.call_inbox_requested.connect(self._open_call_inbox)
         self.source_answer.changed.connect(self._refresh_chat_placeholder)
         layout.addWidget(self.source_answer_panel)
         quick = QHBoxLayout()
@@ -1979,6 +1989,7 @@ class DesktopWindow(QMainWindow):
             self._telegram_runtime_changed()
         self._reset_calendar_dialogue()
         if profile_changed:
+            self.call_inbox = CallInbox(updated.data_directory)
             self.transcript.clear()
             self.memory_view.clear()
             self.sessions.clear()

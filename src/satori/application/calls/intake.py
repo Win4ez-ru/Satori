@@ -7,6 +7,7 @@ is deliberately no provider implementation, default authority, parser, network,
 recognizer, model call, canonical Send, persistence or action execution here.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal, Protocol
 from uuid import UUID
@@ -19,7 +20,14 @@ MAX_CALL_LIFETIME = timedelta(seconds=120)
 MAX_SEGMENTS = 8
 MAX_TEXT_BYTES = 8192
 FollowupKind = Literal["owner_callback_review", "owner_calendar_review"]
-IntakePhase = Literal["awaiting_consent", "intake", "ended", "remote_end_unknown", "local_stopped"]
+IntakePhase = Literal[
+    "awaiting_consent",
+    "awaiting_greeting",
+    "intake",
+    "ended",
+    "remote_end_unknown",
+    "local_stopped",
+]
 
 
 class CallIntakeError(Exception):
@@ -70,6 +78,20 @@ class CallIntakeGrant(_DTO):
         if not timedelta(0) < self.expires_at - self.issued_at <= MAX_CALL_LIFETIME:
             raise ValueError("bounded_call_window_required")
         return self
+
+
+class BusyMessageGrant(CallIntakeGrant):
+    """The owner selected conversational message-taking for this exact external call leg."""
+
+    participant_ref: UUID
+
+    _participant = field_validator("participant_ref")(_nonzero)
+
+
+@dataclass(frozen=True, slots=True)
+class _SpokenInvitation:
+    participant_ref: UUID
+    observed_at: datetime
 
 
 class ParticipantConsent(_DTO):
@@ -183,9 +205,11 @@ class CallIntakeSession:
     ) -> None:
         self._grant = grant
         self._authority = authority
-        self._phase: IntakePhase = "awaiting_consent"
+        self._phase: IntakePhase = (
+            "awaiting_greeting" if isinstance(grant, BusyMessageGrant) else "awaiting_consent"
+        )
         self._last_now = grant.issued_at
-        self._consent: ParticipantConsent | None = None
+        self._opening: ParticipantConsent | _SpokenInvitation | None = None
         self._segments: list[ExternalCallSegment] = []
         self._proposal: CallFollowupProposal | None = None
         self._end: CallEndReceipt | None = None
@@ -193,7 +217,7 @@ class CallIntakeSession:
 
     def _clear(self, phase: IntakePhase) -> None:
         self._segments.clear()
-        self._consent = None
+        self._opening = None
         self._proposal = None
         self._phase = phase
 
@@ -229,6 +253,14 @@ class CallIntakeSession:
         if not self._grant.issued_at <= observed_at <= now:
             raise CallIntakeError("event_time_invalid")
 
+    def open_busy_message(self, binding: CallBinding, *, now: datetime) -> None:
+        """The authorized adapter has finished playing the invitation to leave a message."""
+        self._bound(binding, now, now)
+        if not isinstance(self._grant, BusyMessageGrant) or self._phase != "awaiting_greeting":
+            raise CallIntakeError("busy_message_opening_invalid")
+        self._opening = _SpokenInvitation(self._grant.participant_ref, now)
+        self._phase = "intake"
+
     def admit_consent(self, consent: ParticipantConsent, *, now: datetime) -> None:
         self._bound(consent.binding, consent.observed_at, now)
         if (
@@ -236,20 +268,22 @@ class CallIntakeSession:
             or consent.notice_digest != self._grant.notice_digest
         ):
             raise CallIntakeError("consent_mismatch")
-        if self._consent == consent and self._phase == "intake":
+        if self._opening == consent and self._phase == "intake":
             return
         if self._phase != "awaiting_consent":
             raise CallIntakeError("consent_state_invalid")
-        self._consent = consent
+        self._opening = consent
         self._phase = "intake"
 
     def admit_segment(self, segment: ExternalCallSegment, *, now: datetime) -> None:
         self._bound(segment.binding, segment.observed_at, now)
-        if self._phase != "intake" or self._consent is None:
+        if self._phase != "intake" or self._opening is None:
+            if isinstance(self._grant, BusyMessageGrant):
+                raise CallIntakeError("busy_message_intake_closed")
             raise CallIntakeError("participant_consent_required")
         if (
-            segment.participant_ref != self._consent.participant_ref
-            or segment.observed_at < self._consent.observed_at
+            segment.participant_ref != self._opening.participant_ref
+            or segment.observed_at < self._opening.observed_at
         ):
             raise CallIntakeError("participant_or_consent_mismatch")
         for previous in self._segments:
@@ -278,7 +312,7 @@ class CallIntakeSession:
             raise CallIntakeError("terminal_receipt_conflict")
         latest = max(
             [self._grant.issued_at]
-            + ([self._consent.observed_at] if self._consent is not None else [])
+            + ([self._opening.observed_at] if self._opening is not None else [])
             + [item.observed_at for item in self._segments]
             + ([self._end.observed_at] if self._end is not None else [])
         )
@@ -306,6 +340,7 @@ class CallIntakeSession:
             not isinstance(request_id, UUID)
             or request_id.int == 0
             or kind not in {"owner_callback_review", "owner_calendar_review"}
+            or (isinstance(self._grant, BusyMessageGrant) and kind != "owner_callback_review")
             or type(segment_ids) is not tuple
             or not 1 <= len(segment_ids) <= MAX_SEGMENTS
             or any(not isinstance(item, UUID) or item.int == 0 for item in segment_ids)

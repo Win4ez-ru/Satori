@@ -165,6 +165,8 @@ class DesktopWorkspace(QWidget):
         self.sessions.setObjectName("ConversationList")
         self.sessions.setAccessibleName("История разговоров")
         chats.addWidget(self.sessions, 1)
+        self.call_inbox_button = QPushButton("Сводки звонков")
+        chats.addWidget(self.call_inbox_button)
         self.sidebar_pages.addWidget(conversations)
 
         settings = QWidget()

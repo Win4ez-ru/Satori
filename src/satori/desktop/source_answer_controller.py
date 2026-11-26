@@ -69,6 +69,7 @@ class SourceConversationCard:
     text: str
     status: str
     details: tuple[str, ...] = ()
+    offer_call_inbox: bool = False
 
 
 def _now() -> datetime:
@@ -289,7 +290,8 @@ class ConversationSourceController(QObject):
         calls_unavailable = not routing and calls_only and "calls" not in self._ports
         if calls_unavailable or (local_mail_query is None and not self._supported()):
             text = (
-                "Звонки ещё не подключены — я пока не могу посмотреть, кто звонил."
+                "У меня нет доступа к журналу звонков оператора. "
+                "Можно посмотреть сообщения, которые я сохранила в этом профиле."
                 if calls_unavailable
                 else "Для такой проверки нужен подключённый GPT. "
                 "Настрой его, и я смогу разобраться с письмами и сообщениями."
@@ -301,6 +303,7 @@ class ConversationSourceController(QObject):
                 intent.query,
                 text,
                 "unsupported" if calls_unavailable else "gpt_required",
+                offer_call_inbox=calls_unavailable,
             )
             self.changed.emit()
             return True

@@ -8,13 +8,15 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from PySide6.QtCore import QProcess
+from PySide6.QtCore import QProcess, QTimer
+from PySide6.QtWidgets import QApplication
 
 from satori.application.retrieval.adoption import (
     MemoryIndexAdoptionReport,
     MemoryIndexAdoptionRequest,
 )
 from satori.desktop import ui
+from satori.desktop.call_inbox_ui import CallInboxDialog
 from satori.desktop.settings import DesktopPreferences
 from satori.infrastructure.providers.openai_http import OpenAIHttpClient
 from tests.test_telegram_chat_handoff import NoChildProcess
@@ -53,6 +55,7 @@ def test_source_question_on_unqualified_runtime_stays_in_chat_and_requests_gpt(
     assert w.source_answer._request is None
     assert w.source_answer._lease is None
     assert w.source_answer_panel.connect_button.isVisible()
+    assert not w.source_answer_panel.call_inbox_button.isVisible()
     assert w.tabs.currentWidget() is w.conversation_page
     assert w.transcript.toPlainText() == before
     assert w.mail_panel.controller._connector is None
@@ -80,8 +83,23 @@ def test_calls_only_does_not_promise_gpt_will_connect_telephony(window: Any) -> 
     assert requests == []
     assert w.source_answer.card is not None
     assert w.source_answer.card.status == "unsupported"
-    assert "Звонки ещё не подключены" in w.source_answer.card.text
+    assert "нет доступа к журналу звонков оператора" in w.source_answer.card.text
     assert not w.source_answer_panel.connect_button.isVisible()
+    assert not w.source_answer_panel.provider.isVisible()
+    assert w.source_answer_panel.call_inbox_button.isVisible()
+    dialogs = []
+
+    def read_inbox() -> None:
+        dialog = QApplication.activeModalWidget()
+        if isinstance(dialog, CallInboxDialog):
+            dialogs.append((dialog.calls.count(), dialog.message.placeholderText()))
+            dialog.accept()
+
+    QTimer.singleShot(0, read_inbox)
+    w.source_answer_panel.call_inbox_button.click()
+    assert dialogs == [(0, "Пока нет сводок звонков.")]
+    assert requests == []
+    assert w.transcript.document().isEmpty()
 
 
 def test_configured_gpt_does_not_imply_a_connected_phone_route(window: Any) -> None:
@@ -93,7 +111,7 @@ def test_configured_gpt_does_not_imply_a_connected_phone_route(window: Any) -> N
     assert requests == []
     assert w.source_answer.card is not None
     assert w.source_answer.card.status == "unsupported"
-    assert "Звонки ещё не подключены" in w.source_answer.card.text
+    assert w.source_answer_panel.call_inbox_button.isVisible()
     assert w.source_answer._lease is None
 
 

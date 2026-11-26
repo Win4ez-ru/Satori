@@ -68,6 +68,44 @@ _DURATION = re.compile(
 )
 _EXACT = {"запланируй", "поставь", "создай", "добавь", "занеси", "внеси", "запиши"}
 
+_MUTATION = re.compile(
+    r"^(?:(?:привет|сатори|пожалуйста)[,!\s]+)*"
+    r"(?:(?:перенеси|перепланируй|сдвинь|измени|отмени|удали)|"
+    r"(?:можешь|можно)\s+(?:перенести|перепланировать|сдвинуть|"
+    r"изменить|отменить|удалить))\s+(?P<body>.+)$",
+    re.IGNORECASE,
+)
+_CALENDAR_OR_EVENT = re.compile(r"\b(?:календар\w*|событи\w*)\b", re.IGNORECASE)
+_APPOINTMENT = re.compile(
+    r"\b(?:созвон(?:а|е|у|ом)?|встреч[аиуе]|совещани[ея]|заняти[ея]|при[её]м(?:а|е)?)\b",
+    re.IGNORECASE,
+)
+_NON_EVENT_OBJECT = re.compile(
+    r"^(?:файл\w*|папк\w*|код|текст|строк\w*|документ\w*)\b", re.IGNORECASE
+)
+UNSUPPORTED_EXISTING_EVENT = (
+    "Пока могу проверить календарь или добавить одно событие, "
+    "но не изменить и не удалить существующее. Ничего не меняла."
+)
+
+
+def is_existing_calendar_mutation(text: str) -> bool:
+    """Guard obvious edit commands so free chat cannot imply an effect."""
+    if not isinstance(text, str) or not 0 < len(text.strip()) <= 8000:
+        return False
+    visible = re.sub(r"```[\s\S]*?(?:```|$)|`[^`\n]*(?:`|$)", " ", text)
+    visible = _QUOTED.sub(" CALENDAR_TITLE ", visible)
+    match = _MUTATION.fullmatch(visible.strip())
+    if match is None:
+        return False
+    body = match.group("body")
+    if _NON_EVENT_OBJECT.match(body):
+        return False
+    return bool(
+        _CALENDAR_OR_EVENT.search(body)
+        or (_APPOINTMENT.search(body) and (_DAY.search(body) or calendar_clock_spans(body)))
+    )
+
 
 class CalendarChatIntake(CalendarActionDTO):
     mode: Literal["exact", "plan"]
@@ -78,6 +116,8 @@ def is_calendar_chat_request(text: str) -> bool:
     """Recognize only an imperative Calendar task, never an arbitrary Send."""
     if not isinstance(text, str) or not 0 < len(text.strip()) <= 8000:
         return False
+    if is_existing_calendar_mutation(text):
+        return True
     directive = calendar_directive(text)
     if directive is None:
         return False
@@ -110,6 +150,10 @@ def calendar_chat_intake(
     fields: CalendarChatFields | None = None,
 ) -> CalendarChatIntake | CalendarTextClarification:
     """Recognized tasks clarify locally; explicit form fields never change user_text."""
+    if is_existing_calendar_mutation(text):
+        return CalendarTextClarification(
+            missing=("unsupported",), message=UNSUPPORTED_EXISTING_EVENT
+        )
     directive = calendar_directive(text)
     if directive is None:
         return CalendarTextClarification(
