@@ -3,7 +3,6 @@
 # ruff: noqa: RUF001 - intentional Russian user-facing text.
 
 import json
-import math
 import os
 import time
 from collections.abc import Callable
@@ -29,6 +28,7 @@ from satori.application.assistant.source_answer_contracts import (
     SourceTaskRequest,
     SourceTaskScope,
     SourceTaskSnapshot,
+    monotonic_window_is_current,
 )
 from satori.application.assistant.source_answer_intake import (
     classify_source_answer_followup,
@@ -69,6 +69,7 @@ class SourceConversationCard:
     text: str
     status: str
     details: tuple[str, ...] = ()
+    offer_call_inbox: bool = False
 
 
 def _now() -> datetime:
@@ -206,10 +207,9 @@ class ConversationSourceController(QObject):
             or context != (active.scope.identity_id, active.scope.session_id, provider)
             or active.scope.profile_id != self._profile_id
             or not active.created_at <= now < active.expires_at
-            or not math.isfinite(tick)
-            or not deadline - (active.expires_at - active.created_at).total_seconds()
-            <= tick
-            < deadline
+            or not monotonic_window_is_current(
+                tick, deadline, active.expires_at - active.created_at
+            )
             or (self._wall_floor is not None and now < self._wall_floor)
             or (self._tick_floor is not None and tick < self._tick_floor)
             or any(
@@ -289,7 +289,8 @@ class ConversationSourceController(QObject):
         calls_unavailable = not routing and calls_only and "calls" not in self._ports
         if calls_unavailable or (local_mail_query is None and not self._supported()):
             text = (
-                "Звонки ещё не подключены — я пока не могу посмотреть, кто звонил."
+                "У меня нет доступа к журналу звонков оператора. "
+                "Можно посмотреть сообщения, которые я сохранила в этом профиле."
                 if calls_unavailable
                 else "Для такой проверки нужен подключённый GPT. "
                 "Настрой его, и я смогу разобраться с письмами и сообщениями."
@@ -301,6 +302,7 @@ class ConversationSourceController(QObject):
                 intent.query,
                 text,
                 "unsupported" if calls_unavailable else "gpt_required",
+                offer_call_inbox=calls_unavailable,
             )
             self.changed.emit()
             return True

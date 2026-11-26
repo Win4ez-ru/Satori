@@ -1,5 +1,9 @@
 # Release status
 
+## Desktop development candidate · 2026-11-26
+
+The work client handles a local busy-call dialogue and stores completed messages in the selected profile. A calls-only chat question can open that inbox. The chat also routes colloquial replies about an interview to the requested inbox and identifies unsupported calendar edits. The installed Satori 26 release is documented below. Carrier calls, delivery of outgoing mail, automated Telegram replies and mobile use with the Mac asleep still require their own end-to-end acceptance. See [the call dialogue](decisions/0116-conversational-busy-call.md) and [private inbox](decisions/0117-private-call-inbox.md).
+
 ## Satori 26 · 2026-11-19
 
 This source release derives from internal release 27, the November 19 installed macOS

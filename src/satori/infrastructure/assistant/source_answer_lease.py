@@ -1,6 +1,5 @@
 """Private revocable GUI lease file; no content, account access or grant creation."""
 
-import math
 import os
 import stat
 import time
@@ -11,7 +10,11 @@ from pathlib import Path
 from uuid import UUID
 
 from satori.application.assistant.contracts import require_utc
-from satori.application.assistant.source_answer_contracts import SourceAnswerError, SourceTaskLease
+from satori.application.assistant.source_answer_contracts import (
+    SourceAnswerError,
+    SourceTaskLease,
+    monotonic_window_is_current,
+)
 
 _MAX_LEASE_BYTES = 256 * 1024
 _DIRECTORY = "source-task-leases"
@@ -99,10 +102,9 @@ class SourceTaskLeaseOwner:
                 lease.ui_pid != self._pid()
                 or lease.os_uid != os.getuid()
                 or not lease.issued_at <= now < lease.expires_at
-                or not math.isfinite(tick)
-                or not tick < lease.monotonic_deadline
-                or tick
-                < lease.monotonic_deadline - (lease.expires_at - lease.issued_at).total_seconds()
+                or not monotonic_window_is_current(
+                    tick, lease.monotonic_deadline, lease.expires_at - lease.issued_at
+                )
             ):
                 raise _fail()
             self.revoke()
@@ -188,10 +190,9 @@ class SourceTaskLeaseReader:
                 self._parent_pid() != lease.ui_pid
                 or lease.os_uid != os.getuid()
                 or not lease.issued_at <= now < lease.expires_at
-                or not math.isfinite(tick)
-                or tick >= lease.monotonic_deadline
-                or tick
-                < lease.monotonic_deadline - (lease.expires_at - lease.issued_at).total_seconds()
+                or not monotonic_window_is_current(
+                    tick, lease.monotonic_deadline, lease.expires_at - lease.issued_at
+                )
                 or (self._last_now is not None and now < self._last_now)
                 or (self._last_tick is not None and tick < self._last_tick)
             ):

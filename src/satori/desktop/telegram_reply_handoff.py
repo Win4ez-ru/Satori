@@ -35,7 +35,10 @@ class TelegramReplyHandoff(ReplyModel):
     @model_validator(mode="after")
     def bounded(self) -> "TelegramReplyHandoff":
         wall = (self.expires_at - self.created_at).total_seconds()
-        elapsed = self.expires_monotonic - self.started_monotonic
-        if not 0 < wall <= timedelta(minutes=2).total_seconds() or wall != elapsed:
+        if (
+            not 0 < wall <= timedelta(minutes=2).total_seconds()
+            or self.expires_monotonic <= self.started_monotonic
+            or self.expires_monotonic != self.started_monotonic + wall
+        ):
             raise ValueError("reply_handoff_deadline_invalid")
         return self

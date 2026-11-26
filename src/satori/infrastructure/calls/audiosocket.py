@@ -143,10 +143,16 @@ class AudioSocketPCM:
         self._closed = False
         self._next_audio = 0.0
         self._sent_bytes = 0
+        self._non_silent_frames = 0
 
     @property
     def sent_bytes(self) -> int:
         return self._sent_bytes
+
+    @property
+    def non_silent_frames(self) -> int:
+        """Drained frames containing at least one nonzero PCM sample."""
+        return self._non_silent_frames
 
     def close(self) -> None:
         self._closed = True
@@ -170,6 +176,8 @@ class AudioSocketPCM:
             async with asyncio.timeout(self._limits.frame_seconds):
                 await self._writer.drain()
             self._sent_bytes += len(pcm)
+            if any(pcm):
+                self._non_silent_frames += 1
             self._next_audio = loop.time() + len(pcm) / 16000
 
 
@@ -386,9 +394,11 @@ class AudioSocketServer:
                     await writer.wait_closed()
             except (TimeoutError, ConnectionError, OSError):
                 pass
-            if admitted:
-                try:
-                    async with asyncio.timeout(self._limits.close_seconds):
-                        await self._handler.on_close(receipt)
-                except Exception:
-                    pass
+            finally:
+                # Server shutdown can cancel wait_closed after the terminal frame was read.
+                if admitted:
+                    try:
+                        async with asyncio.timeout(self._limits.close_seconds):
+                            await self._handler.on_close(receipt)
+                    except Exception:
+                        pass

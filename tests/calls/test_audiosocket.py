@@ -2,13 +2,14 @@
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 import pytest
 from pydantic import ValidationError
 
 from satori.application.assistant.contracts import LocalPrincipal
-from satori.application.calls.intake import CallBinding
+from satori.application.calls.intake import CallBinding, CallEndReceipt, CallIntakeError
 from satori.infrastructure.calls.audiosocket import (
     MAX_PAYLOAD,
     AudioSocketError,
@@ -18,6 +19,45 @@ from satori.infrastructure.calls.audiosocket import (
     AudioSocketReceipt,
     AudioSocketServer,
 )
+from satori.infrastructure.calls.busy import BusyCallHandler
+from tests.busy_call_support import FixtureIntakeAuthority, FixtureSpeech, ReviewInboxes
+
+
+@pytest.mark.parametrize(
+    "greeting", [b"", bytes(32), b"\x01\x00"], ids=["empty", "silence", "quiet"]
+)
+def test_busy_intake_requires_new_greeting_audio(greeting: bytes) -> None:
+    class GreetingSpeech(FixtureSpeech):
+        async def speak(self, line: str, sink: AudioSocketPCM) -> None:
+            if greeting:
+                await sink.write(greeting)
+
+    async def scenario() -> None:
+        audio = grant()
+        auth = FixtureIntakeAuthority(audio)
+        speech = GreetingSpeech()
+        inboxes = ReviewInboxes()
+        handler = BusyCallHandler(
+            auth.grant, authority=auth, speech=speech, deliver=inboxes.deliver
+        )
+        sink = AudioSocketPCM(
+            MagicMock(spec=asyncio.StreamWriter), lambda: 30.0, AudioSocketLimits()
+        )
+        # Audio sent before this invitation cannot open message intake.
+        await sink.write(b"\x01\x00")
+        if any(greeting):
+            await handler.on_open(audio, sink)
+            await handler.on_pcm(audio, speech.render("Перезвони"), sink)
+            assert speech.transcribed == 1
+        else:
+            with pytest.raises(CallIntakeError, match=r"^greeting_audio_missing$"):
+                await handler.on_open(audio, sink)
+            with pytest.raises(CallIntakeError, match=r"^session_stopped$"):
+                await handler.on_pcm(audio, speech.render("Перезвони"), sink)
+            assert speech.transcribed == 0
+        assert inboxes.attempts == 0
+
+    asyncio.run(scenario())
 
 
 class Admission:
@@ -71,12 +111,13 @@ class Handler:
         self.closed.set()
 
 
-def grant(*, seconds: float = 120) -> AudioSocketGrant:
+def grant(*, seconds: float = 120, principal: LocalPrincipal | None = None) -> AudioSocketGrant:
     now = datetime.now(UTC)
     return AudioSocketGrant(
         stream_id=uuid4(),
         binding=CallBinding(
-            principal=LocalPrincipal(os_uid=501, profile_id=uuid4(), session_id=uuid4()),
+            principal=principal
+            or LocalPrincipal(os_uid=501, profile_id=uuid4(), session_id=uuid4()),
             route_id=uuid4(),
             provider_account_ref=uuid4(),
             call_id=uuid4(),
@@ -510,3 +551,146 @@ def test_concurrent_start_cannot_leave_an_extra_listener() -> None:
             await asyncio.open_connection("127.0.0.1", port)
 
     asyncio.run(scenario())
+
+
+_CLEAR = "Это Илья, доставка будет в восемь."
+_DETAIL = "Доставка будет в восемь."
+_THANKS = "Хорошо, передам."
+_ASK = "Подскажите, по какому вы вопросу?"
+
+
+@pytest.mark.parametrize(
+    ("turns", "summary", "lost", "confirm_first"),
+    [
+        pytest.param(((_CLEAR, _THANKS),), _CLEAR, False, False, id="one-clear-answer"),
+        pytest.param((("Перезвони", _THANKS),), "Перезвони", False, False, id="short-request"),
+        pytest.param(
+            (("меня зовут илья", _ASK), ("Такси", _THANKS)),
+            "\n".join(("меня зовут илья", "Такси")),
+            False,
+            False,
+            id="brief-clarification",
+        ),
+        pytest.param(
+            (("Перенесли встречу", _THANKS),), "Перенесли встречу", False, True, id="no-name"
+        ),
+        pytest.param(
+            (("Илья.", _ASK), (_DETAIL, _THANKS)),
+            "Илья.\n" + _DETAIL,
+            False,
+            False,
+            id="name-then-message",
+        ),
+        pytest.param(
+            (("Добрый день", _ASK), (_DETAIL, _THANKS)),
+            _DETAIL,
+            False,
+            False,
+            id="greeting-then-message",
+        ),
+        pytest.param(
+            (("Алло", _ASK), ("Да", "До свидания.")),
+            None,
+            False,
+            False,
+            id="one-clarification-only",
+        ),
+        pytest.param((), None, False, False, id="caller-hangs-up-without-speaking"),
+        pytest.param((("Это Илья", _ASK),), None, False, False, id="intro-only"),
+        pytest.param(
+            (("Ничего не передавайте", "До свидания."),), None, False, False, id="declined"
+        ),
+        pytest.param(((_CLEAR, _THANKS),), None, True, False, id="disconnect"),
+        pytest.param(((_CLEAR, _THANKS),), None, True, True, id="confirmed-before-disconnect"),
+    ],
+)
+def test_busy_call_private_delivery(
+    turns: tuple[tuple[str, str], ...], summary: str | None, lost: bool, confirm_first: bool
+) -> None:
+    async def scenario() -> None:
+        authorized = grant()
+        owner = authorized.binding.principal
+        other_profile = owner.model_copy(update={"profile_id": uuid4()})
+        speech, inboxes = FixtureSpeech(), ReviewInboxes()
+        authority = FixtureIntakeAuthority(authorized)
+        handler = BusyCallHandler(
+            authority.grant,
+            authority=authority,
+            speech=speech,
+            deliver=inboxes.deliver,
+        )
+        server = AudioSocketServer(Admission(authorized), handler)
+        await server.start(enabled=True)
+        try:
+            reader, writer = await connect(server)
+
+            async def hear() -> str:
+                header = await reader.readexactly(3)
+                assert header[0] == 0x10
+                return speech.recognize(await reader.readexactly(int.from_bytes(header[1:], "big")))
+
+            async def send(kind: int, payload: bytes) -> None:
+                writer.write(frame(kind, payload))
+                await writer.drain()
+
+            try:
+                await send(1, authorized.stream_id.bytes)
+                greeting = await hear()
+                assert greeting == (
+                    "Здравствуйте! Я Сатори, ассистент Кирилла. Он сейчас занят. Что ему передать?"
+                )
+                for spoken, reply in turns:
+                    await send(0x10, speech.render(spoken))
+                    assert await hear() == reply
+                assert inboxes.attempts == 0
+                end = CallEndReceipt(
+                    binding=authorized.binding,
+                    receipt_id=uuid4(),
+                    status="confirmed_ended",
+                    observed_at=datetime.now(UTC),
+                )
+                if confirm_first:
+                    handler.accept_call_end(end)
+                    assert inboxes.attempts == 0
+                if lost:
+                    writer.transport.abort()  # Drop TCP without an AudioSocket hangup frame.
+                else:
+                    await send(0, b"")
+                    await eof(reader)
+            finally:
+                writer.close()
+                await writer.wait_closed()
+            media = await settled(server)
+        finally:
+            await server.close()
+
+        assert (media.pcm_frames, media.dtmf_count) == (len(turns), 0)
+        assert speech.transcribed == len(turns)
+        assert media.remote_termination_confirmed is False
+        if lost:
+            assert media.outcome in {"peer_eof", "transport_failed"}
+            with pytest.raises(CallIntakeError, match=r"^session_stopped$"):
+                handler.accept_call_end(end)
+            assert inboxes.attempts == 0
+            assert inboxes.read(owner) == inboxes.read(other_profile) == []
+            return
+
+        assert media.outcome == "peer_hangup"
+        assert inboxes.attempts == int(confirm_first and summary is not None)
+        expected = [summary] if summary is not None else []
+        handler.accept_call_end(end)
+        assert inboxes.attempts == len(expected)
+        assert inboxes.read(owner) == expected
+        handler.accept_call_end(end)
+        assert inboxes.attempts == len(expected)
+        assert inboxes.read(owner) == expected
+        assert inboxes.read(other_profile) == []
+        if expected:
+            (entry,) = inboxes.entries(owner)
+            with pytest.raises(CallIntakeError, match=r"^review_owner_mismatch$"):
+                entry.read(other_profile, now=datetime.now(UTC))
+            authority.current = False
+            with pytest.raises(CallIntakeError, match=r"^authority_unavailable$"):
+                inboxes.read(owner)
+
+    asyncio.run(asyncio.wait_for(scenario(), timeout=5))

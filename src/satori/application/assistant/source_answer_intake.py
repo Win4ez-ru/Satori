@@ -27,6 +27,16 @@ _REPLY_QUESTION = re.compile(
     r"(?:что|кто)\s+(?:мне\s+)?(?:написал[аи]?|написали|ответил[аи]?|ответили)|"
     r"кто\s+(?:мне\s+)?звонил)\b"
 )
+_ANONYMOUS_SENDER = r"кто-(?:нибудь|то|либо)"
+_DID_REPLY = r"(?:ответил[аи]?|написал[аи]?)"
+_COLLOQUIAL_REPLY_QUESTION = re.compile(
+    rf"^(?:(?:а|и|ну)[,\s]+)?(?:"
+    rf"мне\s+{_ANONYMOUS_SENDER}\s+{_DID_REPLY}|"
+    rf"{_ANONYMOUS_SENDER}\s+{_DID_REPLY}\s+мне)\b"
+)
+_INTERVIEW_REPLY_CONTEXT = re.compile(
+    r"\bпо\s+(?:(?:последнему|вчерашнему)\s+)?(?:собесу|собеседованию|интервью)\b"
+)
 _WRITE = re.compile(
     r"\b(?:отправь|отправить|ответь|позвони|напиши|напомни|добавь|внеси|"
     r"создай|поставь|удали|перешли)\b"
@@ -289,11 +299,18 @@ def parse_source_answer_intent(
         return None
     owner_read = _owner_read_request(owner_text)
     scope = _scope_text(normalized)
+    mail, telegram = _message_scopes(scope)
+    colloquial_reply_question = (
+        owner_text.endswith("?")
+        and _COLLOQUIAL_REPLY_QUESTION.match(owner_text) is not None
+        and (mail or telegram or _INTERVIEW_REPLY_CONTEXT.search(scope) is not None)
+    )
     source_question = (_SOURCE.search(scope) or _TELEGRAM_SCOPE.search(scope)) and (
         owner_read or _REPLY_QUESTION.match(owner_text) or _SOURCE_QUESTION.match(owner_text)
     )
     reply_question = (
         _REPLY_QUESTION.match(owner_text) is not None
+        or colloquial_reply_question
         or named_incoming_contact(original) is not None
     )
     if (
@@ -310,7 +327,6 @@ def parse_source_answer_intent(
             timezone=timezone,
             clarification="Сократи запрос, пожалуйста: что именно ищем в сообщениях?",
         )
-    mail, telegram = _message_scopes(scope)
     source: Literal["mail", "telegram"] | None = (
         "mail" if mail and not telegram else "telegram" if telegram and not mail else None
     )

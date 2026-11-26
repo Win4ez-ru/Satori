@@ -34,6 +34,7 @@ class ConversationSourcePanel(QFrame):
     """A presentation-only bubble; it never writes chat history or requests speech."""
 
     settings_requested = Signal()
+    call_inbox_requested = Signal()
 
     def __init__(
         self, controller: "ConversationSourceController", parent: QWidget | None = None
@@ -71,6 +72,10 @@ class ConversationSourcePanel(QFrame):
         self.connect_button.hide()
         self.connect_button.clicked.connect(self.settings_requested)
         layout.addWidget(self.connect_button)
+        self.call_inbox_button = QPushButton("Открыть сводки звонков")
+        self.call_inbox_button.hide()
+        self.call_inbox_button.clicked.connect(self.call_inbox_requested)
+        layout.addWidget(self.call_inbox_button)
         controls = QHBoxLayout()
         self.details_button = QToolButton()
         self.details_button.setText("Что проверила")
@@ -136,8 +141,9 @@ class ConversationSourcePanel(QFrame):
         provider, _, model = self.controller.provider.partition(":")
         name = {"openai": "OpenAI", "ollama": "Ollama"}.get(provider, provider)
         self.provider.setText("Анализ: " + name + (" · " + model if model else ""))
-        self.provider.setVisible(bool(self.controller.provider))
+        self.provider.setVisible(bool(self.controller.provider) and not card.offer_call_inbox)
         self.connect_button.setVisible(card.status == "gpt_required")
+        self.call_inbox_button.setVisible(card.offer_call_inbox)
         self.answer.setPlainText(card.text)
         self._fit_answer()
         self.details.setPlainText("\n\n".join(card.details))

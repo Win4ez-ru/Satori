@@ -36,8 +36,10 @@ from satori.application.assistant.calendar_chat_followup import (
     calendar_followup_reference,
 )
 from satori.application.assistant.calendar_chat_intake import (
+    UNSUPPORTED_EXISTING_EVENT,
     calendar_chat_intake,
     is_calendar_chat_request,
+    is_existing_calendar_mutation,
 )
 from satori.application.assistant.calendar_host_lease import (
     MAX_HOST_LEASE_LIFETIME,
@@ -714,6 +716,10 @@ class CalendarChatController(QObject):
         self.clear()
         if self._closed or not isinstance(text, str) or not 0 < len(text.strip()) <= 8000:
             return False
+        if is_existing_calendar_mutation(text):
+            self._card = CalendarChatCard("unsupported", UNSUPPORTED_EXISTING_EVENT, "")
+            self.changed.emit()
+            return True
         if self.conversational:
             return self._submit_conversation(text)
         self._fields = calendar_chat_fields(text)

@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from satori.application.assistant.contracts import LocalPrincipal
 from satori.application.calls.intake import (
+    BusyMessageGrant,
     CallBinding,
     CallEndReceipt,
     CallFollowupProposal,
@@ -160,6 +161,28 @@ def test_no_intake_before_participant_consent() -> None:
     with pytest.raises(CallIntakeError, match=r"^participant_consent_required$"):
         session.admit_segment(segment(), now=moment(2))
     assert session.metadata(now=moment(2))["segment_count"] == 0
+
+
+def test_busy_message_opening_is_scoped_to_the_granted_call_and_invitation() -> None:
+    existing = grant()
+    legacy = CallIntakeSession(existing, now=NOW, authority=FakeAuthority())
+    with pytest.raises(CallIntakeError, match=r"^busy_message_opening_invalid$"):
+        legacy.open_busy_message(existing.binding, now=moment(1))
+    busy = BusyMessageGrant(**existing.model_dump(), participant_ref=uid(8))
+    session = CallIntakeSession(busy, now=NOW, authority=FakeAuthority())
+    with pytest.raises(CallIntakeError, match=r"^busy_message_intake_closed$"):
+        session.admit_segment(segment(), now=moment(2))
+    with pytest.raises(CallIntakeError, match=r"^binding_mismatch$"):
+        session.open_busy_message(
+            busy.binding.model_copy(update={"leg_id": uid(90)}), now=moment(2)
+        )
+    session.open_busy_message(busy.binding, now=moment(2))
+    with pytest.raises(CallIntakeError, match=r"^busy_message_opening_invalid$"):
+        session.open_busy_message(busy.binding, now=moment(2))
+    session.admit_segment(segment(), now=moment(2))
+    session.accept_end(end(), now=moment(15))
+    with pytest.raises(CallIntakeError, match=r"^followup_selection_invalid$"):
+        session.propose_followup(uid(40), "owner_calendar_review", (uid(11),), now=moment(16))
 
 
 @pytest.mark.parametrize("change", [{"grant_id": uid(99)}, {"notice_digest": "b" * 64}])

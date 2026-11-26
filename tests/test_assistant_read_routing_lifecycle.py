@@ -3,7 +3,6 @@
 import asyncio
 import json
 import os
-import time
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -159,16 +158,27 @@ def test_late_route_cannot_read_or_send_after_window_context_changes(
     w, commands = window
     context(w)
     w.supports_source_answers = True
-    now, tick = [datetime.now(UTC)], [time.monotonic()]
+    # Adding 120 seconds at this uptime crosses a binary precision boundary.
+    now, tick = [datetime.now(UTC)], [440.2]
     controller = w.source_answer
     controller._clock = lambda: now[0]
     controller._monotonic = lambda: tick[0]
+    controller._owner = SourceTaskLeaseOwner(
+        tmp_path.resolve(), clock=controller._clock, monotonic=controller._monotonic
+    )
     w.editor.setPlainText("Здорово, что мне Алексей писал в тг?")
     w.send()
     request = controller._request
     assert request is not None
     assert controller._pending == "route"
     assert controller._current(request)
+    SourceTaskLeaseReader(
+        tmp_path.resolve(),
+        controller._lease,
+        clock=controller._clock,
+        monotonic=controller._monotonic,
+        parent_pid=os.getpid,
+    ).require()
     sent = list(commands)
     received: list[object] = []
     controller.route_ready.connect(lambda *args: received.append(args))

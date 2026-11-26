@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -15,7 +16,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QDate, QEvent, QProcess
+from PySide6.QtCore import QDate, QProcess
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
@@ -394,15 +395,51 @@ def test_saved_profile_change_rebinds_calendar_but_speech_toggle_does_not(
     assert window.mail_panel.controller.principal == current_mail
 
 
-def test_application_activation_reopens_hidden_window(window: DesktopWindow) -> None:
-    app = QApplication.instance()
-    assert isinstance(app, DesktopApplication)
+_ACTIVATION_PROBE = r"""
+import sys
+from pathlib import Path
+
+from PySide6.QtCore import QEvent
+from PySide6.QtTest import QTest
+
+from satori.desktop.settings import DesktopPreferences
+from satori.desktop.ui import DesktopApplication, DesktopWindow
+
+root = Path(sys.argv[1])
+app = DesktopApplication([])
+window = DesktopWindow(DesktopPreferences(
+    data_directory=root / "profile",
+    repository_directory=root,
+    voice_model_directory=root / "voice",
+    speech_model_directory=root / "speech",
+))
+window.poll.stop()
+try:
     app.desktop_window = window
     window.hide()
+    assert not window.isVisible()
     app.event(QEvent(QEvent.Type.ApplicationActivate))
     QTest.qWait(20)
     assert window.isVisible()
+finally:
     app.desktop_window = None
+    window.quitting = True
+    window.tray.hide()
+    window.close()
+"""
+
+
+def test_application_activation_reopens_hidden_window(tmp_path: Path) -> None:
+    # Other offscreen suites may already own the process-wide QApplication.
+    result = subprocess.run(
+        [sys.executable, "-c", _ACTIVATION_PROBE, str(tmp_path)],
+        env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
 
 
 def test_oversized_message_is_not_submitted_or_lost(
