@@ -422,8 +422,11 @@ def test_window_scope_retirement_cancels_exact_search_and_drops_late_result(
 def test_stale_search_finish_cannot_restart_or_replace_new_chat_query(
     search_window: tuple[DesktopWindow, SearchHarness, list[tuple[str, object]]],
     app: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     window, h, requests = search_window
+    # This valid 300-second deadline rounds up when the start is subtracted.
+    monkeypatch.setattr(ui, "monotonic", lambda: 212.2)
     h.connect()
     h.connector.search_gate.clear()
     _submit(window, "FIRST")

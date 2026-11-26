@@ -52,6 +52,8 @@ def test_both_explicit_routes_parse_once_before_calendar_and_keep_exact_text(
     window: Any, monkeypatch: pytest.MonkeyPatch, source: str
 ) -> None:
     w, requests = window
+    monkeypatch.setattr("satori.desktop.ui.monotonic", lambda: 212.2)
+    w.telegram_panel.controller.clock = lambda: 440.2
     calls: list[str] = []
     original = w.assistant.parse
 

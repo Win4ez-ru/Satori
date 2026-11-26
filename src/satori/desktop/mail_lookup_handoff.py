@@ -38,7 +38,7 @@ class MailLookupHandoff:
             or self.epoch < 0
             or not math.isfinite(self.issued_at)
             or not math.isfinite(self.deadline)
-            or not 0 < self.deadline - self.issued_at <= 300
+            or not self.issued_at < self.deadline <= self.issued_at + 300
         ):
             raise ValueError("mail_lookup_handoff_invalid")
         if self.scope == "mailbox" and (

@@ -23,6 +23,12 @@ from satori.application.assistant.contracts import require_utc
 SourceName = Literal["mail", "telegram", "calls"]
 
 
+def monotonic_window_is_current(tick: float, deadline: float, lifetime: timedelta) -> bool:
+    # Compare in the same direction as deadline construction. Subtracting the
+    # lifetime from a rounded deadline can place the start after the issuing tick.
+    return math.isfinite(tick) and tick < deadline <= tick + lifetime.total_seconds()
+
+
 class SourceAnswerError(ValueError):
     """Content-free failure; never includes source, user or provider text."""
 

@@ -3,7 +3,6 @@
 # ruff: noqa: RUF001 - intentional Russian user-facing text.
 
 import json
-import math
 import os
 import time
 from collections.abc import Callable
@@ -29,6 +28,7 @@ from satori.application.assistant.source_answer_contracts import (
     SourceTaskRequest,
     SourceTaskScope,
     SourceTaskSnapshot,
+    monotonic_window_is_current,
 )
 from satori.application.assistant.source_answer_intake import (
     classify_source_answer_followup,
@@ -207,10 +207,9 @@ class ConversationSourceController(QObject):
             or context != (active.scope.identity_id, active.scope.session_id, provider)
             or active.scope.profile_id != self._profile_id
             or not active.created_at <= now < active.expires_at
-            or not math.isfinite(tick)
-            or not deadline - (active.expires_at - active.created_at).total_seconds()
-            <= tick
-            < deadline
+            or not monotonic_window_is_current(
+                tick, deadline, active.expires_at - active.created_at
+            )
             or (self._wall_floor is not None and now < self._wall_floor)
             or (self._tick_floor is not None and tick < self._tick_floor)
             or any(
